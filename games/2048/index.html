@@ -54,6 +54,7 @@
             <button id="newGame">New Game</button>
             <button id="undo">Undo</button>
             <button id="largeTest">Large Numbers Test</button>
+            <button id="mergeTest">Merge Test</button>
         </div>
         <div class="grid" id="grid"></div>
         <div class="banner" id="banner"></div>
@@ -208,7 +209,8 @@
                 mergedPositions.forEach(([r,c]) => {
                     const i = r*4 + c;
                     const cell = gridEl.children[i];
-                    cell.style.fontSize = '4rem';
+                    const size = window.innerWidth < 520 ? '3.5rem' : '4rem';
+                    cell.style.fontSize = size;
                     setTimeout(() => { cell.style.fontSize = ''; }, 250);
                 });
                 if (won) banner.textContent = 'Nice! 2048 reached, keep going...';
@@ -285,12 +287,23 @@
         });
         document.getElementById('largeTest').addEventListener('click', setLargeNumbersTest);
 
+        function setMergeTest() {
+            const cell = gridEl.children[0];
+            const size = window.innerWidth < 520 ? '3.5rem' : '4rem';
+            cell.style.fontSize = size;
+            setTimeout(() => { cell.style.fontSize = ''; }, 250);
+        }
+
+        document.getElementById('mergeTest').addEventListener('click', setMergeTest);
+
         // Show large test button only if URL has test=true
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('test') === 'true') {
             document.getElementById('largeTest').style.display = 'block';
+            document.getElementById('mergeTest').style.display = 'block';
         } else {
             document.getElementById('largeTest').style.display = 'none';
+            document.getElementById('mergeTest').style.display = 'none';
         }
 
         setBoard();
