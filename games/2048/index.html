@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2048 - Yadnyesh Joshi Games</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; background: #f7f5f2; color: #333; }
+        main { max-width: 480px; margin: 24px auto; padding: 16px; }
+        .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+        .topbar h2 { margin: 0; font-size: 1.2rem; }
+        .scores { display: flex; gap: 8px; }
+        .score-box { background:#bbada0;color:#fff;border-radius:6px;padding:8px 12px; text-align:center; min-width:80px; }
+        .grid { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:8px; background:#cdc1b4; padding:10px; border-radius:10px; }
+        .cell { width:100%; aspect-ratio:1 / 1; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:1.1rem; color:#776e65; }
+        .cell[data-value="0"] { background:#eee4da; color:transparent; }
+        .cell[data-value="2"] { background:#eee4da; color:#776e65; }
+        .cell[data-value="4"] { background:#ede0c8; }
+        .cell[data-value="8"] { background:#f2b179; color:#f9f6f2; }
+        .cell[data-value="16"] { background:#f59563; color:#f9f6f2; }
+        .cell[data-value="32"] { background:#f67c5f; color:#f9f6f2; }
+        .cell[data-value="64"] { background:#f65e3b; color:#f9f6f2; }
+        .cell[data-value="128"] { background:#edcf72; color:#f9f6f2; font-size:0.95rem; }
+        .cell[data-value="256"] { background:#edcc61; color:#f9f6f2; font-size:0.95rem; }
+        .cell[data-value="512"] { background:#edc850; color:#f9f6f2; font-size:0.95rem; }
+        .cell[data-value="1024"] { background:#edc53f; color:#f9f6f2; font-size:0.85rem; }
+        .cell[data-value="2048"] { background:#edc22e; color:#f9f6f2; font-size:0.85rem; }
+        .cell[data-value] { transition: background 200ms, transform 120ms; }
+        .controls { margin: 10px 0; display: flex; gap: 8px; flex-wrap: wrap; }
+        .controls button { padding: 8px 12px; border: none; background: #8f7a66; color: #fff; border-radius: 6px; cursor: pointer; flex: 1 1 45%; }
+        .banner { margin-top: 14px; text-align:center; min-height:24px; font-size:0.95rem; }
+        @media (max-width: 520px) { main { margin: 8px; } .cell { font-size: .95rem; } }
+    </style>
+</head>
+<body>
+    <div id="site-header"></div>
+    <main>
+        <div class="topbar">
+            <h2>2048</h2>
+            <div class="scores">
+                <div class="score-box">Score<br><span id="score">0</span></div>
+                <div class="score-box">Best<br><span id="best">0</span></div>
+            </div>
+        </div>
+        <div class="controls">
+            <button id="newGame">New Game</button>
+            <button id="undo">Undo</button>
+        </div>
+        <div class="grid" id="grid"></div>
+        <div class="banner" id="banner"></div>
+    </main>
+    <div id="site-footer"></div>
+    <script src="/inc/include.js"></script>
+
+    <script>
+        const SIZE = 4;
+        let board = [];
+        let score = 0;
+        let best = Number(localStorage.getItem('2048-best') || 0);
+        let undoBoard = [];
+        let undoScore = 0;
+        let won = false;
+
+        const gridEl = document.getElementById('grid');
+        const scoreEl = document.getElementById('score');
+        const bestEl = document.getElementById('best');
+        const banner = document.getElementById('banner');
+
+        function setBoard() {
+            board = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+            score = 0; won = false;
+            pushUndo();
+            addRandom(); addRandom();
+            render();
+            updateScores();
+        }
+
+        function pushUndo() {
+            undoBoard = board.map(row => row.slice());
+            undoScore = score;
+        }
+
+        function updateScores() {
+            scoreEl.textContent = score;
+            best = Math.max(best, score);
+            bestEl.textContent = best;
+            localStorage.setItem('2048-best', best);
+        }
+
+        function addRandom() {
+            const empties = [];
+            for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) if (!board[r][c]) empties.push([r,c]);
+            if (!empties.length) return;
+            const [r,c] = empties[Math.floor(Math.random()*empties.length)];
+            const v = Math.random() < 0.9 ? 2 : 4;
+            board[r][c] = v;
+        }
+
+        function render() {
+            gridEl.innerHTML = '';
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    const div = document.createElement('div');
+                    const val = board[r][c];
+                    div.className = 'cell';
+                    div.dataset.value = val;
+                    div.textContent = val || '';
+                    gridEl.appendChild(div);
+                }
+            }
+            updateScores();
+        }
+
+        function rotateLeft(m) {
+            return m[0].map((_,c) => m.map(r => r[c])).reverse();
+        }
+        function rotateRight(m) {
+            return m[0].map((_,c) => m.map(r => r[c]).reverse());
+        }
+        function moveLine(line) {
+            const filtered = line.filter(v => v !== 0);
+            for (let i = 0; i + 1 < filtered.length; i++) {
+                if (filtered[i] === filtered[i+1]) {
+                    filtered[i] *= 2;
+                    score += filtered[i];
+                    filtered[i+1] = 0;
+                    if (filtered[i] >= 2048) won = true;
+                }
+            }
+            const merged = filtered.filter(v=>v!==0);
+            while (merged.length < SIZE) merged.push(0);
+            return merged;
+        }
+
+        function boardToString(b) {
+            return b.map(r => r.join(',')).join('|');
+        }
+
+        function doMove(direction) {
+            let moved = false;
+            let candidate = board.map(r=>r.slice());
+            if (direction === 'up') candidate = rotateLeft(board);
+            if (direction === 'down') candidate = rotateRight(board);
+            if (direction === 'right') candidate = board.map(r => r.slice().reverse());
+
+            const newBoard = [];
+            for (let r=0;r<SIZE;r++) {
+                const row = moveLine(candidate[r]);
+                if (direction === 'right') row.reverse();
+                newBoard.push(row);
+            }
+
+            if (direction === 'up') newBoard = rotateRight(newBoard);
+            if (direction === 'down') newBoard = rotateLeft(newBoard);
+
+            if (boardToString(board) !== boardToString(newBoard)) {
+                board = newBoard;
+                moved = true;
+            }
+
+            if (moved) {
+                pushUndo();
+                addRandom();
+                render();
+                if (won) banner.textContent = 'Nice! 2048 reached, keep going...';
+                if (isGameOver()) banner.textContent = 'Game Over – no moves left.';
+                if (!won && !isGameOver()) banner.textContent = '';
+            }
+        }
+
+        function isGameOver() {
+            const flat = board.flat();
+            if (flat.includes(0)) return false;
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    if ((r< SIZE-1 && board[r][c]===board[r+1][c]) || (c< SIZE-1 && board[r][c]===board[r][c+1])) return false;
+                }
+            }
+            return true;
+        }
+
+        document.addEventListener('keydown', e => {
+            let direction;
+            if (e.key === 'ArrowUp') direction='up';
+            if (e.key === 'ArrowDown') direction='down';
+            if (e.key === 'ArrowLeft') direction='left';
+            if (e.key === 'ArrowRight') direction='right';
+            if (!direction) return;
+            e.preventDefault();
+            doMove(direction);
+        });
+
+        let touchStart = null;
+        const threshold = 30;
+        document.addEventListener('touchstart', e => { if (e.touches.length===1) touchStart = {x:e.touches[0].clientX,y:e.touches[0].clientY}; });
+        document.addEventListener('touchend', e => {
+            if (!touchStart) return;
+            const t = e.changedTouches[0];
+            const dx = t.clientX - touchStart.x;
+            const dy = t.clientY - touchStart.y;
+            if (Math.max(Math.abs(dx),Math.abs(dy)) > threshold) {
+                if (Math.abs(dx) > Math.abs(dy)) doMove(dx>0 ? 'right':'left');
+                else doMove(dy>0 ? 'down':'up');
+            }
+            touchStart = null;
+        });
+
+        document.getElementById('newGame').addEventListener('click', () => { setBoard(); banner.textContent=''; });
+        document.getElementById('undo').addEventListener('click', () => {
+            board = undoBoard.map(r=>r.slice()); score = undoScore; render(); banner.textContent='Undo done';
+        });
+
+        setBoard();
+    </script>
+</body>
+</html>
