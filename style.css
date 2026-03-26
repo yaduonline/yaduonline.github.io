@@ -190,3 +190,29 @@ footer {
         font-size: 1.5rem;
     }
 }
+
+/* Mobile navigation buttons */
+@media (max-width: 520px) {
+    header nav ul {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+    
+    header nav li {
+        flex: 1 1 auto;
+    }
+    
+    header nav a {
+        display: block;
+        padding: 8px 12px;
+        text-decoration: none;
+        color: #333;
+        background: #f0f0f0;
+        border-radius: 4px;
+        text-align: center;
+    }
+}
