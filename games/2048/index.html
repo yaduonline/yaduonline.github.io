@@ -232,7 +232,7 @@
             const dx = t.clientX - touchStart.x;
             const dy = t.clientY - touchStart.y;
             if (Math.max(Math.abs(dx), Math.abs(dy)) > threshold) {
-                e.preventDefault();
+                if (e.cancelable) e.preventDefault();
             }
         }, {passive: false});
         document.addEventListener('touchend', e => {
