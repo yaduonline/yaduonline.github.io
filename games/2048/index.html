@@ -231,11 +231,13 @@
                 [512,1024,2048,4096],
                 [8192,16384,32768,65536]
             ];
-            score = board.flat().reduce((acc,val) => acc + val, 0);
+            score = 0; // Don't set score to sum, keep it 0 for test
             won = true;
             render();
             banner.textContent = 'Large-number test applied (all values visible).';
-            updateScores();
+            // Don't update scores to avoid modifying best
+            scoreEl.textContent = score;
+            bestEl.textContent = best;
         }
 
         document.getElementById('newGame').addEventListener('click', () => { setBoard(); banner.textContent=''; });
