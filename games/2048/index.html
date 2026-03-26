@@ -12,7 +12,7 @@
         .topbar h2 { margin: 0; font-size: 1.2rem; }
         .scores { display: flex; gap: 8px; }
         .score-box { background:#bbada0;color:#fff;border-radius:6px;padding:8px 12px; text-align:center; min-width:80px; }
-        .grid { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:6px; background:#cdc1b4; padding:8px; border-radius:10px; }
+        .grid { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:6px; background:#cdc1b4; padding:8px; border-radius:10px; touch-action: none; }
         .cell { width:100%; aspect-ratio:1 / 1; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:3rem; line-height:1.05; color:#776e65; text-align:center; white-space:normal; word-break:break-word; padding:4px; }
         .cell[data-value="0"] { background:#eee4da; color:transparent; }
         .cell[data-value="2"] { background:#eee4da; color:#776e65; }
@@ -198,7 +198,16 @@
 
         let touchStart = null;
         const threshold = 30;
-        document.addEventListener('touchstart', e => { if (e.touches.length===1) touchStart = {x:e.touches[0].clientX,y:e.touches[0].clientY}; });
+        document.addEventListener('touchstart', e => { if (e.touches.length===1) touchStart = {x:e.touches[0].clientX,y:e.touches[0].clientY}; }, {passive: true});
+        document.addEventListener('touchmove', e => {
+            if (!touchStart) return;
+            const t = e.touches[0];
+            const dx = t.clientX - touchStart.x;
+            const dy = t.clientY - touchStart.y;
+            if (Math.max(Math.abs(dx), Math.abs(dy)) > threshold) {
+                e.preventDefault();
+            }
+        }, {passive: false});
         document.addEventListener('touchend', e => {
             if (!touchStart) return;
             const t = e.changedTouches[0];
