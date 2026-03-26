@@ -19,30 +19,33 @@ Create a fully playable 2048 sliding tile puzzle game as a single HTML file (`in
 - **Buttons**: New Game, Undo.
 - **UI Elements**: Score display, Best score display, banner for messages.
 - **Test Mode**: "Large Numbers Test" button visible only with `?test=true` URL parameter. Populates board with high values (2 to 65536) for testing.
+- **Animations**: Smooth flowing tile movements on swipe using CSS transitions (grid-row/column).
 
 ## Visual Design
 - **Colors**: Classic beige theme.
   - Grid background: #cdc1b4
   - Empty tiles: #eee4da
   - Tile heatmap: progressively darker backgrounds as values increase (e.g., 2: light, 2048: dark).
-- **Typography**: Uniform font size (3rem) for all tiles, wrap multi-line for large numbers (e.g., 4-digit values).
+- **Typography**: Uniform font size (3.5rem desktop, 2rem mobile) for all tiles, wrap multi-line for large numbers (e.g., 4-digit values).
 - **Layout**: Responsive grid, centered main content, minimal margins.
-- **Mobile**: Prevent page scroll during swipes, responsive nav (wrap links to avoid horizontal overflow).
+- **Mobile**: Prevent page scroll during swipes (with cancelable check), responsive nav (wrap links to avoid horizontal overflow).
 
 ## Technical Requirements
 - **File Structure**: Single HTML file with inline `<style>` and `<script>`.
 - **JS Includes**: Load shared header/footer from `/inc/header.html` and `/inc/footer.html` via fetch.
-- **Touch Handling**: Use `touchstart`, `touchmove`, `touchend` with `preventDefault` for swipes.
-- **CSS**: Grid layout for tiles, flex for controls, media queries for mobile.
+- **Touch Handling**: Use `touchstart`, `touchmove`, `touchend` with `preventDefault` (only if cancelable) for swipes.
+- **CSS**: Grid layout for tiles with transitions, flex for controls, media queries for mobile.
 - **No External Dependencies**: Pure vanilla JS/CSS.
 
 ## Development Notes
-- Font size iterated from 1.5rem to 3rem for visibility.
-- Fixed const assignment bug in move logic.
-- Added responsive nav CSS overrides.
+- Font size adjusted to 3.5rem desktop, 2rem mobile for better visibility.
+- Added flowing swipe animation with CSS transitions on grid-row and grid-column.
+- Merge animation attempted but removed due to scaling issues on empty tiles.
+- Fixed touchmove preventDefault error by checking e.cancelable.
 - Ensured large numbers wrap without shrinking font.
+- Responsive design with media queries.
 
 ## Testing
 - Desktop: Arrow keys, button clicks.
-- Mobile: Swipe gestures, no page scroll.
-- Test mode: Access via `?test=true` to verify large number display.
+- Mobile: Swipe gestures, no page scroll or console errors.
+- Test mode: Access via `?test=true` to verify large number display and animations.
