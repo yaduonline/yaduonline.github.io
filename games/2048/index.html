@@ -144,7 +144,7 @@
             if (direction === 'down') candidate = rotateRight(board);
             if (direction === 'right') candidate = board.map(r => r.slice().reverse());
 
-            const newBoard = [];
+            let newBoard = [];
             for (let r=0;r<SIZE;r++) {
                 const row = moveLine(candidate[r]);
                 if (direction === 'right') row.reverse();
