@@ -207,6 +207,8 @@
                 pushUndo();
                 addRandom();
                 render();
+                // Clear any lingering merged classes
+                for (let cell of gridEl.children) cell.classList.remove('merged');
                 mergedPositions.forEach(([r,c]) => {
                     const i = r*4 + c;
                     const cell = gridEl.children[i];
@@ -288,6 +290,7 @@
         document.getElementById('largeTest').addEventListener('click', setLargeNumbersTest);
 
         function setMergeTest() {
+            for (let cell of gridEl.children) cell.classList.remove('merged');
             const cell = gridEl.children[0];
             cell.classList.add('merged');
             setTimeout(() => { cell.classList.remove('merged'); }, 250);
