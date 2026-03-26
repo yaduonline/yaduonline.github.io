@@ -29,7 +29,6 @@
         .cell[data-value="4096"] { background:#3c3a32; color:#f9f6f2; }
         .cell[data-value="8192"] { background:#2d2b26; color:#f9f6f2; }
         .cell[data-value="16384"] { background:#1f1e1b; color:#f9f6f2; }
-        .cell.merged { transform: scale(1.1); }
         .cell[data-value] { transition: background 200ms, transform 0.2s linear, grid-row 0.2s ease, grid-column 0.2s ease, font-size 0.2s linear; }
         .controls { margin: 10px 0; display: flex; gap: 8px; flex-wrap: wrap; }
         .controls button { padding: 8px 12px; border: none; background: #8f7a66; color: #fff; border-radius: 6px; cursor: pointer; flex: 1 1 45%; }
@@ -55,7 +54,6 @@
             <button id="newGame">New Game</button>
             <button id="undo">Undo</button>
             <button id="largeTest">Large Numbers Test</button>
-            <button id="mergeTest">Merge Test</button>
         </div>
         <div class="grid" id="grid"></div>
         <div class="banner" id="banner"></div>
@@ -141,19 +139,17 @@
         }
         function moveLine(line) {
             const filtered = line.filter(v => v !== 0);
-            const mergedIndices = [];
             for (let i = 0; i + 1 < filtered.length; i++) {
                 if (filtered[i] === filtered[i+1]) {
                     filtered[i] *= 2;
                     score += filtered[i];
                     filtered[i+1] = 0;
-                    mergedIndices.push(i);
                     if (filtered[i] >= 2048) won = true;
                 }
             }
             const newLine = filtered.filter(v=>v!==0);
             while (newLine.length < SIZE) newLine.push(0);
-            return {line: newLine, merged: mergedIndices};
+            return newLine;
         }
 
         function boardToString(b) {
@@ -168,32 +164,24 @@
             if (direction === 'right') candidate = board.map(r => r.slice().reverse());
 
             let newBoard = [];
-            let mergedPositions = [];
             if (direction === 'left') {
                 for (let r=0;r<SIZE;r++) {
-                    const res = moveLine(candidate[r]);
-                    newBoard.push(res.line);
-                    res.merged.forEach(m => mergedPositions.push([r, m]));
+                    newBoard.push(moveLine(candidate[r]));
                 }
             } else if (direction === 'right') {
                 for (let r=0;r<SIZE;r++) {
-                    const res = moveLine(candidate[r]);
-                    const row = res.line.reverse();
+                    const row = moveLine(candidate[r]);
+                    row.reverse();
                     newBoard.push(row);
-                    res.merged.forEach(m => mergedPositions.push([r, SIZE-1 - m]));
                 }
             } else if (direction === 'up') {
                 for (let r=0;r<SIZE;r++) {
-                    const res = moveLine(candidate[r]);
-                    newBoard.push(res.line);
-                    res.merged.forEach(m => mergedPositions.push([m, SIZE-1 - r]));
+                    newBoard.push(moveLine(candidate[r]));
                 }
                 newBoard = rotateRight(newBoard);
             } else if (direction === 'down') {
                 for (let r=0;r<SIZE;r++) {
-                    const res = moveLine(candidate[r]);
-                    newBoard.push(res.line);
-                    res.merged.forEach(m => mergedPositions.push([SIZE-1 - r, m]));
+                    newBoard.push(moveLine(candidate[r]));
                 }
                 newBoard = rotateLeft(newBoard);
             }
@@ -207,14 +195,6 @@
                 pushUndo();
                 addRandom();
                 render();
-                // Clear any lingering merged classes
-                for (let cell of gridEl.children) cell.classList.remove('merged');
-                mergedPositions.forEach(([r,c]) => {
-                    const i = r*4 + c;
-                    const cell = gridEl.children[i];
-                    cell.classList.add('merged');
-                    setTimeout(() => { cell.classList.remove('merged'); }, 200);
-                });
                 if (won) banner.textContent = 'Nice! 2048 reached, keep going...';
                 if (isGameOver()) banner.textContent = 'Game Over – no moves left.';
                 if (!won && !isGameOver()) banner.textContent = '';
@@ -289,23 +269,12 @@
         });
         document.getElementById('largeTest').addEventListener('click', setLargeNumbersTest);
 
-        function setMergeTest() {
-            for (let cell of gridEl.children) cell.classList.remove('merged');
-            const cell = gridEl.children[0];
-            cell.classList.add('merged');
-            setTimeout(() => { cell.classList.remove('merged'); }, 200);
-        }
-
-        document.getElementById('mergeTest').addEventListener('click', setMergeTest);
-
         // Show large test button only if URL has test=true
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('test') === 'true') {
             document.getElementById('largeTest').style.display = 'block';
-            document.getElementById('mergeTest').style.display = 'block';
         } else {
             document.getElementById('largeTest').style.display = 'none';
-            document.getElementById('mergeTest').style.display = 'none';
         }
 
         setBoard();
