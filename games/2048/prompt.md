@@ -16,7 +16,7 @@ Create a fully playable 2048 sliding tile puzzle game as a single HTML file (`in
 
 ## Features
 - **Controls**: Keyboard (arrow keys) + touch swipe (mobile).
-- **Buttons**: New Game, Undo.
+- **Buttons**: New Game.
 - **UI Elements**: Score display, Best score display, banner for messages.
 - **Test Mode**: "Large Numbers Test" button visible only with `?test=true` URL parameter. Populates board with high values (2 to 65536) for testing.
 - **Animations**: Smooth flowing tile movements on swipe using CSS transitions (grid-row/column).

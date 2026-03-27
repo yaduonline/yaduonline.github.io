@@ -48,7 +48,6 @@
         </div>
         <div class="controls">
             <button id="newGame">New Game</button>
-            <button id="undo">Undo</button>
             <button id="largeTest">Large Numbers Test</button>
         </div>
         <div class="grid" id="grid"></div>
@@ -260,9 +259,6 @@
         }
 
         document.getElementById('newGame').addEventListener('click', () => { setBoard(); banner.textContent=''; });
-        document.getElementById('undo').addEventListener('click', () => {
-            board = undoBoard.map(r=>r.slice()); score = undoScore; render(); banner.textContent='Undo done';
-        });
         document.getElementById('largeTest').addEventListener('click', setLargeNumbersTest);
 
         // Show large test button only if URL has test=true
