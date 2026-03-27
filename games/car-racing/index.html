@@ -60,7 +60,8 @@
             width: 100%;
             aspect-ratio: 9 / 16;
             min-height: 460px;
-            background: linear-gradient(#607d8b 0%, #455a64 100%);
+            background-image: linear-gradient(to bottom, rgba(255,255,255,0.05) 15%, rgba(255,255,255,0.05) 20%, transparent 20%, transparent 90%, rgba(255,255,255,0.05) 90%, rgba(255,255,255,0.0));
+            background-size: 100% 60px;
             border-radius: 12px;
             overflow: hidden;
             touch-action: none;
@@ -75,23 +76,41 @@
         }
         .car {
             position: absolute;
-            width: calc(18% - 10px);
-            min-width: 48px;
-            height: 72px;
+            width: calc(16% - 10px);
+            min-width: 40px;
+            height: 80px;
             border-radius: 14px;
             border: 1px solid #222;
             box-sizing: border-box;
             display: grid;
             place-items: center;
             color: #fff;
-            font-weight: 700;
+            font-weight: 800;
             font-size: 1.1rem;
             z-index: 2;
             transition: left 0.16s ease, top 0.16s ease, transform 0.15s ease;
         }
-        .user-car { box-shadow: 0 0 18px rgba(25, 118, 210,0.8); border-width: 2px; }
-        .opponent-car { border-style: dashed; transform: perspective(50px) rotateX(4deg); border-color: #fff; }
-        .traffic-car { opacity: 0.92; filter: brightness(0.85); }
+        .car::before {
+            content: '';
+            position: absolute;
+            inset: 8px;
+            border-radius: 8px;
+            background: linear-gradient(145deg, rgba(255,255,255,0.2), rgba(255,255,255,0));
+            pointer-events: none;
+        }
+        .car::after {
+            content: '';
+            position: absolute;
+            top: 12px;
+            width: 60%;
+            height: 8px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.9);
+            box-shadow: 0 0 4px rgba(255,255,255,0.6);
+        }
+        .user-car { box-shadow: 0 0 22px rgba(25, 118, 210, 0.85), inset 0 0 8px rgba(255,255,255,0.45); border-width: 2px; filter: contrast(1.1); }
+        .opponent-car { border-style: dashed; border-color: rgba(255,255,255,0.85); opacity: 0.95; }
+        .traffic-car { opacity: 0.9; filter: brightness(0.75); }
         .message {
             margin-top: 8px;
             min-height: 24px;
@@ -106,6 +125,15 @@
             height: 3px;
             background: linear-gradient(to right, transparent, #fff, transparent);
             top: 10%;
+            z-index: 1;
+        }
+        .start-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(to right, rgba(255,255,255,0.3), rgba(255,255,255,0.8), rgba(255,255,255,0.3));
+            bottom: 9%;
             z-index: 1;
         }
         @media (max-width: 600px) {
@@ -138,6 +166,7 @@
 
         <div id="track" aria-label="Racing track"></div>
         <div id="finishLine" class="finish-line" aria-label="Finish line"></div>
+        <div id="startLine" class="start-line" aria-label="Start line"></div>
         <div class="message" id="message">Use left/right/up/down keys or touch controls. Up to accelerate, down to decelerate.</div>
         <div class="hint">On touch, swipe left/right to change lanes, swipe down to slow; tap/hold anywhere to accelerate.</div>
     </main>
@@ -158,7 +187,7 @@
         const message = document.getElementById('message');
 
         const lanes = 4;
-        const carHeight = 44;
+        const carHeight = 80;
         let state = {
             route: 'city',
             difficulty: 'beginner',
@@ -170,6 +199,7 @@
             running: false,
             finished: false,
             trackProgress: 0,
+            trackOffset: 0,
             score: 0,
             opponents: [],
             traffic: [],
@@ -195,7 +225,8 @@
 
         function laneX(lane) {
             const width = track.clientWidth;
-            return (lane * width / lanes) + 6;
+            const laneWidth = width / lanes;
+            return (lane * laneWidth) + (laneWidth - (track.clientWidth * 0.16)) / 2;
         }
 
         function yToPixels(y) {
@@ -266,7 +297,9 @@
             difficultyLabel.textContent = state.difficulty;
             clearTrack();
             drawLaneDividers();
-            track.style.background = `linear-gradient(${routeConfig[state.route].color} 0%, #455a64 100%)`;
+            track.style.backgroundImage = `linear-gradient(to bottom, rgba(255,255,255,0.05) 15%, rgba(255,255,255,0.05) 20%, transparent 20%, transparent 90%, rgba(255,255,255,0.05) 90%, transparent)`;
+            track.style.backgroundColor = routeConfig[state.route].color;
+            track.style.backgroundSize = '100% 60px';
 
             const userCar = createCar({ id: 'user', lane: state.userLane, y: 0.88, color: '#1976d2', symbol: '★', type: 'user', speed: 1 });
             userCar.progress = 0;
@@ -275,11 +308,11 @@
             const colors = ['#d32f2f', '#388e3c', '#f57c00'];
             const symbols = ['A', 'B', 'C'];
             for (let i = 0; i < 3; i++) {
-                const lane = (i + 1) % lanes;
-                const progress = 0.2 + Math.random() * 0.3;
-                const y = 0.88 - progress * 0.7;
-                const opp = createCar({ id: 'opp' + i, lane, y, color: colors[i], symbol: symbols[i], type: 'opponent', speed: 1.0 });
-                opp.progress = progress;
+                const lane = i;
+                const y = 0.88;
+                const oppSpeed = 0.75 + Math.random() * 0.55;
+                const opp = createCar({ id: 'opp' + i, lane, y, color: colors[i], symbol: symbols[i], type: 'opponent', speed: oppSpeed });
+                opp.progress = 0;
                 state.opponents.push(opp);
             }
 
@@ -336,13 +369,13 @@
                 if (!car.active) car.active = true;
                 const free = Math.random() < Math.min(0.65, 0.2 + cfg.aiFactor * 0.05);
                 if (free) {
-                    const desiredLane = Math.floor((state.userLane + 1 + (index % 2 === 0 ? -1 : 1) * Math.ceil(Math.random() * 2) + lanes) % lanes);
+                    const desiredLane = Math.floor((car.lane + (Math.random() > 0.5 ? 1 : -1) + lanes) % lanes);
                     car.lane = desiredLane;
                 }
-                const outrun = (0.65 + cfg.aiFactor * 0.25);
-                car.progress = Math.min(1, (car.progress || 0) + outrun * delta * 0.12);
-                car.y = 0.88 - car.progress * 0.75;
-                if (car.progress >= 1) car.progress = 1;
+                const baseTick = delta * (0.9 + cfg.aiFactor * 0.35) * car.speed;
+                car.progress = Math.min(1, (car.progress || 0) + baseTick * 0.8);
+                car.y = 0.89 - car.progress * 0.75;
+                if (car.progress > 1) car.progress = 1;
             });
             if (state.userCar) state.userCar.progress = state.trackProgress;
         }
@@ -382,7 +415,7 @@
                 }
 
                 const pace = (state.speed / diffConfig[state.difficulty].maxSpeed) * 1.2;
-                state.trackProgress = Math.min(1, state.trackProgress + pace * delta / 38);
+                state.trackProgress = Math.min(1, state.trackProgress + pace * delta / 36);
 
                 if (state.trackProgress >= 1) {
                     state.finished = true;
@@ -392,7 +425,9 @@
                 }
             }
 
-            const groundMotion = state.speed * 0.15 + 0.35;
+            state.trackOffset = (state.trackOffset + (state.speed * 25 + 12) * delta) % 60;
+            track.style.backgroundPosition = `0 ${state.trackOffset}px`;
+            const groundMotion = state.speed * 0.18 + 0.35;
 
             state.traffic.forEach(car => {
                 car.y += groundMotion * delta;
@@ -404,7 +439,6 @@
                 spawnTraffic(delta);
             }
 
-            updateAI(delta);
             cleanVanishedCars();
             checkCollision();
             renderAll();
@@ -428,7 +462,13 @@
         }
 
         document.addEventListener('keydown', e => {
-            if (!state.running) return;
+            if (!state.running) {
+                if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    startGame();
+                }
+                return;
+            }
             if (e.key === 'ArrowLeft') {
                 e.preventDefault();
                 onLaneChange('left');
