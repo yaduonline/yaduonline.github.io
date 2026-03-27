@@ -75,21 +75,23 @@
         }
         .car {
             position: absolute;
-            width: calc(25% - 11px);
-            height: 44px;
-            border-radius: 8px;
-            border: 2px solid #222;
+            width: calc(18% - 10px);
+            min-width: 48px;
+            height: 72px;
+            border-radius: 14px;
+            border: 1px solid #222;
             box-sizing: border-box;
             display: grid;
             place-items: center;
             color: #fff;
             font-weight: 700;
-            font-size: 1rem;
+            font-size: 1.1rem;
             z-index: 2;
-            transition: left 0.16s ease;
+            transition: left 0.16s ease, top 0.16s ease, transform 0.15s ease;
         }
-        .user-car { box-shadow: 0 0 10px rgba(0,0,0,0.3); }
-        .traffic-car { opacity: 0.92; }
+        .user-car { box-shadow: 0 0 18px rgba(25, 118, 210,0.8); border-width: 2px; }
+        .opponent-car { border-style: dashed; transform: perspective(50px) rotateX(4deg); border-color: #fff; }
+        .traffic-car { opacity: 0.92; filter: brightness(0.85); }
         .message {
             margin-top: 8px;
             min-height: 24px;
@@ -97,9 +99,18 @@
             font-weight: 600;
         }
         .hint { font-size: 0.86rem; color: #565a66; margin-top: 4px; }
+        .finish-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(to right, transparent, #fff, transparent);
+            top: 10%;
+            z-index: 1;
+        }
         @media (max-width: 600px) {
             main { margin: 6px; }
-            .car { height: 40px; font-size: 0.85rem; }
+            .car { height: 54px; font-size: 0.82rem; }
             .controls select, .controls button { font-size: 0.9rem; padding: 8px; }
         }
     </style>
@@ -112,6 +123,9 @@
             <div class="status-card"><strong>Difficulty</strong><span id="difficultyLabel">Beginner</span></div>
             <div class="status-card"><strong>Speed</strong><span id="speedLabel">0</span></div>
             <div class="status-card"><strong>Lane</strong><span id="laneLabel">1</span></div>
+            <div class="status-card"><strong>Progress</strong><span id="progressLabel">0%</span></div>
+            <div class="status-card"><strong>Remaining</strong><span id="remainingLabel">100%</span></div>
+            <div class="status-card"><strong>Position</strong><span id="positionLabel">4/4</span></div>
         </div>
 
         <div class="controls">
@@ -123,6 +137,7 @@
         </div>
 
         <div id="track" aria-label="Racing track"></div>
+        <div id="finishLine" class="finish-line" aria-label="Finish line"></div>
         <div class="message" id="message">Use left/right/up/down keys or touch controls. Up to accelerate, down to decelerate.</div>
         <div class="hint">On touch, swipe left/right to change lanes, swipe down to slow; tap/hold anywhere to accelerate.</div>
     </main>
@@ -153,6 +168,8 @@
             accelerating: false,
             decelerating: false,
             running: false,
+            finished: false,
+            trackProgress: 0,
             score: 0,
             opponents: [],
             traffic: [],
@@ -169,11 +186,11 @@
         };
 
         const diffConfig = {
-            beginner: { maxSpeed: 2.2, spawnRate: 0.7, aiFactor: 0.65 },
-            intermediate: { maxSpeed: 2.8, spawnRate: 1.1, aiFactor: 0.8 },
-            advanced: { maxSpeed: 3.5, spawnRate: 1.5, aiFactor: 1.0 },
-            expert: { maxSpeed: 4.2, spawnRate: 2.0, aiFactor: 1.2 },
-            master: { maxSpeed: 5.0, spawnRate: 2.7, aiFactor: 1.45 }
+            beginner: { maxSpeed: 1.2, spawnRate: 0.5, aiFactor: 0.45 },
+            intermediate: { maxSpeed: 2.6, spawnRate: 0.95, aiFactor: 0.78 },
+            advanced: { maxSpeed: 3.4, spawnRate: 1.4, aiFactor: 0.98 },
+            expert: { maxSpeed: 4.2, spawnRate: 1.9, aiFactor: 1.2 },
+            master: { maxSpeed: 5.2, spawnRate: 2.4, aiFactor: 1.5 }
         };
 
         function laneX(lane) {
@@ -187,7 +204,11 @@
 
         function createCar({id, lane, y, color, symbol, type, speed = 1}) {
             const element = document.createElement('div');
-            element.className = 'car ' + (type === 'user' ? 'user-car' : 'traffic-car');
+            let className = 'car ';
+            if (type === 'user') className += 'user-car';
+            else if (type === 'opponent') className += 'opponent-car';
+            else className += 'traffic-car';
+            element.className = className;
             element.style.background = color;
             element.textContent = symbol || '';
             element.dataset.id = id;
@@ -205,6 +226,12 @@
             difficultyLabel.textContent = state.difficulty.charAt(0).toUpperCase() + state.difficulty.slice(1);
             speedLabel.textContent = state.speed.toFixed(1);
             laneLabel.textContent = (state.userLane + 1);
+            const progress = Math.round(state.trackProgress * 100);
+            document.getElementById('progressLabel').textContent = progress + '%';
+            document.getElementById('remainingLabel').textContent = Math.max(0, 100 - progress) + '%';
+            const ahead = state.opponents.filter(o => o.progress > state.trackProgress).length;
+            const position = Math.min(4, 1 + ahead);
+            document.getElementById('positionLabel').textContent = position + '/4';
         }
 
         function clearTrack() {
@@ -228,6 +255,8 @@
             state.stopped = false;
             state.accelerating = false;
             state.decelerating = false;
+            state.finished = false;
+            state.trackProgress = 0;
             state.score = 0;
             state.spawnedSince = 0;
             startLaneSelect.value = state.userLane;
@@ -237,15 +266,21 @@
             difficultyLabel.textContent = state.difficulty;
             clearTrack();
             drawLaneDividers();
+            track.style.background = `linear-gradient(${routeConfig[state.route].color} 0%, #455a64 100%)`;
 
-            const userCar = createCar({ id: 'user', lane: state.userLane, y: 0.88, color: '#1976d2', symbol: '★', type: 'user', speed: 1});
+            const userCar = createCar({ id: 'user', lane: state.userLane, y: 0.88, color: '#1976d2', symbol: '★', type: 'user', speed: 1 });
+            userCar.progress = 0;
             state.userCar = userCar;
 
             const colors = ['#d32f2f', '#388e3c', '#f57c00'];
+            const symbols = ['A', 'B', 'C'];
             for (let i = 0; i < 3; i++) {
                 const lane = (i + 1) % lanes;
-                const y = 0.3 - i * 0.25;
-                state.opponents.push(createCar({ id: 'opp' + i, lane, y, color: colors[i], symbol: '', type: 'traffic', speed: 1.0 }));
+                const progress = 0.2 + Math.random() * 0.3;
+                const y = 0.88 - progress * 0.7;
+                const opp = createCar({ id: 'opp' + i, lane, y, color: colors[i], symbol: symbols[i], type: 'opponent', speed: 1.0 });
+                opp.progress = progress;
+                state.opponents.push(opp);
             }
 
             updateOverlay();
@@ -295,31 +330,36 @@
             return 1; // placeholder for future route/score random factors
         }
 
-        function updateAI(delta) {
+        function updateAI(delta, groundMotion) {
             const cfg = diffConfig[state.difficulty];
             state.opponents.forEach((car, index) => {
                 if (!car.active) car.active = true;
-                const targetY = car.y + cfg.maxSpeed * 0.01 * delta;
-                const free = Math.random() < (0.02 * (1 + cfg.aiFactor));
+                const free = Math.random() < Math.min(0.65, 0.2 + cfg.aiFactor * 0.05);
                 if (free) {
                     const desiredLane = Math.floor((state.userLane + 1 + (index % 2 === 0 ? -1 : 1) * Math.ceil(Math.random() * 2) + lanes) % lanes);
                     car.lane = desiredLane;
                 }
-                car.y += (cfg.maxSpeed * 0.35 + car.speed * 0.22) * delta;
-                if (car.y > 1.2) car.y = -0.45;
+                const outrun = (0.65 + cfg.aiFactor * 0.25);
+                car.progress = Math.min(1, (car.progress || 0) + outrun * delta * 0.12);
+                car.y = 0.88 - car.progress * 0.75;
+                if (car.progress >= 1) car.progress = 1;
             });
+            if (state.userCar) state.userCar.progress = state.trackProgress;
         }
 
         function checkCollision() {
+            if (state.finished || state.stopped) return;
             const u = state.userCar;
             const collisionBetween = [...state.opponents, ...state.traffic].some(car => {
                 if (car.lane !== u.lane) return false;
                 const dy = Math.abs(car.y - u.y);
                 return dy < 0.07;
             });
-            if (collisionBetween && !state.stopped) {
+            if (collisionBetween) {
                 state.stopped = true;
                 state.speed = 0;
+                state.accelerating = false;
+                state.decelerating = false;
                 setMessage('Collision! Press up or tap to resume.', false);
             }
         }
@@ -334,26 +374,33 @@
             const delta = Math.min(0.035, (timestamp - state.lastTimestamp) / 1000);
             state.lastTimestamp = timestamp;
 
-            if (!state.stopped) {
+            if (!state.stopped && !state.finished) {
                 if (state.accelerating) state.speed = Math.min(diffConfig[state.difficulty].maxSpeed, state.speed + 3.1 * delta);
                 if (state.decelerating) state.speed = Math.max(0, state.speed - 3.8 * delta);
                 if (!state.accelerating && !state.decelerating) {
                     state.speed = Math.max(0, state.speed - 0.45 * delta);
                 }
+
+                const pace = (state.speed / diffConfig[state.difficulty].maxSpeed) * 1.2;
+                state.trackProgress = Math.min(1, state.trackProgress + pace * delta / 38);
+
+                if (state.trackProgress >= 1) {
+                    state.finished = true;
+                    state.running = false;
+                    state.speed = 0;
+                    setMessage('Finish line reached in about 45 seconds! Great job!', false);
+                }
             }
 
             const groundMotion = state.speed * 0.15 + 0.35;
-
-            state.opponents.forEach(car => {
-                car.y += groundMotion * delta * (1 + (diffConfig[state.difficulty].aiFactor - 0.7) * 0.15);
-                if (car.y > 1.2) car.y = -0.35;
-            });
 
             state.traffic.forEach(car => {
                 car.y += groundMotion * delta;
             });
 
-            if (!state.stopped) {
+            updateAI(delta, groundMotion);
+
+            if (!state.stopped && !state.finished) {
                 spawnTraffic(delta);
             }
 
