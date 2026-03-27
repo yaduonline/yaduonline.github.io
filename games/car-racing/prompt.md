@@ -7,11 +7,10 @@ Create a simple car-racing game where the player controls one car in a four-lane
 - **Lanes**: Four parallel lanes on the highway.
 - **Players**: One user-controlled car and three computer-controlled cars.
 - **Traffic**: Non-playing cars appear randomly on each lane as obstacles.
-- **Collision**: If the user's car collides with any other car (opponent or traffic), the game stops, and the user must restart.
+- **Collision**: If the user's car collides with any other car (opponent or traffic), the user's car stops, however game continues. User has to press upward keyboard button or touch screen again to start the car again.
 - **Lane Changing**: User can change lanes to avoid collisions.
 - **Acceleration/Deceleration**: 
-  - Up arrow or upward swipe: Accelerate the car.
-  - After releasing up arrow or consistent touch (no direction change), car maintains constant speed.
+  - Up arrow or simple touch on the screen or upward swipe: Accelerate the car. Constant press against the screen means car keeps accelerating until the press is over.
   - Down arrow or downward swipe: Decelerate the car.
 - **Routes**: Multiple predefined routes (e.g., city, highway, mountain). User selects a route before starting.
 - **Difficulty Levels**: Five named levels from beginner to expert, affecting opponent AI behavior (e.g., speed, lane-changing frequency).
@@ -21,11 +20,11 @@ Create a simple car-racing game where the player controls one car in a four-lane
 ## Controls
 - **Keyboard**:
   - Left/Right arrows: Change lanes.
-  - Up arrow: Accelerate (hold to speed up, release to maintain speed).
+  - Up arrow: Accelerate (hold to keep accelerating).
   - Down arrow: Decelerate.
 - **Touch/Mobile**:
   - Swipe left/right: Change lanes.
-  - Swipe up: Accelerate (consistent upward swipe to maintain speed).
+  - Touch (tap or swipe up): Accelerate (hold to keep accelerating).
   - Swipe down: Decelerate.
 - Ensure touch controls prevent page scrolling and are responsive on mobile devices.
 
