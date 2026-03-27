@@ -10,7 +10,8 @@ This `games/` folder contains simple, self-contained HTML games that can be play
 - **No Authentication**: No login, user accounts, or session management.
 - **No Advertisements**: Clean, ad-free gaming experience.
 - **Offline Playable**: Copy the `games/` folder to any computer and open game files directly in a browser to play.
-- **Responsive Design**: Games should work on desktop and mobile devices, with touch controls where appropriate.
+- **Responsive and Mobile-Friendly**: Games should work seamlessly on desktop and mobile devices, adapting layout and controls appropriately.
+- **Controls**: Support keyboard (arrow keys, space, etc.), mouse clicks, and touch gestures for full cross-device playability.
 - **Accessibility**: Basic keyboard and screen reader support where feasible.
 - **Performance**: Lightweight code with minimal resource usage.
 - **Scoring/Persistence**: Use localStorage for high scores or game state if needed.
