@@ -1,556 +1,334 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Car Racing - Yadnyesh Joshi Games</title>
-    <link rel="stylesheet" href="/style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Racing - Step 1</title>
+    <link rel="stylesheet" href="/style.css">
     <style>
+        :root {
+            --road-color: #555; /* Lightened for better contrast */
+            --grass-color: #3a5a3a;
+            --grass-light: #4c6e4c;
+            --grass-dark: #2a3f2a;
+            --dirt-color: #5d4037;
+            --lane-line: #fff;
+            --car-main: #34495e; /* Distinct Sober Blue */
+            --car-window: #1a1a1a;
+            --sunroof: #111;
+            --tail-light-off: #4a0000;
+            --tail-light-on: #ff1a1a;
+        }
+
         body {
             margin: 0;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #f4f6f9;
-            color: #1d1f21;
-        }
-        main {
-            max-width: 680px;
-            margin: 12px auto;
-            padding: 10px;
-        }
-        .topbar {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-        .status-card {
-            background: #fff;
-            border: 1px solid #dbdfe6;
-            border-radius: 8px;
-            padding: 8px 10px;
-        }
-        .status-card strong { display: block; font-size: 0.9rem; margin-bottom: 2px; }
-        .state-row {
+            background: #f0f0f0;
+            font-family: system-ui, -apple-system, sans-serif;
+            overflow: hidden;
             display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-bottom: 10px;
+            flex-direction: column;
+            height: 100vh;
         }
-        .state-row > * {
-            flex: 1 1 120px;
-            min-width: 120px;
-        }
-        .controls {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin: 10px 0;
-        }
-        .controls select, .controls button {
-            font-size: 0.95rem;
-            border: 1px solid #9ca4b4;
-            background: #fff;
-            padding: 8px 10px;
-            border-radius: 6px;
-            cursor: pointer;
-            width: 100%;
-        }
-        #track {
+
+        #game-view {
             position: relative;
             width: 100%;
-            aspect-ratio: 9 / 16;
-            min-height: 460px;
-            background-image: linear-gradient(to bottom, rgba(255,255,255,0.05) 15%, rgba(255,255,255,0.05) 20%, transparent 20%, transparent 90%, rgba(255,255,255,0.05) 90%, rgba(255,255,255,0.0));
-            background-size: 100% 60px;
-            border-radius: 12px;
-            overflow: hidden;
-            touch-action: none;
+            flex: 1;
+            background: #87ceeb; /* Sky */
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
-        .lane-divider {
+
+        /* Terrain with more natural varying texture */
+        #terrain {
             position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 3px;
-            background: rgba(255,255,255,0.45);
-            z-index: 1;
+            inset: 0;
+            background: var(--grass-color);
+            background-image: 
+                radial-gradient(circle at 10% 20%, var(--grass-light) 1px, transparent 20%),
+                radial-gradient(circle at 80% 40%, var(--grass-dark) 2px, transparent 15%),
+                radial-gradient(circle at 40% 70%, var(--dirt-color) 1px, transparent 10%),
+                linear-gradient(45deg, transparent 45%, rgba(0,0,0,0.05) 50%, transparent 55%);
+            background-size: 150px 150px;
         }
-        .car {
+
+        #road-container {
+            position: relative;
+            width: 320px;
+            height: 100%;
+            background: var(--road-color);
+            box-shadow: 0 0 30px rgba(0,0,0,0.6);
+            display: flex;
+        }
+
+        .lane {
+            flex: 1;
+            position: relative;
+            border-right: 2px dashed rgba(255,255,255,0.2);
+        }
+        .lane:last-child { border-right: none; }
+
+        /* Moving markers */
+        #markers-layer {
             position: absolute;
-            width: calc(16% - 10px);
-            min-width: 40px;
-            height: 80px;
-            border-radius: 14px;
-            border: 1px solid #222;
-            box-sizing: border-box;
-            display: grid;
-            place-items: center;
-            color: #fff;
-            font-weight: 800;
-            font-size: 1.1rem;
-            z-index: 2;
-            transition: left 0.16s ease, top 0.16s ease, transform 0.15s ease;
+            inset: 0;
+            pointer-events: none;
+            background-image: linear-gradient(to bottom, 
+                var(--lane-line) 0%, var(--lane-line) 30%, 
+                transparent 30%, transparent 100%);
+            background-size: 4px 80px;
+            background-repeat: repeat-y;
+            background-position: center;
+            opacity: 0.5;
         }
-        .car::before {
+
+        /* Sophisticated Car - Tapered Shape */
+        #player-car {
+            position: absolute;
+            width: 56px;
+            height: 100px;
+            bottom: 180px; /* Moved up more */
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            transition: left 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            perspective: 500px;
+        }
+
+        .car-body {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: var(--car-main);
+            /* Tapered shape - notably narrower at bottom (rear) */
+            clip-path: polygon(15% 0, 85% 0, 100% 40%, 80% 100%, 20% 100%, 0 40%);
+            border-radius: 15px 15px 12px 12px;
+            box-shadow: 0 12px 25px rgba(0,0,0,0.5);
+            transform: rotateX(15deg);
+            background: linear-gradient(to right, 
+                rgba(0,0,0,0.3) 0%, transparent 15%, 
+                transparent 85%, rgba(0,0,0,0.3) 100%),
+                var(--car-main);
+        }
+
+        /* Sunroof and Windows */
+        .car-body::before {
             content: '';
             position: absolute;
-            inset: 8px;
-            border-radius: 8px;
-            background: linear-gradient(145deg, rgba(255,255,255,0.2), rgba(255,255,255,0));
+            top: 15px; left: 8px; right: 8px; height: 50px;
+            background: var(--car-window);
+            border-radius: 8px 8px 4px 4px;
+        }
+
+        /* The Sunroof itself */
+        .car-body::after {
+            content: '';
+            position: absolute;
+            top: 25px; left: 14px; right: 14px; height: 18px;
+            background: var(--sunroof);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 2px;
+            box-shadow: inset 0 0 5px rgba(255,255,255,0.05);
+        }
+
+        .headlights {
+            position: absolute;
+            top: 2px; width: 100%;
+            display: flex; justify-content: space-around;
+        }
+        .headlights::before, .headlights::after {
+            content: ''; width: 14px; height: 5px;
+            background: #fff9c4; border-radius: 4px;
+            box-shadow: 0 -2px 12px #fff;
+        }
+
+        .tail-lights {
+            position: absolute;
+            bottom: 5px; width: 100%;
+            display: flex; justify-content: space-between;
+            padding: 0 8px;
+            box-sizing: border-box;
+        }
+        .tail-lights::before, .tail-lights::after {
+            content: ''; width: 16px; height: 5px;
+            background: var(--tail-light-off);
+            border-radius: 2px;
+            transition: background 0.1s, box-shadow 0.1s;
+        }
+        #player-car.braking .tail-lights::before, 
+        #player-car.braking .tail-lights::after {
+            background: var(--tail-light-on);
+            box-shadow: 0 2px 10px var(--tail-light-on);
+        }
+
+        .spoiler {
+            position: absolute;
+            bottom: 0px; left: 5px; right: 5px; height: 6px;
+            background: rgba(0,0,0,0.3); border-radius: 2px;
+        }
+
+        
+
+        /* Scenery Styles */
+        .scenery {
+            position: absolute;
+            z-index: 5;
             pointer-events: none;
         }
-        .car::after {
-            content: '';
+
+        .tree {
+            border-radius: 50%;
+            background: #1b5e20;
+            box-shadow: inset -5px -5px 15px rgba(0,0,0,0.3);
+        }
+
+        /* Varying tree details */
+        .tree.flowering::after {
+            content: ''; position: absolute; inset: 20%;
+            background-image: radial-gradient(circle, #ff80ab 2px, transparent 3px);
+            background-size: 10px 10px;
+        }
+        .tree.fruiting::after {
+            content: ''; position: absolute; inset: 15%;
+            background-image: radial-gradient(circle, #d32f2f 3px, transparent 4px);
+            background-size: 15px 15px;
+        }
+
+        .rock {
+            background: #757575;
+            border-radius: 40% 60% 50% 50% / 60% 40% 60% 40%;
+            box-shadow: inset -3px -3px 10px rgba(0,0,0,0.4);
+        }
+
+        /* UI */
+        #hud {
             position: absolute;
-            top: 12px;
-            width: 60%;
-            height: 8px;
-            border-radius: 4px;
-            background: rgba(255,255,255,0.9);
-            box-shadow: 0 0 4px rgba(255,255,255,0.6);
-        }
-        .user-car { box-shadow: 0 0 22px rgba(25, 118, 210, 0.85), inset 0 0 8px rgba(255,255,255,0.45); border-width: 2px; filter: contrast(1.1); }
-        .opponent-car { border-style: dashed; border-color: rgba(255,255,255,0.85); opacity: 0.95; }
-        .traffic-car { opacity: 0.9; filter: brightness(0.75); }
-        .message {
-            margin-top: 8px;
-            min-height: 24px;
-            font-size: 0.95rem;
-            font-weight: 600;
-        }
-        .hint { font-size: 0.86rem; color: #565a66; margin-top: 4px; }
-        .finish-line {
-            position: absolute;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(to right, transparent, #fff, transparent);
-            top: 10%;
-            z-index: 1;
-        }
-        .start-line {
-            position: absolute;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(to right, rgba(255,255,255,0.3), rgba(255,255,255,0.8), rgba(255,255,255,0.3));
-            bottom: 9%;
-            z-index: 1;
-        }
-        @media (max-width: 600px) {
-            main { margin: 6px; }
-            .car { height: 54px; font-size: 0.82rem; }
-            .controls select, .controls button { font-size: 0.9rem; padding: 8px; }
+            top: 80px; left: 20px;
+            background: #ffffff; /* White background */
+            color: #1a1a1a;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(0,0,0,0.1);
+            pointer-events: none;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* More classy font */
         }
     </style>
 </head>
 <body>
     <div id="site-header"></div>
-    <main>
-        <div class="topbar">
-            <div class="status-card"><strong>Route</strong><span id="routeLabel">City</span></div>
-            <div class="status-card"><strong>Difficulty</strong><span id="difficultyLabel">Beginner</span></div>
-            <div class="status-card"><strong>Speed</strong><span id="speedLabel">0</span></div>
-            <div class="status-card"><strong>Lane</strong><span id="laneLabel">1</span></div>
-            <div class="status-card"><strong>Progress</strong><span id="progressLabel">0%</span></div>
-            <div class="status-card"><strong>Remaining</strong><span id="remainingLabel">100%</span></div>
-            <div class="status-card"><strong>Position</strong><span id="positionLabel">4/4</span></div>
+
+    <div id="game-view">
+        <div id="terrain"></div>
+        <div id="hud">
+            <div style="font-size: 1.2em; font-weight: bold; margin-bottom: 5px;">Speed</div>
+            <div id="speed-meter" style="font-family: monospace; font-size: 1.5em;">0 km/h</div>
         </div>
 
-        <div class="controls">
-            <select id="route"> <option value="city">City</option> <option value="highway">Highway</option> <option value="mountain">Mountain</option> </select>
-            <select id="difficulty"> <option value="beginner">Beginner</option> <option value="intermediate">Intermediate</option> <option value="advanced">Advanced</option> <option value="expert">Expert</option> <option value="master">Master</option> </select>
-            <select id="startLane"><option value="0">Lane 1</option><option value="1">Lane 2</option><option value="2">Lane 3</option><option value="3">Lane 4</option></select>
-            <button id="startBtn">Start</button>
-            <button id="resetBtn">Reset</button>
+        <div id="road-container">
+            <div class="lane"></div>
+            <div class="lane"></div>
+            <div class="lane"></div>
+            <div class="lane"></div>
+            <div id="markers-layer"></div>
+            
+                        <div id="player-car">
+                <div class="car-body">
+                    <div class="headlights"></div>
+                    <div class="tail-lights"></div>
+                    <div class="spoiler"></div>
+                </div>
+            </div>
         </div>
+    </div>
 
-        <div id="track" aria-label="Racing track"></div>
-        <div id="finishLine" class="finish-line" aria-label="Finish line"></div>
-        <div id="startLine" class="start-line" aria-label="Start line"></div>
-        <div class="message" id="message">Use left/right/up/down keys or touch controls. Up to accelerate, down to decelerate.</div>
-        <div class="hint">On touch, swipe left/right to change lanes, swipe down to slow; tap/hold anywhere to accelerate.</div>
-    </main>
     <div id="site-footer"></div>
 
     <script src="/inc/include.js"></script>
     <script>
-        const track = document.getElementById('track');
-        const routeSelect = document.getElementById('route');
-        const difficultySelect = document.getElementById('difficulty');
-        const startLaneSelect = document.getElementById('startLane');
-        const startBtn = document.getElementById('startBtn');
-        const resetBtn = document.getElementById('resetBtn');
-        const routeLabel = document.getElementById('routeLabel');
-        const difficultyLabel = document.getElementById('difficultyLabel');
-        const speedLabel = document.getElementById('speedLabel');
-        const laneLabel = document.getElementById('laneLabel');
-        const message = document.getElementById('message');
+        const car = document.getElementById('player-car');
+        const markers = document.getElementById('markers-layer');
+        const terrain = document.getElementById('terrain');
+        const speedMeter = document.getElementById('speed-meter');
+        const lanes = document.querySelectorAll('.lane');
 
-        const lanes = 4;
-        const carHeight = 80;
-        let state = {
-            route: 'city',
-            difficulty: 'beginner',
-            userLane: 0,
-            speed: 0,
-            stopped: false,
-            accelerating: false,
-            decelerating: false,
-            running: false,
-            finished: false,
-            trackProgress: 0,
-            trackOffset: 0,
-            score: 0,
-            opponents: [],
-            traffic: [],
-            lastTimestamp: null,
-            touchStart: null,
-            touchMoved: false,
-            spawnedSince: 0,
-        };
+        let currentLane = 1; // 0-3
+        let speed = 0;
+        let targetSpeed = 0;
+        let offset = 0;
+        let terrainOffset = 0;
 
-        const routeConfig = {
-            city: { color: '#37474f', density: 1.0 },
-            highway: { color: '#263238', density: 1.2 },
-            mountain: { color: '#1b2832', density: 0.85 }
-        };
+        const maxSpeed = 160;
+        const acceleration = 0.6; /* Lowered from 1.2 for more realistic buildup */
+        const friction = 0.4;
 
-        const diffConfig = {
-            beginner: { maxSpeed: 1.2, spawnRate: 0.5, aiFactor: 0.45 },
-            intermediate: { maxSpeed: 2.6, spawnRate: 0.95, aiFactor: 0.78 },
-            advanced: { maxSpeed: 3.4, spawnRate: 1.4, aiFactor: 0.98 },
-            expert: { maxSpeed: 4.2, spawnRate: 1.9, aiFactor: 1.2 },
-            master: { maxSpeed: 5.2, spawnRate: 2.4, aiFactor: 1.5 }
-        };
-
-        function laneX(lane) {
-            const width = track.clientWidth;
-            const laneWidth = width / lanes;
-            return (lane * laneWidth) + (laneWidth - (track.clientWidth * 0.16)) / 2;
+        // Positioning
+        function updateCarPos() {
+            const laneRect = lanes[currentLane].getBoundingClientRect();
+            const roadRect = document.getElementById('road-container').getBoundingClientRect();
+            const relativeLeft = laneRect.left - roadRect.left + (laneRect.width / 2);
+            car.style.left = `${relativeLeft}px`;
         }
 
-        function yToPixels(y) {
-            return (y * (track.clientHeight - carHeight));
+        // Inputs
+        const keys = {};
+        window.addEventListener('keydown', e => {
+            keys[e.code] = true;
+            if (e.code === 'ArrowLeft') moveLane(-1);
+            if (e.code === 'ArrowRight') moveLane(1);
+        });
+        window.addEventListener('keyup', e => keys[e.code] = false);
+
+        function moveLane(dir) {
+            currentLane = Math.max(0, Math.min(3, currentLane + dir));
+            updateCarPos();
         }
 
-        function createCar({id, lane, y, color, symbol, type, speed = 1}) {
-            const element = document.createElement('div');
-            let className = 'car ';
-            if (type === 'user') className += 'user-car';
-            else if (type === 'opponent') className += 'opponent-car';
-            else className += 'traffic-car';
-            element.className = className;
-            element.style.background = color;
-            element.textContent = symbol || '';
-            element.dataset.id = id;
-            track.appendChild(element);
-            return { id, lane, y, color, symbol, type, speed, element };
-        }
-
-        function setMessage(txt, autoClear = true) {
-            message.textContent = txt;
-            if (autoClear) setTimeout(() => { if (message.textContent === txt) message.textContent = 'Use left/right/up/down keys or touch controls. Up to accelerate, down to decelerate.'; }, 2200);
-        }
-
-        function updateOverlay() {
-            routeLabel.textContent = state.route.charAt(0).toUpperCase() + state.route.slice(1);
-            difficultyLabel.textContent = state.difficulty.charAt(0).toUpperCase() + state.difficulty.slice(1);
-            speedLabel.textContent = state.speed.toFixed(1);
-            laneLabel.textContent = (state.userLane + 1);
-            const progress = Math.round(state.trackProgress * 100);
-            document.getElementById('progressLabel').textContent = progress + '%';
-            document.getElementById('remainingLabel').textContent = Math.max(0, 100 - progress) + '%';
-            const ahead = state.opponents.filter(o => o.progress > state.trackProgress).length;
-            const position = Math.min(4, 1 + ahead);
-            document.getElementById('positionLabel').textContent = position + '/4';
-        }
-
-        function clearTrack() {
-            [...track.querySelectorAll('.car')].forEach(c => c.remove());
-            track.querySelectorAll('.lane-divider').forEach(d => d.remove());
-        }
-
-        function drawLaneDividers() {
-            for (let i = 1; i < lanes; i++) {
-                const div = document.createElement('div');
-                div.className = 'lane-divider';
-                div.style.left = `calc(${(i * 100 / lanes)}% - 1.5px)`;
-                track.appendChild(div);
-            }
-        }
-
-        function resetGame() {
-            state.opponents = [];
-            state.traffic = [];
-            state.speed = 0;
-            state.stopped = false;
-            state.accelerating = false;
-            state.decelerating = false;
-            state.finished = false;
-            state.trackProgress = 0;
-            state.score = 0;
-            state.spawnedSince = 0;
-            startLaneSelect.value = state.userLane;
-            routeSelect.value = state.route;
-            difficultySelect.value = state.difficulty;
-            routeLabel.textContent = state.route;
-            difficultyLabel.textContent = state.difficulty;
-            clearTrack();
-            drawLaneDividers();
-            track.style.backgroundImage = `linear-gradient(to bottom, rgba(255,255,255,0.05) 15%, rgba(255,255,255,0.05) 20%, transparent 20%, transparent 90%, rgba(255,255,255,0.05) 90%, transparent)`;
-            track.style.backgroundColor = routeConfig[state.route].color;
-            track.style.backgroundSize = '100% 60px';
-
-            const userCar = createCar({ id: 'user', lane: state.userLane, y: 0.88, color: '#1976d2', symbol: '★', type: 'user', speed: 1 });
-            userCar.progress = 0;
-            state.userCar = userCar;
-
-            const colors = ['#d32f2f', '#388e3c', '#f57c00'];
-            const symbols = ['A', 'B', 'C'];
-            for (let i = 0; i < 3; i++) {
-                const lane = i;
-                const y = 0.88;
-                const oppSpeed = 0.75 + Math.random() * 0.55;
-                const opp = createCar({ id: 'opp' + i, lane, y, color: colors[i], symbol: symbols[i], type: 'opponent', speed: oppSpeed });
-                opp.progress = 0;
-                state.opponents.push(opp);
-            }
-
-            updateOverlay();
-            renderAll();
-        }
-
-        function startGame() {
-            state.route = routeSelect.value;
-            state.difficulty = difficultySelect.value;
-            state.userLane = parseInt(startLaneSelect.value, 10);
-            state.stopped = false;
-            state.running = true;
-            state.lastTimestamp = null;
-            resetGame();
-            setMessage('Game started! Avoid collisions and survive longer.');
-            requestAnimationFrame(gameLoop);
-        }
-
-        function setCarPosition(car) {
-            const left = laneX(car.lane);
-            car.element.style.left = left + 'px';
-            car.element.style.top = (yToPixels(car.y)) + 'px';
-        }
-
-        function renderAll() {
-            if (!state.userCar) return;
-            setCarPosition(state.userCar);
-            [...state.opponents, ...state.traffic].forEach(c => setCarPosition(c));
-            updateOverlay();
-        }
-
-        function spawnTraffic(delta) {
-            const cfg = diffConfig[state.difficulty];
-            state.spawnedSince += delta * 60;
-            const target = cfg.spawnRate;
-            if (Math.random() < 0.015 * svg()) {
-            }
-            if (Math.random() < target * delta * routeConfig[state.route].density / 50) {
-                const lane = Math.floor(Math.random() * lanes);
-                const y = -0.15;
-                const colors = ['#607d8b', '#546e7a', '#90a4ae', '#78909c'];
-                state.traffic.push(createCar({ id: 't' + Date.now() + Math.random(), lane, y, color: colors[Math.floor(Math.random() * colors.length)], symbol: '', type: 'traffic', speed: 1 }));
-            }
-        }
-
-        function svg() {
-            return 1; // placeholder for future route/score random factors
-        }
-
-        function updateAI(delta, groundMotion) {
-            const cfg = diffConfig[state.difficulty];
-            state.opponents.forEach((car, index) => {
-                if (!car.active) car.active = true;
-                const free = Math.random() < Math.min(0.65, 0.2 + cfg.aiFactor * 0.05);
-                if (free) {
-                    const desiredLane = Math.floor((car.lane + (Math.random() > 0.5 ? 1 : -1) + lanes) % lanes);
-                    car.lane = desiredLane;
-                }
-                const baseTick = delta * (0.9 + cfg.aiFactor * 0.35) * car.speed;
-                car.progress = Math.min(1, (car.progress || 0) + baseTick * 0.8);
-                car.y = 0.89 - car.progress * 0.75;
-                if (car.progress > 1) car.progress = 1;
-            });
-            if (state.userCar) state.userCar.progress = state.trackProgress;
-        }
-
-        function checkCollision() {
-            if (state.finished || state.stopped) return;
-            const u = state.userCar;
-            const collisionBetween = [...state.opponents, ...state.traffic].some(car => {
-                if (car.lane !== u.lane) return false;
-                const dy = Math.abs(car.y - u.y);
-                return dy < 0.07;
-            });
-            if (collisionBetween) {
-                state.stopped = true;
-                state.speed = 0;
-                state.accelerating = false;
-                state.decelerating = false;
-                setMessage('Collision! Press up or tap to resume.', false);
-            }
-        }
-
-        function cleanVanishedCars() {
-            state.traffic = state.traffic.filter(c => c.y < 1.25);
-        }
-
-        function gameLoop(timestamp) {
-            if (!state.running) return;
-            if (!state.lastTimestamp) state.lastTimestamp = timestamp;
-            const delta = Math.min(0.035, (timestamp - state.lastTimestamp) / 1000);
-            state.lastTimestamp = timestamp;
-
-            if (!state.stopped && !state.finished) {
-                if (state.accelerating) state.speed = Math.min(diffConfig[state.difficulty].maxSpeed, state.speed + 3.1 * delta);
-                if (state.decelerating) state.speed = Math.max(0, state.speed - 3.8 * delta);
-                if (!state.accelerating && !state.decelerating) {
-                    state.speed = Math.max(0, state.speed - 0.45 * delta);
-                }
-
-                const pace = (state.speed / diffConfig[state.difficulty].maxSpeed) * 1.2;
-                state.trackProgress = Math.min(1, state.trackProgress + pace * delta / 36);
-
-                if (state.trackProgress >= 1) {
-                    state.finished = true;
-                    state.running = false;
-                    state.speed = 0;
-                    setMessage('Finish line reached in about 45 seconds! Great job!', false);
-                }
-            }
-
-            state.trackOffset = (state.trackOffset + (state.speed * 25 + 12) * delta) % 60;
-            track.style.backgroundPosition = `0 ${state.trackOffset}px`;
-            const groundMotion = state.speed * 0.18 + 0.35;
-
-            state.traffic.forEach(car => {
-                car.y += groundMotion * delta;
-            });
-
-            updateAI(delta, groundMotion);
-
-            if (!state.stopped && !state.finished) {
-                spawnTraffic(delta);
-            }
-
-            cleanVanishedCars();
-            checkCollision();
-            renderAll();
-
-            if (state.running) requestAnimationFrame(gameLoop);
-        }
-
-        function onLaneChange(direction) {
-            if (direction === 'left') state.userLane = Math.max(0, state.userLane - 1);
-            if (direction === 'right') state.userLane = Math.min(lanes - 1, state.userLane + 1);
-            if (state.userCar) state.userCar.lane = state.userLane;
-            updateOverlay();
-        }
-
-        function resumeAfterStop() {
-            if (state.stopped) {
-                state.stopped = false;
-                state.accelerating = true;
-                setMessage('Resumed. Keep steering to avoid cars!', true);
-            }
-        }
-
-        document.addEventListener('keydown', e => {
-            if (!state.running) {
-                if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    startGame();
-                }
-                return;
-            }
-            if (e.key === 'ArrowLeft') {
-                e.preventDefault();
-                onLaneChange('left');
-            }
-            if (e.key === 'ArrowRight') {
-                e.preventDefault();
-                onLaneChange('right');
-            }
-            if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                resumeAfterStop();
-                state.accelerating = true;
-            }
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                state.decelerating = true;
-            }
+        // Touch
+        let startX, startY;
+        window.addEventListener('touchstart', e => {
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            targetSpeed = maxSpeed;
+        });
+        window.addEventListener('touchend', e => {
+            const dx = e.changedTouches[0].clientX - startX;
+            if (Math.abs(dx) > 40) moveLane(dx > 0 ? 1 : -1);
+            targetSpeed = 0;
         });
 
-        document.addEventListener('keyup', e => {
-            if (e.key === 'ArrowUp') state.accelerating = false;
-            if (e.key === 'ArrowDown') state.decelerating = false;
-        });
+        // Loop
+        function loop() {
+            // Speed logic
+            if (keys['ArrowUp']) targetSpeed = maxSpeed;
+            else if (keys['ArrowDown']) targetSpeed = 0;
+            else if (!('ontouchstart' in window)) targetSpeed = Math.max(0, targetSpeed - friction);
 
-        track.addEventListener('touchstart', e => {
-            if (!state.running) return;
-            if (e.touches.length !== 1) return;
-            e.preventDefault();
-            state.touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: performance.now() };
-            state.touchMoved = false;
-            resumeAfterStop();
-            state.accelerating = true;
-        }, { passive: false });
-
-        track.addEventListener('touchmove', e => {
-            if (!state.touchStart || e.touches.length !== 1) return;
-            e.preventDefault();
-            const dx = e.touches[0].clientX - state.touchStart.x;
-            const dy = e.touches[0].clientY - state.touchStart.y;
-            if (Math.abs(dx) > 18 || Math.abs(dy) > 18) {
-                state.touchMoved = true;
-            }
-        }, { passive: false });
-
-        track.addEventListener('touchend', e => {
-            if (!state.touchStart) return;
-            const touch = e.changedTouches[0];
-            const dx = touch.clientX - state.touchStart.x;
-            const dy = touch.clientY - state.touchStart.y;
-            state.accelerating = false;
-
-            const absDx = Math.abs(dx);
-            const absDy = Math.abs(dy);
-            const minSwipe = 30;
-
-            if (absDx > minSwipe || absDy > minSwipe) {
-                if (absDx > absDy) {
-                    if (dx > 0) onLaneChange('right'); else onLaneChange('left');
-                } else {
-                    if (dy > 0) { state.decelerating = true; setTimeout(() => state.decelerating = false, 200); }
-                    else { state.accelerating = true; setTimeout(() => state.accelerating = false, 200); }
-                }
+            if (speed < targetSpeed) {
+                speed = Math.min(targetSpeed, speed + acceleration);
+                car.classList.remove('braking'); // Turn off tail lights when accelerating
+            } else if (speed > targetSpeed) {
+                speed = Math.max(targetSpeed, speed - friction * 2);
+                car.classList.add('braking'); // Turn on tail lights when decelerating
             } else {
-                resumeAfterStop();
-                state.accelerating = true;
-                setTimeout(() => { state.accelerating = false; }, 220);
+                car.classList.remove('braking'); // Turn off when at constant speed
             }
-            state.touchStart = null;
-        }, { passive: false });
 
-        startBtn.addEventListener('click', startGame);
-        resetBtn.addEventListener('click', () => {
-            state.running = false;
-            resetGame();
-            setMessage('Game reset. Click Start to play.');
-        });
+            // Animation
+            if (speed > 0) {
+                offset = (offset + speed / 8) % 80;
+                terrainOffset = (terrainOffset + speed / 15) % 100;
+                markers.style.transform = `translateY(${offset}px)`;
+                terrain.style.backgroundPosition = `0 ${terrainOffset}px`;
+            }
 
-        window.addEventListener('resize', renderAll);
+            speedMeter.innerText = `${Math.round(speed)} km/h`;
+            requestAnimationFrame(loop);
+        }
 
-        // initialize view
-        drawLaneDividers();
-        resetGame();
+        window.addEventListener('resize', updateCarPos);
+        updateCarPos();
+        loop();
     </script>
 </body>
 </html>
