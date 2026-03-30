@@ -513,6 +513,7 @@
             filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.35));
             pointer-events: none;
             display: none;
+            transition: left 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         .opponent-label {
             position: absolute;
@@ -1057,6 +1058,7 @@
                 opponentCars.push({
                     el,
                     lane: startLanes[i],
+                    displayLane: -1, // force left to be set on first render
                     worldY: 0,
                     speed: cfg.speed,
                     currentSpeed: 0,
@@ -1126,7 +1128,11 @@
                 }
                 oc.el.style.display = 'block';
                 oc.el.style.top  = (screenY - 50) + 'px';
-                oc.el.style.left = getLaneCenterX(oc.lane) + 'px';
+                // Only update left on lane change so the CSS transition can animate smoothly
+                if (oc.displayLane !== oc.lane) {
+                    oc.displayLane = oc.lane;
+                    oc.el.style.left = getLaneCenterX(oc.lane) + 'px';
+                }
             }
         }
 
