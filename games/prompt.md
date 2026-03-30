@@ -5,6 +5,7 @@ This `games/` folder contains simple, self-contained HTML games that can be play
 
 ## Common Rules for All Games
 - **Self-Contained**: Each game is a single `.html` file containing all HTML, CSS, and JavaScript code.
+- **Soothing Color Palette**: Avoid bright-primary and neon colors. Use desaturated, warm-neutral tones to minimize eye strain. Prefer muted blue-green or sage tones for active game elements, warm dark backgrounds (not pure black), warm off-white for text, and avoid saturated reds, limes, or pure yellows. Research on color perception shows desaturated blue-green hues are rated most calming and warm-neutral dark backgrounds reduce blue-light fatigue compared to high-contrast pure-black or cold-indigo backgrounds.
 - **No External Dependencies**: No frameworks (e.g., React, Vue), libraries (e.g., jQuery), or CDN resources. Pure vanilla JavaScript, HTML, and CSS only.
 - **Browser-Only**: Games run entirely in the browser with no server-side components, databases, or API calls.
 - **No Authentication**: No login, user accounts, or session management.

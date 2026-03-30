@@ -81,10 +81,34 @@ This implementation is a single-player browser game. Pure vanilla JS/CSS/HTML, s
 
 ---
 
+## Color Palette
+
+All colors use the **Dusk Slate** palette — desaturated, warm-neutral tones chosen to minimize eye strain. Avoid bright-primary and neon colors throughout.
+
+| Element | Color | Hex |
+|---|---|---|
+| Canvas background | Warm dark slate | `#1c2030` |
+| Grid lines | Barely-lighter slate | `#232840` |
+| Snake head | Muted sage-teal | `#6ec6a2` |
+| Snake body | Soft mint | `#9ad4bf` |
+| Apple | Warm terracotta | `#e0856a` |
+| Cherry | Soft rose-mauve | `#c47088` |
+| Golden apple | Muted warm amber | `#d4a855` |
+| Overlay | Dark semi-transparent | `rgba(12,14,26,0.68)` |
+| UI text | Warm off-white | `#c8d0e0` |
+| UI labels | Muted slate | `#7a8fa8` |
+| Meta bar background | Deep slate navy | `#27364f` |
+| Button background | Slate blue | `#2f4260` |
+| Button border | Lighter slate | `#3d5478` |
+
+**Rationale**: Research on color perception and eye fatigue shows that desaturated blue-green hues are rated most calming; warm (not cool-gray) dark backgrounds reduce blue-light exposure; and highly-saturated primaries (bright red, lime green, pure yellow) increase visual agitation. This palette avoids all of those.
+
+---
+
 ## UI / Layout
 
 - Same site header/footer integration as other games.
-- **Meta bar** (matches car-racing style — dark teal `#2e5c4e`, 48px tall) containing:
+- **Meta bar** (dark slate navy `#27364f`, 48px tall) containing:
   - **Score** — current session score
   - **Best** — all-time high score from `localStorage` (shows `--` if none)
   - **Length** — current snake length
@@ -136,7 +160,7 @@ All sounds are synthesized via the **Web Audio API** (no audio files, no externa
 ### Iteration 2 — Polish & Persistence
 - Meta bar (Score / Best / Length / Sound toggle)
 - Rounded snake head + body segments (distinguishable head direction)
-- Classic minimalist color scheme: dark background, green snake, colored food
+- Soothing Dusk Slate color palette (see Color Palette section)
 - Game states: `idle → playing → paused → game-over`
 - `localStorage` high score persistence
 - "PAUSED" overlay
