@@ -31,14 +31,26 @@
             position: relative;
             width: 100%;
             flex: 1;
-            background: #87ceeb; /* Sky */
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            min-height: 0;
+        }
+
+        /* Game canvas — fills remaining space and owns all touch input */
+        #game-canvas {
+            position: relative;
+            flex: 1;
             display: flex;
             justify-content: center;
             align-items: center;
-            touch-action: none; /* Prevent browser pan/zoom stealing gestures; pair with preventDefault on touchmove */
-            user-select: none;          /* Prevent text/element selection on tap/hold */
-            -webkit-user-select: none;  /* Safari/iOS */
-            -webkit-tap-highlight-color: transparent; /* Remove iOS blue-flash on tap */
+            background: #87ceeb; /* Sky */
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            overflow: hidden;
+            min-height: 0;
         }
 
         /* Crisp grass (tight tiling — avoids soft/blurry radial smears) */
@@ -336,21 +348,6 @@
             box-shadow: 0 2px 10px var(--tail-light-on);
         }
 
-        /* UI */
-        #hud {
-            position: absolute;
-            top: 80px;
-            left: 20px;
-            z-index: 3;
-            background: #ffffff; /* White background */
-            color: #1a1a1a;
-            padding: 15px;
-            border-radius: 10px;
-            border: 1px solid rgba(0,0,0,0.1);
-            pointer-events: none;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* More classy font */
-        }
-
         /* ── Race lines ─────────────────────────────────────────────────── */
         #start-line {
             position: absolute;
@@ -395,53 +392,102 @@
             pointer-events: none;
         }
 
-        /* ── Race-complete overlay ───────────────────────────────────────── */
-        #race-overlay {
-            position: absolute;
-            inset: 0;
+        /* ── Meta bar ─────────────────────────────────────────────────── */
+        #meta-bar {
+            height: 48px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 0;
+            padding: 0 16px;
+            background: #2e5c4e;
+            border-bottom: 2px solid #264d41;
+            color: #9cc8d8;
             z-index: 30;
-            background: rgba(0, 0, 0, 0.72);
-            display: none;
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
+            padding: 0 18px;
+            line-height: 1.2;
         }
-
-        #race-overlay-panel {
-            background: #fff;
-            border-radius: 14px;
-            padding: 32px 48px;
+        /* Fixed width prevents speed column from bouncing */
+        .meta-item--speed {
+            width: 108px;
+            flex-shrink: 0;
+        }
+        .meta-item--speed .meta-value {
+            display: block;
             text-align: center;
-            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
-            min-width: 200px;
+            white-space: nowrap;
         }
-
-        #race-overlay-panel h2 {
-            margin: 0 0 8px;
-            font-size: 1.8em;
-            color: #1a1a1a;
+        .meta-label {
+            font-size: 0.54em;
+            font-weight: 600;
+            letter-spacing: 1.2px;
+            color: #6aabbb;
+            text-transform: uppercase;
         }
-
-        #race-time-display {
-            font-size: 1.2em;
-            font-family: monospace;
-            color: #2a9d8f;
-            font-weight: bold;
-            margin-bottom: 24px;
+        .meta-value {
+            font-size: 0.88em;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            color: #b8dde8;
+        }
+        .meta-sep {
+            width: 1px;
+            height: 26px;
+            background: rgba(100, 180, 200, 0.3);
+            flex-shrink: 0;
         }
 
         #restart-btn {
-            background: #2a9d8f;
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            padding: 12px 28px;
-            font-size: 1.1em;
-            font-weight: bold;
+            display: none;
+            background: #2e7a68;
+            color: #b8dde8;
+            border: 1px solid #3d9982;
+            border-radius: 5px;
+            padding: 7px 16px;
+            font-size: 0.78em;
+            font-weight: 700;
+            letter-spacing: 0.6px;
             cursor: pointer;
             transition: background 0.15s;
+            white-space: nowrap;
+            margin-left: auto;
         }
+        #restart-btn:hover { background: #3d9982; }
 
-        #restart-btn:hover { background: #21867a; }
+        /* ── Expand / collapse button ────────────────────────────────── */
+        #expand-btn {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            z-index: 30;
+            width: 34px;
+            height: 34px;
+            background: rgba(20, 20, 20, 0.68);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s;
+            padding: 0;
+        }
+        #expand-btn:hover { background: rgba(50, 50, 50, 0.9); }
+        #expand-btn svg { display: block; }
+
+        /* ── Fullscreen mode ─────────────────────────────────────────── */
+        body.fullscreen #site-header,
+        body.fullscreen #site-footer {
+            display: none !important;
+        }
+        body.fullscreen { overflow: hidden; }
 
         /* ── Traffic cars ─────────────────────────────────────────────── */
         .traffic-car {
@@ -498,41 +544,62 @@
     <div id="site-header"></div>
 
     <div id="game-view">
-        <div id="terrain">
-            <div id="terrain-objects" aria-hidden="true"></div>
-        </div>
-        <div id="hud">
-            <div style="font-size: 1.2em; font-weight: bold; margin-bottom: 5px;">Speed</div>
-            <div id="speed-meter" style="font-family: monospace; font-size: 1.5em;">0 km/h</div>
+        <!-- Meta bar: speed, position, race time, race-again btn -->
+        <div id="meta-bar">
+            <div class="meta-item meta-item--speed">
+                <span class="meta-label">Speed</span>
+                <span class="meta-value" id="speed-meter">0 km/h</span>
+            </div>
+            <div class="meta-sep"></div>
+            <div class="meta-item">
+                <span class="meta-label">Position</span>
+                <span class="meta-value" id="position-display">1/1</span>
+            </div>
+            <div class="meta-sep"></div>
+            <div class="meta-item" id="meta-race-time">
+                <span class="meta-label">Time</span>
+                <span class="meta-value" id="race-time-display">--</span>
+            </div>
+            <button id="restart-btn">Race Again</button>
         </div>
 
-        <div id="road-container">
-            <div class="lane"></div>
-            <div class="lane"></div>
-            <div class="lane"></div>
-            <div class="lane"></div>
-            <div id="markers-layer"></div>
-            <div id="start-line"><span class="race-line-label">START</span></div>
-            <div id="finish-line"><span class="race-line-label">FINISH</span></div>
-            <div id="collision-msg"><span>COLLISION</span><small>Press ↑ or tap to continue</small></div>
+        <!-- Game canvas -->
+        <div id="game-canvas">
+            <div id="terrain">
+                <div id="terrain-objects" aria-hidden="true"></div>
+            </div>
 
-            <div id="player-car">
-                <div class="car-body">
-                    <div class="car-mirror car-mirror--l" aria-hidden="true"></div>
-                    <div class="car-mirror car-mirror--r" aria-hidden="true"></div>
-                    <div class="headlights"></div>
-                    <div class="car-rear-window" aria-hidden="true"></div>
-                    <div class="tail-lights"></div>
-                    <div class="spoiler"></div>
+            <div id="road-container">
+                <div class="lane"></div>
+                <div class="lane"></div>
+                <div class="lane"></div>
+                <div class="lane"></div>
+                <div id="markers-layer"></div>
+                <div id="start-line"><span class="race-line-label">START</span></div>
+                <div id="finish-line"><span class="race-line-label">FINISH</span></div>
+                <div id="collision-msg"><span>COLLISION</span><small>Press ↑ or tap to continue</small></div>
+
+                <div id="player-car">
+                    <div class="car-body">
+                        <div class="car-mirror car-mirror--l" aria-hidden="true"></div>
+                        <div class="car-mirror car-mirror--r" aria-hidden="true"></div>
+                        <div class="headlights"></div>
+                        <div class="car-rear-window" aria-hidden="true"></div>
+                        <div class="tail-lights"></div>
+                        <div class="spoiler"></div>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div id="race-overlay">
-            <div id="race-overlay-panel">
-                <h2>Race Complete!</h2>
-                <div id="race-time-display"></div>
-                <button id="restart-btn">Race Again</button>
-            </div>
+
+            <!-- Expand / collapse button (bottom-right of game canvas) -->
+            <button id="expand-btn" title="Toggle fullscreen" aria-label="Toggle fullscreen">
+                <svg id="icon-fs-expand" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round">
+                    <path d="M4 1H1V4M12 1H15V4M4 15H1V12M12 15H15V12"/>
+                </svg>
+                <svg id="icon-fs-collapse" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" style="display:none">
+                    <path d="M1 4H4V1M15 4H12V1M1 12H4V15M15 12H12V15"/>
+                </svg>
+            </button>
         </div>
     </div>
 
@@ -545,14 +612,17 @@
         const markers = document.getElementById('markers-layer');
         const terrain = document.getElementById('terrain');
         const terrainObjects = document.getElementById('terrain-objects');
+        const gameCanvas = document.getElementById('game-canvas');
         const speedMeter = document.getElementById('speed-meter');
         const lanes = document.querySelectorAll('.lane');
         const startLineEl = document.getElementById('start-line');
         const finishLineEl = document.getElementById('finish-line');
-        const raceOverlay = document.getElementById('race-overlay');
         const raceTimeDisplay = document.getElementById('race-time-display');
         const restartBtn = document.getElementById('restart-btn');
+        const positionDisplay = document.getElementById('position-display');
+        const metaRaceTime = document.getElementById('meta-race-time');
         const collisionMsg = document.getElementById('collision-msg');
+        const expandBtn = document.getElementById('expand-btn');
 
         let currentLane = 1; // 0-3
         let speed = 0;
@@ -585,6 +655,7 @@
         ];
         let trafficCars = [];
         let playerCollided = false; // true while car is stopped after a crash
+        let collidingWith = null;    // the traffic car object involved in current collision
 
         const TERRAIN_DECOR_COUNT = 48;
 
@@ -631,7 +702,7 @@
 
         function initTerrainDecorations() {
             terrainObjects.innerHTML = '';
-            const gv = gameView.getBoundingClientRect();
+            const gv = gameCanvas.getBoundingClientRect();
             const road = document.getElementById('road-container').getBoundingClientRect();
             const h = gv.height;
             for (let i = 0; i < TERRAIN_DECOR_COUNT; i++) {
@@ -643,7 +714,7 @@
         }
 
         function tickTerrainDecorations() {
-            const gv = gameView.getBoundingClientRect();
+            const gv = gameCanvas.getBoundingClientRect();
             const road = document.getElementById('road-container').getBoundingClientRect();
             const dy = speed * 0.13;
             for (const el of terrainObjects.children) {
@@ -716,11 +787,9 @@
                 raceStartTime = performance.now();
             }
             if (raceState === 'racing' && totalDistance >= finishWorldY) {
-                raceState = 'finished';
+                // Lock time immediately; switch to coasting state — car brakes naturally to a stop
+                raceState = 'finishing';
                 raceEndTime = performance.now();
-                speed = 0;
-                targetSpeed = 0;
-                car.classList.remove('braking');
                 showRaceComplete();
             }
         }
@@ -729,9 +798,8 @@
             const elapsed = raceEndTime - raceStartTime;
             const mins = Math.floor(elapsed / 60000);
             const secs = ((elapsed % 60000) / 1000).toFixed(2);
-            const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
-            raceTimeDisplay.textContent = `Time: ${timeStr}`;
-            raceOverlay.style.display = 'flex';
+            raceTimeDisplay.textContent = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+            restartBtn.style.display = 'block';
         }
 
         function restartRace() {
@@ -747,13 +815,15 @@
             touchActive = false;
             touchHorizontalIntent = false;
             car.classList.remove('braking');
-            raceOverlay.style.display = 'none';
+            raceTimeDisplay.textContent = '--';
+            restartBtn.style.display = 'none';
             markers.style.transform = 'translateY(0px)';
             terrain.style.backgroundPosition = '0 0';
             updateLayoutCache();
             initRaceDistances();
             updateCarPos();
             playerCollided = false;
+            collidingWith = null;
             collisionMsg.style.display = 'none';
             initTerrainDecorations();
             initTrafficCars();
@@ -823,23 +893,21 @@
             }
         }
 
-        // Trigger collision response (rear or sideways — same effect)
+        // Trigger collision response — smooth deceleration, no instant stop
         function triggerCollision(tc) {
             if (playerCollided) return;
             playerCollided = true;
-            speed = 0;
-            targetSpeed = 0;
+            collidingWith = tc;
+            targetSpeed = 0;  // brake hard; loop will cap overlap each frame
             car.classList.remove('braking');
             car.classList.add('collided');
             collisionMsg.style.display = 'flex';
             setTimeout(() => car.classList.remove('collided'), 800);
-            // Park player just behind the traffic car's rear bumper
-            totalDistance = tc.worldY - 102;
         }
 
         // Check for rear-end collisions every frame (same lane, vertical overlap)
         function checkCollisions() {
-            if (playerCollided || raceState === 'finished') return;
+            if (playerCollided || raceState === 'finished' || raceState === 'finishing') return;
             for (const tc of trafficCars) {
                 if (tc.lane !== currentLane) continue;
                 // Player occupies [totalDistance-50, totalDistance+50] in world space
@@ -868,7 +936,7 @@
         window.addEventListener('keyup', e => keys[e.code] = false);
 
         function moveLane(dir) {
-            if (raceState === 'finished') return;
+            if (raceState === 'finished' || raceState === 'finishing') return;
             const targetLane = Math.max(0, Math.min(3, currentLane + dir));
             if (targetLane === currentLane) return;
             // Sideways collision: check if target lane has an overlapping traffic car
@@ -897,8 +965,9 @@
         const HORIZONTAL_INTENT_MIN = 20;
         const REST_SPEED_THRESHOLD = 20;
 
-        gameView.addEventListener('touchstart', e => {
+        gameCanvas.addEventListener('touchstart', e => {
             if (e.touches.length !== 1) return;
+            if (e.target.closest('button')) return; // let button taps propagate normally
             e.preventDefault(); // Block tap selection, long-press menus, and tap highlight
             const t = e.touches[0];
             touchStartX = t.clientX;
@@ -913,7 +982,7 @@
             targetSpeed = maxSpeed;
         }, { passive: false }); // passive:false required so e.preventDefault() is allowed
 
-        gameView.addEventListener('touchmove', e => {
+        gameCanvas.addEventListener('touchmove', e => {
             if (!touchActive || e.touches.length !== 1) return;
             e.preventDefault();
             const t = e.touches[0];
@@ -930,7 +999,7 @@
             }
         }, { passive: false });
 
-        gameView.addEventListener('touchend', e => {
+        gameCanvas.addEventListener('touchend', e => {
             if (!touchActive) return;
             const t = e.changedTouches[0];
             const dx = t.clientX - touchStartX;
@@ -943,7 +1012,7 @@
             touchHorizontalIntent = false;
         }, { passive: true });
 
-        gameView.addEventListener('touchcancel', () => {
+        gameCanvas.addEventListener('touchcancel', () => {
             touchActive = false;
             touchHorizontalIntent = false;
             targetSpeed = 0;
@@ -951,10 +1020,16 @@
 
         // Loop
         function loop() {
-            // Speed logic — disabled once race is complete or car is in collision state
-            if (raceState !== 'finished') {
-                if (playerCollided) {
+            // Speed logic
+            if (raceState === 'finishing') {
+                // Coast to stop after finish line — no player input, brake naturally
+                targetSpeed = 0;
+                if (speed <= 0) {
                     speed = 0;
+                    raceState = 'finished';
+                }
+            } else if (raceState !== 'finished') {
+                if (playerCollided) {
                     targetSpeed = 0;
                 } else {
                     if (keys['ArrowUp']) targetSpeed = maxSpeed;
@@ -967,7 +1042,8 @@
                 speed = Math.min(targetSpeed, speed + acceleration);
                 car.classList.remove('braking');
             } else if (speed > targetSpeed) {
-                speed = Math.max(targetSpeed, speed - friction * 2);
+                const brakeFriction = raceState === 'finishing' ? friction * 10 : friction * 2;
+                speed = Math.max(targetSpeed, speed - brakeFriction);
                 car.classList.add('braking');
             } else {
                 car.classList.remove('braking');
@@ -978,6 +1054,14 @@
                 const scrollDelta = speed / 8;
                 offset = (offset + scrollDelta) % 80;
                 totalDistance += scrollDelta;
+                // Hard cap during collision decel: never overlap the struck car (which is pulling away)
+                if (playerCollided && collidingWith) {
+                    const maxDist = collidingWith.worldY - 102;
+                    if (totalDistance > maxDist) {
+                        totalDistance = maxDist;
+                        speed = 0;
+                    }
+                }
                 grassScroll += speed / 15;
                 markers.style.transform = `translateY(${offset}px)`;
                 terrain.style.backgroundPosition = `0 ${grassScroll}px`;
@@ -987,10 +1071,22 @@
             tickTrafficCars();
             checkCollisions();
             updateRaceLines();
+            // Live timer: update every frame while racing (tenths), freeze to hundredths on finish
+            if (raceState === 'racing') {
+                const elapsed = performance.now() - raceStartTime;
+                const mins = Math.floor(elapsed / 60000);
+                const secs = ((elapsed % 60000) / 1000).toFixed(1);
+                raceTimeDisplay.textContent = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+            }
             speedMeter.innerText = `${Math.round(speed)} km/h`;
             requestAnimationFrame(loop);
         }
 
+        expandBtn.addEventListener('click', () => {
+            const isFs = document.body.classList.toggle('fullscreen');
+            document.getElementById('icon-fs-expand').style.display = isFs ? 'none' : '';
+            document.getElementById('icon-fs-collapse').style.display = isFs ? '' : 'none';
+        });
         window.addEventListener('resize', () => {
             updateCarPos();
             initTerrainDecorations();
