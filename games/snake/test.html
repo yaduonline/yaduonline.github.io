@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake — Unit Tests</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #1a1a2e;
+            color: #b8dde8;
+            padding: 2rem;
+            margin: 0;
+        }
+        h1 { color: #4ade80; margin-bottom: 0.25rem; }
+        h2 { color: #6aabbb; margin: 1.5rem 0 0.5rem; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .suite { margin-bottom: 1rem; }
+        .result {
+            font-size: 0.9rem;
+            padding: 0.3rem 0.5rem;
+            border-radius: 4px;
+            margin: 2px 0;
+            font-family: monospace;
+        }
+        .pass { background: rgba(74,222,128,0.1); color: #4ade80; }
+        .fail { background: rgba(239,68,68,0.15); color: #f87171; }
+        #summary {
+            margin-top: 1.5rem;
+            font-size: 1.1rem;
+            font-weight: bold;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+        }
+        .summary-pass { background: rgba(74,222,128,0.15); color: #4ade80; }
+        .summary-fail { background: rgba(239,68,68,0.15); color: #f87171; }
+    </style>
+</head>
+<body>
+<h1>Snake — Unit Tests</h1>
+<p style="color:#6aabbb;margin-top:0">Iteration 1 — Core Logic</p>
+<div id="output"></div>
+<div id="summary"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+//  LOGIC UNDER TEST  (copy of pure functions from index.html)
+//  Keep these in sync whenever index.html logic changes.
+// ─────────────────────────────────────────────────────────────
+const GRID_SIZE = 20;
+
+function wrapCoord(val, max) {
+    if (val < 0)    return max - 1;
+    if (val >= max) return 0;
+    return val;
+}
+
+function isOppositeDir(a, b) {
+    return a.dx === -b.dx && a.dy === -b.dy;
+}
+
+function nextHead(head, dir) {
+    return {
+        x: wrapCoord(head.x + dir.dx, GRID_SIZE),
+        y: wrapCoord(head.y + dir.dy, GRID_SIZE),
+    };
+}
+
+function isSelfCollision(candidate, snake) {
+    for (let i = 1; i < snake.length; i++) {
+        if (snake[i].x === candidate.x && snake[i].y === candidate.y) return true;
+    }
+    return false;
+}
+
+function spawnFood(snake, existing) {
+    let cell;
+    let attempts = 0;
+    do {
+        cell = {
+            x: Math.floor(Math.random() * GRID_SIZE),
+            y: Math.floor(Math.random() * GRID_SIZE),
+        };
+        attempts++;
+        if (attempts > GRID_SIZE * GRID_SIZE * 2) {
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    const c = { x: col, y: row };
+                    if (!snake.some(s => s.x === c.x && s.y === c.y)) return c;
+                }
+            }
+        }
+    } while (
+        snake.some(s => s.x === cell.x && s.y === cell.y) ||
+        (existing && existing.x === cell.x && existing.y === cell.y)
+    );
+    return cell;
+}
+
+function initState() {
+    const cx = Math.floor(GRID_SIZE / 2);
+    const cy = Math.floor(GRID_SIZE / 2);
+    const snake = [
+        { x: cx,     y: cy },
+        { x: cx - 1, y: cy },
+        { x: cx - 2, y: cy },
+    ];
+    return {
+        snake,
+        direction: { dx: 1, dy: 0 },
+        nextDir:   null,
+        food:      spawnFood(snake, null),
+        score:     0,
+        status:    'idle',
+    };
+}
+
+function tick(state) {
+    let { snake, direction, nextDir, food, score, status } = state;
+    snake = snake.slice();
+
+    if (nextDir && !isOppositeDir(direction, nextDir)) {
+        direction = nextDir;
+    }
+    nextDir = null;
+
+    const head = nextHead(snake[0], direction);
+
+    if (isSelfCollision(head, snake)) {
+        return { snake, direction, nextDir, food, score, status: 'game-over' };
+    }
+
+    snake.unshift(head);
+
+    if (head.x === food.x && head.y === food.y) {
+        score += 1;
+        food = spawnFood(snake, null);
+    } else {
+        snake.pop();
+    }
+
+    return { snake, direction, nextDir, food, score, status };
+}
+
+// ─────────────────────────────────────────────────────────────
+//  MICRO TEST FRAMEWORK
+// ─────────────────────────────────────────────────────────────
+let passed = 0;
+let failed = 0;
+const output = document.getElementById('output');
+
+function suite(name) {
+    const h = document.createElement('h2');
+    h.textContent = name;
+    output.appendChild(h);
+}
+
+function assert(label, actual, expected) {
+    const ok = JSON.stringify(actual) === JSON.stringify(expected);
+    const div = document.createElement('div');
+    div.className = 'result ' + (ok ? 'pass' : 'fail');
+    if (ok) {
+        div.textContent = `✅ ${label}`;
+        passed++;
+    } else {
+        div.textContent = `❌ ${label}  →  expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`;
+        failed++;
+    }
+    output.appendChild(div);
+}
+
+function assertCond(label, condition, description) {
+    const div = document.createElement('div');
+    div.className = 'result ' + (condition ? 'pass' : 'fail');
+    if (condition) {
+        div.textContent = `✅ ${label}`;
+        passed++;
+    } else {
+        div.textContent = `❌ ${label}  →  ${description}`;
+        failed++;
+    }
+    output.appendChild(div);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  TESTS
+// ─────────────────────────────────────────────────────────────
+
+// W: wrapCoord
+suite('wrapCoord(val, max)');
+assert('W1 — exit right edge wraps to 0',         wrapCoord(20, 20),  0);
+assert('W2 — exit left edge wraps to max-1',      wrapCoord(-1, 20),  19);
+assert('W3 — zero stays zero',                    wrapCoord(0, 20),   0);
+assert('W4 — max-1 stays max-1',                  wrapCoord(19, 20),  19);
+assert('W5 — two cells past right wraps to 1',    wrapCoord(21, 20),  1);
+
+// D: isOppositeDir
+suite('isOppositeDir(a, b)');
+assert('D1 — right vs left is opposite',    isOppositeDir({dx:1,dy:0},  {dx:-1,dy:0}),  true);
+assert('D2 — right vs up is not opposite',  isOppositeDir({dx:1,dy:0},  {dx:0,dy:-1}),  false);
+assert('D3 — up vs down is opposite',       isOppositeDir({dx:0,dy:-1}, {dx:0,dy:1}),   true);
+assert('D4 — up vs right is not opposite',  isOppositeDir({dx:0,dy:-1}, {dx:1,dy:0}),   false);
+assert('D5 — down vs up is opposite',       isOppositeDir({dx:0,dy:1},  {dx:0,dy:-1}),  true);
+assert('D6 — left vs right is opposite',    isOppositeDir({dx:-1,dy:0}, {dx:1,dy:0}),   true);
+
+// N: nextHead
+suite('nextHead(head, dir)');
+assert('N1 — normal move right',                         nextHead({x:10,y:10}, {dx:1,dy:0}),   {x:11,y:10});
+assert('N2 — wrap right edge to left',                   nextHead({x:19,y:10}, {dx:1,dy:0}),   {x:0, y:10});
+assert('N3 — wrap top edge to bottom',                   nextHead({x:0, y:0},  {dx:0,dy:-1}),  {x:0, y:19});
+assert('N4 — wrap bottom edge to top',                   nextHead({x:0, y:19}, {dx:0,dy:1}),   {x:0, y:0});
+assert('N5 — wrap left edge to right',                   nextHead({x:0, y:5},  {dx:-1,dy:0}),  {x:19,y:5});
+assert('N6 — normal move up',                            nextHead({x:5, y:5},  {dx:0,dy:-1}),  {x:5, y:4});
+
+// C: isSelfCollision
+suite('isSelfCollision(candidate, snake)');
+assert('C1 — head position itself is not a collision',
+    isSelfCollision({x:5,y:5}, [{x:5,y:5},{x:4,y:5},{x:3,y:5}]),  false);
+assert('C2 — moving into neck is a collision',
+    isSelfCollision({x:4,y:5}, [{x:5,y:5},{x:4,y:5},{x:3,y:5}]),  true);
+assert('C3 — unrelated cell is not a collision',
+    isSelfCollision({x:9,y:9}, [{x:5,y:5},{x:4,y:5}]),             false);
+assert('C4 — moving into middle of body is a collision',
+    isSelfCollision({x:3,y:5}, [{x:5,y:5},{x:4,y:5},{x:3,y:5},{x:2,y:5}]),  true);
+
+// T: tick — movement and growth
+suite('tick(state) — movement');
+{
+    // T1: normal move, no food ahead
+    const s = {
+        snake: [{x:5,y:5},{x:4,y:5},{x:3,y:5}],
+        direction: {dx:1,dy:0},
+        nextDir: null,
+        food: {x:0,y:0},
+        score: 0,
+        status: 'playing',
+    };
+    const s2 = tick(s);
+    assert('T1 — head advances right',          s2.snake[0],       {x:6,y:5});
+    assert('T1 — length unchanged after move',  s2.snake.length,   3);
+    assert('T1 — score unchanged',              s2.score,          0);
+}
+{
+    // T2: eating food
+    const s = {
+        snake: [{x:5,y:5},{x:4,y:5},{x:3,y:5}],
+        direction: {dx:1,dy:0},
+        nextDir: null,
+        food: {x:6,y:5},
+        score: 0,
+        status: 'playing',
+    };
+    const s2 = tick(s);
+    assert('T2 — head on food cell',                s2.snake[0],      {x:6,y:5});
+    assert('T2 — snake grew by 1',                  s2.snake.length,  4);
+    assert('T2 — score incremented',                s2.score,         1);
+    assertCond('T2 — new food not on snake',
+        !s2.snake.some(seg => seg.x === s2.food.x && seg.y === s2.food.y),
+        'food spawned on snake body');
+}
+{
+    // T3: wrap-around during tick
+    const s = {
+        snake: [{x:19,y:5},{x:18,y:5},{x:17,y:5}],
+        direction: {dx:1,dy:0},
+        nextDir: null,
+        food: {x:0,y:0},
+        score: 0,
+        status: 'playing',
+    };
+    const s2 = tick(s);
+    assert('T3 — head wraps to left edge', s2.snake[0], {x:0,y:5});
+}
+{
+    // T4: self-collision
+    // Snake in a U: head will step into body
+    const s = {
+        snake: [{x:5,y:5},{x:5,y:6},{x:4,y:6},{x:4,y:5},{x:4,y:4}],
+        direction: {dx:-1,dy:0},  // moving left, will hit {x:4,y:5}
+        nextDir: null,
+        food: {x:0,y:0},
+        score: 0,
+        status: 'playing',
+    };
+    const s2 = tick(s);
+    assert('T4 — status is game-over after self-collision', s2.status, 'game-over');
+    assert('T4 — snake unchanged on game-over',             s2.snake.length, 5);
+}
+{
+    // T5: opposite direction input is ignored
+    const s = {
+        snake: [{x:5,y:5},{x:4,y:5},{x:3,y:5}],
+        direction: {dx:1,dy:0},   // moving right
+        nextDir: {dx:-1,dy:0},    // queued: left (illegal)
+        food: {x:0,y:0},
+        score: 0,
+        status: 'playing',
+    };
+    const s2 = tick(s);
+    assert('T5 — still moves right when opposite queued', s2.snake[0], {x:6,y:5});
+    assert('T5 — status still playing',                   s2.status,   'playing');
+}
+{
+    // T6: valid perpendicular direction applied
+    const s = {
+        snake: [{x:5,y:5},{x:4,y:5},{x:3,y:5}],
+        direction: {dx:1,dy:0},   // moving right
+        nextDir: {dx:0,dy:-1},    // queued: up (valid)
+        food: {x:0,y:0},
+        score: 0,
+        status: 'playing',
+    };
+    const s2 = tick(s);
+    assert('T6 — turns up when up queued', s2.snake[0], {x:5,y:4});
+    assert('T6 — new direction is up',     s2.direction, {dx:0,dy:-1});
+}
+
+// F: spawnFood
+suite('spawnFood(snake, existing)');
+{
+    // F1: food not on snake
+    const snake = [{x:5,y:5},{x:4,y:5},{x:3,y:5}];
+    let ok = true;
+    for (let i = 0; i < 200; i++) {
+        const f = spawnFood(snake, null);
+        if (snake.some(s => s.x === f.x && s.y === f.y)) { ok = false; break; }
+    }
+    assertCond('F1 — food never spawns on snake (200 trials)', ok, 'spawned on snake body at least once');
+}
+{
+    // F2: board almost full — snake fills 399 of 400 cells, food goes to last free
+    const snake = [];
+    for (let row = 0; row < GRID_SIZE; row++) {
+        for (let col = 0; col < GRID_SIZE; col++) {
+            if (!(row === GRID_SIZE - 1 && col === GRID_SIZE - 1)) {
+                snake.push({ x: col, y: row });
+            }
+        }
+    }
+    const f = spawnFood(snake, null);
+    assert('F2 — finds last free cell when board almost full', f, {x: GRID_SIZE-1, y: GRID_SIZE-1});
+}
+
+// ─────────────────────────────────────────────────────────────
+//  SUMMARY
+// ─────────────────────────────────────────────────────────────
+const summary = document.getElementById('summary');
+summary.textContent = `${passed + failed} tests — ${passed} passed, ${failed} failed`;
+summary.className = 'summary-' + (failed === 0 ? 'pass' : 'fail');
+</script>
+</body>
+</html>

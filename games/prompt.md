@@ -26,6 +26,8 @@ This `games/` folder contains simple, self-contained HTML games that can be play
 
 ## Current Games
 - **2048**: Sliding tile puzzle game with smooth animations and touch controls.
+- **Car Racing**: Top-down 4-lane race against 3 CPU opponents with traffic, countdown, and live position ranking.
+- **Snake**: Classic wrap-around snake with multiple food types, speed progression, and Web Audio sound effects (in development).
 
 ## Future Games
 New games should follow these guidelines to maintain consistency and simplicity across the collection.

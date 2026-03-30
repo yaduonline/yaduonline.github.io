@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        body {
+            margin: 0;
+            background: #f0f0f0;
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #game-view {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            min-height: 0;
+        }
+
+        #game-canvas-wrap {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #111122;
+            min-height: 0;
+        }
+
+        canvas#game-canvas {
+            display: block;
+            /* size set by JS to be the largest square that fits */
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // Inline site header (matches /inc/header.html pattern used by other pages)
+        fetch('/inc/header.html').then(r => r.text()).then(h => {
+            const el = document.createElement('div');
+            el.id = 'site-header';
+            el.innerHTML = h;
+            document.body.insertBefore(el, document.body.firstChild);
+        }).catch(() => {});
+        fetch('/inc/footer.html').then(r => r.text()).then(f => {
+            const el = document.createElement('div');
+            el.id = 'site-footer';
+            el.innerHTML = f;
+            document.body.appendChild(el);
+        }).catch(() => {});
+    </script>
+
+    <div id="game-view">
+        <div id="game-canvas-wrap">
+            <canvas id="game-canvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+    // ─────────────────────────────────────────────
+    //  CONSTANTS
+    // ─────────────────────────────────────────────
+    const GRID_SIZE = 20;
+    const TICK_MS   = 200;
+
+    // Visual constants
+    const COLOR_BG        = '#1a1a2e';
+    const COLOR_GRID      = '#1f1f3a';
+    const COLOR_HEAD      = '#22c55e';
+    const COLOR_BODY      = '#4ade80';
+    const COLOR_FOOD      = '#ef4444';
+    const COLOR_OVERLAY   = 'rgba(0,0,0,0.55)';
+    const COLOR_TEXT      = '#b8dde8';
+    const COLOR_LABEL     = '#6aabbb';
+
+    // ─────────────────────────────────────────────
+    //  PURE LOGIC (shared with test.html)
+    // ─────────────────────────────────────────────
+
+    /**
+     * Wrap a single coordinate within [0, max).
+     * @param {number} val
+     * @param {number} max
+     * @returns {number}
+     */
+    function wrapCoord(val, max) {
+        if (val < 0)   return max - 1;
+        if (val >= max) return 0;
+        return val;
+    }
+
+    /**
+     * Returns true if direction b is the exact reverse of direction a.
+     * @param {{dx:number,dy:number}} a
+     * @param {{dx:number,dy:number}} b
+     * @returns {boolean}
+     */
+    function isOppositeDir(a, b) {
+        return a.dx === -b.dx && a.dy === -b.dy;
+    }
+
+    /**
+     * Returns the grid cell the head will occupy after one step.
+     * Wrap-around is applied.
+     * @param {{x:number,y:number}} head  snake[0]
+     * @param {{dx:number,dy:number}} dir
+     * @returns {{x:number,y:number}}
+     */
+    function nextHead(head, dir) {
+        return {
+            x: wrapCoord(head.x + dir.dx, GRID_SIZE),
+            y: wrapCoord(head.y + dir.dy, GRID_SIZE),
+        };
+    }
+
+    /**
+     * Returns true if candidate cell collides with any body segment
+     * (snake[1..end] — the current head at index 0 is excluded because it
+     * is about to move away).
+     * @param {{x:number,y:number}} candidate
+     * @param {Array<{x:number,y:number}>} snake
+     * @returns {boolean}
+     */
+    function isSelfCollision(candidate, snake) {
+        for (let i = 1; i < snake.length; i++) {
+            if (snake[i].x === candidate.x && snake[i].y === candidate.y) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Returns a random grid cell not occupied by the snake or the existing food.
+     * @param {Array<{x:number,y:number}>} snake
+     * @param {{x:number,y:number}|null} existing  pass null when there is no current food
+     * @returns {{x:number,y:number}}
+     */
+    function spawnFood(snake, existing) {
+        let cell;
+        let attempts = 0;
+        do {
+            cell = {
+                x: Math.floor(Math.random() * GRID_SIZE),
+                y: Math.floor(Math.random() * GRID_SIZE),
+            };
+            attempts++;
+            // Safety: if board is almost full iterate deterministically
+            if (attempts > GRID_SIZE * GRID_SIZE * 2) {
+                for (let row = 0; row < GRID_SIZE; row++) {
+                    for (let col = 0; col < GRID_SIZE; col++) {
+                        const c = { x: col, y: row };
+                        if (!snake.some(s => s.x === c.x && s.y === c.y)) return c;
+                    }
+                }
+            }
+        } while (
+            snake.some(s => s.x === cell.x && s.y === cell.y) ||
+            (existing && existing.x === cell.x && existing.y === cell.y)
+        );
+        return cell;
+    }
+
+    /**
+     * Returns a fresh initial game state.
+     * Snake at center, length 3, facing right.
+     * @returns {object} gameState
+     */
+    function initState() {
+        const cx = Math.floor(GRID_SIZE / 2);
+        const cy = Math.floor(GRID_SIZE / 2);
+        const snake = [
+            { x: cx,     y: cy },
+            { x: cx - 1, y: cy },
+            { x: cx - 2, y: cy },
+        ];
+        return {
+            snake,
+            direction: { dx: 1, dy: 0 },
+            nextDir:   null,
+            food:      spawnFood(snake, null),
+            score:     0,
+            status:    'idle',   // 'idle' | 'playing' | 'game-over'
+        };
+    }
+
+    /**
+     * Advances the game by one tick. Returns a new state object.
+     * Mutates nothing in the passed-in state.
+     * @param {object} state
+     * @returns {object} new state
+     */
+    function tick(state) {
+        // Work on a shallow copy so the original is untouched
+        let { snake, direction, nextDir, food, score, status } = state;
+        snake = snake.slice(); // copy array (cells are treated as immutable)
+
+        // 1. Apply queued direction (if valid)
+        if (nextDir && !isOppositeDir(direction, nextDir)) {
+            direction = nextDir;
+        }
+        nextDir = null;
+
+        // 2. Compute new head
+        const head = nextHead(snake[0], direction);
+
+        // 3. Self-collision check
+        if (isSelfCollision(head, snake)) {
+            return { snake, direction, nextDir, food, score, status: 'game-over' };
+        }
+
+        // 4. Move snake
+        snake.unshift(head);
+
+        if (head.x === food.x && head.y === food.y) {
+            // Ate food — grow (tail stays), bump score, spawn new food
+            score += 1;
+            food = spawnFood(snake, null);
+        } else {
+            // Normal move — remove tail
+            snake.pop();
+        }
+
+        return { snake, direction, nextDir, food, score, status };
+    }
+
+    // ─────────────────────────────────────────────
+    //  RENDERER
+    // ─────────────────────────────────────────────
+    const canvas  = document.getElementById('game-canvas');
+    const ctx     = canvas.getContext('2d');
+    let   cellSize = 0;
+
+    function resizeCanvas() {
+        const wrap = document.getElementById('game-canvas-wrap');
+        const size = Math.floor(Math.min(wrap.clientWidth, wrap.clientHeight) / GRID_SIZE) * GRID_SIZE;
+        canvas.width  = size;
+        canvas.height = size;
+        cellSize = size / GRID_SIZE;
+        render(state);
+    }
+
+    function render(s) {
+        const W = canvas.width;
+        const H = canvas.height;
+        const cs = cellSize;
+
+        // Background
+        ctx.fillStyle = COLOR_BG;
+        ctx.fillRect(0, 0, W, H);
+
+        // Grid lines
+        ctx.strokeStyle = COLOR_GRID;
+        ctx.lineWidth = 0.5;
+        for (let i = 1; i < GRID_SIZE; i++) {
+            ctx.beginPath();
+            ctx.moveTo(i * cs, 0);
+            ctx.lineTo(i * cs, H);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, i * cs);
+            ctx.lineTo(W, i * cs);
+            ctx.stroke();
+        }
+
+        // Food
+        const fx = s.food.x * cs + cs / 2;
+        const fy = s.food.y * cs + cs / 2;
+        const fr = cs * 0.38;
+        ctx.fillStyle = COLOR_FOOD;
+        ctx.beginPath();
+        ctx.arc(fx, fy, fr, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Snake — body first, then head on top
+        for (let i = s.snake.length - 1; i >= 0; i--) {
+            const seg = s.snake[i];
+            const isHead = i === 0;
+            const pad = isHead ? cs * 0.08 : cs * 0.12;
+            ctx.fillStyle = isHead ? COLOR_HEAD : COLOR_BODY;
+            ctx.beginPath();
+            ctx.roundRect(
+                seg.x * cs + pad,
+                seg.y * cs + pad,
+                cs - pad * 2,
+                cs - pad * 2,
+                isHead ? cs * 0.25 : cs * 0.2
+            );
+            ctx.fill();
+        }
+
+        // Score (top-left)
+        const scoreFontSize = Math.max(12, Math.round(cs * 0.55));
+        ctx.font = `bold ${scoreFontSize}px system-ui, sans-serif`;
+        ctx.textBaseline = 'top';
+
+        // Shadow for legibility
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillText(`Score: ${s.score}`, cs * 0.4 + 1, cs * 0.25 + 1);
+        ctx.fillStyle = COLOR_TEXT;
+        ctx.fillText(`Score: ${s.score}`, cs * 0.4, cs * 0.25);
+
+        // Idle overlay
+        if (s.status === 'idle') {
+            ctx.fillStyle = COLOR_OVERLAY;
+            ctx.fillRect(0, 0, W, H);
+            drawCenteredText('Snake', W / 2, H / 2 - cs * 1.6, Math.round(cs * 1.2), COLOR_HEAD, true);
+            drawCenteredText('Press any arrow key to start', W / 2, H / 2, Math.round(cs * 0.5), COLOR_TEXT, false);
+        }
+
+        // Game-over overlay
+        if (s.status === 'game-over') {
+            ctx.fillStyle = COLOR_OVERLAY;
+            ctx.fillRect(0, 0, W, H);
+            drawCenteredText('Game Over', W / 2, H / 2 - cs * 1.4, Math.round(cs * 1.1), '#ef4444', true);
+            drawCenteredText(`Score: ${s.score}`, W / 2, H / 2 - cs * 0.1, Math.round(cs * 0.65), COLOR_TEXT, false);
+            drawCenteredText('Press any key to play again', W / 2, H / 2 + cs * 0.9, Math.round(cs * 0.48), COLOR_LABEL, false);
+        }
+    }
+
+    function drawCenteredText(text, x, y, size, color, bold) {
+        ctx.font = `${bold ? 'bold ' : ''}${size}px system-ui, sans-serif`;
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillText(text, x - ctx.measureText(text).width / 2 + 1, y + 1);
+        ctx.fillStyle = color;
+        ctx.fillText(text, x - ctx.measureText(text).width / 2, y);
+    }
+
+    // ─────────────────────────────────────────────
+    //  GAME LOOP
+    // ─────────────────────────────────────────────
+    let state       = initState();
+    let lastTs      = null;
+    let accumulator = 0;
+    let rafId       = null;
+
+    function loop(ts) {
+        if (lastTs === null) lastTs = ts;
+        accumulator += ts - lastTs;
+        lastTs = ts;
+
+        while (accumulator >= TICK_MS) {
+            state = tick(state);
+            accumulator -= TICK_MS;
+        }
+
+        render(state);
+
+        if (state.status !== 'game-over') {
+            rafId = requestAnimationFrame(loop);
+        }
+    }
+
+    function startLoop() {
+        lastTs      = null;
+        accumulator = 0;
+        rafId       = requestAnimationFrame(loop);
+    }
+
+    function stopLoop() {
+        if (rafId !== null) {
+            cancelAnimationFrame(rafId);
+            rafId = null;
+        }
+    }
+
+    function resetGame() {
+        stopLoop();
+        state = initState();
+        render(state);
+    }
+
+    // ─────────────────────────────────────────────
+    //  INPUT HANDLER
+    // ─────────────────────────────────────────────
+    const DIR_MAP = {
+        ArrowUp:    { dx: 0,  dy: -1 },
+        ArrowDown:  { dx: 0,  dy:  1 },
+        ArrowLeft:  { dx: -1, dy:  0 },
+        ArrowRight: { dx: 1,  dy:  0 },
+        w: { dx: 0,  dy: -1 },
+        s: { dx: 0,  dy:  1 },
+        a: { dx: -1, dy:  0 },
+        d: { dx: 1,  dy:  0 },
+        W: { dx: 0,  dy: -1 },
+        S: { dx: 0,  dy:  1 },
+        A: { dx: -1, dy:  0 },
+        D: { dx: 1,  dy:  0 },
+    };
+
+    document.addEventListener('keydown', (e) => {
+        // Game-over: any key resets
+        if (state.status === 'game-over') {
+            resetGame();
+            return;
+        }
+
+        const newDir = DIR_MAP[e.key];
+        if (!newDir) return;
+
+        // Prevent page scroll
+        e.preventDefault();
+
+        if (isOppositeDir(state.direction, newDir)) return;
+
+        state.nextDir = newDir;
+
+        // Idle: first direction key starts the loop
+        if (state.status === 'idle') {
+            state.status = 'playing';
+            startLoop();
+        }
+    });
+
+    // ─────────────────────────────────────────────
+    //  INIT
+    // ─────────────────────────────────────────────
+    window.addEventListener('resize', resizeCanvas);
+    // Small delay so header/footer fetch has time to affect layout
+    setTimeout(resizeCanvas, 50);
+    </script>
+</body>
+</html>
