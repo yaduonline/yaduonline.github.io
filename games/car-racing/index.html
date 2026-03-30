@@ -1066,6 +1066,19 @@
             }
         }
 
+        // Returns true if the given lane has a traffic or opponent car overlapping [worldY, worldY+lookahead]
+        function opponentLaneBlocked(worldY, lane, lookahead, selfOc) {
+            for (const tc of trafficCars) {
+                if (tc.lane !== lane) continue;
+                if (worldY + lookahead > tc.worldY - 50 && worldY < tc.worldY + 50) return true;
+            }
+            for (const oc of opponentCars) {
+                if (oc === selfOc || oc.lane !== lane) continue;
+                if (worldY + lookahead > oc.worldY - 60 && worldY < oc.worldY + 60) return true;
+            }
+            return false;
+        }
+
         function tickOpponentCars() {
             const moving = raceState === 'pre' || raceState === 'racing' || raceState === 'finishing' || raceState === 'finished';
             for (const oc of opponentCars) {
@@ -1079,6 +1092,23 @@
                             oc.finished = true;
                         }
                     } else if (!oc.finished) {
+                        // Lane-avoidance AI: look ahead ~200 units, switch if blocked
+                        if (!oc.laneChangeCooldown) oc.laneChangeCooldown = 0;
+                        oc.laneChangeCooldown = Math.max(0, oc.laneChangeCooldown - 1);
+                        if (oc.laneChangeCooldown === 0 && opponentLaneBlocked(oc.worldY, oc.lane, 200, oc)) {
+                            // Try left then right; pick whichever is free
+                            const candidates = [];
+                            if (oc.lane > 0) candidates.push(oc.lane - 1);
+                            if (oc.lane < 3) candidates.push(oc.lane + 1);
+                            for (const cl of candidates) {
+                                if (!opponentLaneBlocked(oc.worldY, cl, 160, oc)) {
+                                    oc.lane = cl;
+                                    oc.laneChangeCooldown = 45; // ~0.75s at 60fps before changing again
+                                    break;
+                                }
+                            }
+                        }
+
                         // Accelerate from 0 toward top speed
                         if (oc.currentSpeed < oc.speed) {
                             oc.currentSpeed = Math.min(oc.speed, oc.currentSpeed + acceleration * 0.7);
