@@ -338,6 +338,37 @@ suite('spawnFood(snake, existing)');
     assert('F2 — finds last free cell when board almost full', f, {x: GRID_SIZE-1, y: GRID_SIZE-1});
 }
 
+// LS: localStorage helpers
+suite('loadBest() and saveBest(n)');
+{
+    const LS_KEY = 'snake_highscore';
+    // These must match the implementations in index.html exactly
+    function loadBest() {
+        const v = parseInt(localStorage.getItem(LS_KEY), 10);
+        return isNaN(v) ? 0 : v;
+    }
+    function saveBest(score) {
+        if (score > loadBest()) localStorage.setItem(LS_KEY, String(score));
+    }
+
+    // Clear before tests so previous runs don't interfere
+    localStorage.removeItem(LS_KEY);
+
+    assert('LS1 — loadBest returns 0 when key absent', loadBest(), 0);
+
+    saveBest(10);
+    assert('LS2 — loadBest returns saved score', loadBest(), 10);
+
+    saveBest(5);
+    assert('LS3 — lower score does not overwrite best', loadBest(), 10);
+
+    saveBest(15);
+    assert('LS4 — higher score overwrites best', loadBest(), 15);
+
+    // Clean up
+    localStorage.removeItem(LS_KEY);
+}
+
 // ─────────────────────────────────────────────────────────────
 //  SUMMARY
 // ─────────────────────────────────────────────────────────────

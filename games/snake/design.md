@@ -1,6 +1,6 @@
 # Snake Game — Design Document
 
-> **Current iteration**: Iteration 1 — Core MVP  
+> **Current iteration**: Iteration 2 — Polish & Persistence  
 > Update this file at the start of each new iteration to reflect new components, changed logic, and additional tests.
 
 ---
@@ -34,16 +34,17 @@ gameState {
     snake:      Array<{x, y}>   // ordered head-first; snake[0] = head
     direction:  {dx, dy}        // current movement vector, e.g. {dx:1, dy:0} = right
     nextDir:    {dx, dy}        // queued direction from player input, applied next tick
-    food:       {x, y}          // single apple position (iteration 1)
+    food:       {x, y}          // single apple position
     score:      number          // current score
-    status:     string          // 'idle' | 'playing' | 'game-over'
+    status:     string          // 'idle' | 'playing' | 'paused' | 'game-over'
 }
 ```
 
 **Constants** (not in gameState — fixed for the session):
 ```
-GRID_SIZE   = 20          // number of cells per side
-TICK_MS     = 200         // fixed tick interval in iteration 1 (no speed progression yet)
+GRID_SIZE        = 20          // number of cells per side
+TICK_MS          = 200         // fixed tick interval (speed progression added in iteration 3)
+LS_HIGHSCORE_KEY = 'snake_highscore'   // localStorage key
 ```
 
 ---
@@ -64,22 +65,40 @@ Pure functions that operate on `gameState` data. They take state as input and re
 
 ---
 
-### 2.3 Renderer
+### 2.3 Meta Bar
 
-Reads from `gameState` and draws to the `<canvas>`. Called after every tick and after every input that changes visual state (e.g. game-over overlay). Does not mutate state.
+A 48px-tall fixed bar above the canvas (dark teal `#2e5c4e`, matching car-racing). Always visible. Contains:
+
+| Element | ID | Description |
+|---|---|---|
+| Score | `#score-display` | Updates every tick |
+| Best | `#best-display` | Loaded from `localStorage` on init; updated when new high score is set |
+| Length | `#length-display` | `snake.length`, updates every tick |
+| Sound toggle | `#sound-btn` | `🔇` by default; click to toggle `🔊`. Mute state stored in `soundEnabled` variable |
+| Restart | `#restart-btn` | Always visible; calls `resetGame()` at any point |
+
+---
+
+### 2.4 Renderer
+
+Reads from `gameState` and draws to the `<canvas>`. Called after every tick and after every input that changes visual state. Does not mutate state.
 
 **Responsibilities:**
-- Draw the grid background.
-- Draw each snake segment. Head is visually distinct (brighter color).
-- Draw the food item.
-- Draw the score (plain text, top-left of canvas, iteration 1 — no meta bar yet).
-- Draw a "GAME OVER — Press any key to restart" overlay when `status === 'game-over'`.
+- Draw the grid background and subtle grid lines.
+- Draw each snake segment with rounded corners. Head is visually distinct (brighter green, slightly larger).
+- Draw direction eyes on the head to show which way it faces.
+- Draw the food item (red circle).
+- Draw overlays:
+  - `idle`: title + "Press any arrow key to start"
+  - `paused`: semi-transparent overlay + "PAUSED" centered
+  - `game-over`: overlay + score + "Press any key / Restart to play again"
+- Update meta bar DOM elements (score, best, length) after each tick.
 
 **Canvas sizing:** On page load and on `resize` events, recalculate `cellSize = Math.floor(min(canvasWidth, canvasHeight) / GRID_SIZE)`. The canvas is always square; centered in the available area with CSS.
 
 ---
 
-### 2.4 Input Handler
+### 2.5 Input Handler
 
 Listens to browser events and writes the queued direction change to `gameState.nextDir`. Does not run game logic.
 
@@ -88,15 +107,24 @@ Listens to browser events and writes the queued direction change to `gameState.n
 - `ArrowDown` / `S` → `{dx:0, dy:1}`
 - `ArrowLeft` / `A` → `{dx:-1, dy:0}`
 - `ArrowRight` / `D` → `{dx:1, dy:0}`
-- If `status === 'idle'`, the first directional key also sets `status = 'playing'` and starts the tick loop.
+- `Space` → toggle pause (`playing` ↔ `paused`)
+- If `status === 'idle'`, the first directional key sets `status = 'playing'` and starts the tick loop.
+- If `status === 'paused'`, directional keys are queued but loop is not running; Space resumes.
 - If `status === 'game-over'`, any key calls `resetGame()`.
-- Ignore the input if `isOppositeDir(gameState.direction, newDir)` is true.
+- Ignore directional input if `isOppositeDir(gameState.direction, newDir)` is true.
 
-**No touch controls in iteration 1** (added in iteration 2).
+**Touch (new in iteration 2):**
+- Track `touchstart` (x, y). On `touchend`, compute `(dx, dy)` of swipe.
+- If `|dx| > |dy|`: horizontal swipe → left or right.
+- If `|dy| > |dx|`: vertical swipe → up or down.
+- Minimum swipe distance: 20px (ignore micro-taps as direction changes).
+- Tap (swipe distance < 20px): toggle pause (same as Space).
+- `passive: false` + `e.preventDefault()` on `touchstart` to block page scroll.
+- If `status === 'idle'`, first swipe starts the game.
 
 ---
 
-### 2.5 Game Loop
+### 2.6 Game Loop
 
 Uses `requestAnimationFrame` with a manual delta accumulator to fire ticks at a consistent interval regardless of display frame rate.
 
@@ -108,11 +136,23 @@ loop(timestamp):
         state = tick(state)
         delta -= TICK_MS
     render(state)
-    if state.status !== 'game-over':
+    updateMetaBar(state)
+    if state.status === 'playing':
         requestAnimationFrame(loop)
 ```
 
-The loop is started by the first directional key press. It is stopped when `status === 'game-over'`.
+- Loop runs only while `status === 'playing'`.
+- On pause: loop stops (no rAF). On resume: loop restarts with a fresh `lastTs` to avoid a large delta jump.
+- On game-over: loop stops; `resetGame()` restarts it fresh.
+
+### 2.7 localStorage — High Score
+
+```
+loadBest()   → number | 0           reads 'snake_highscore' from localStorage
+saveBest(n)  → void                  writes to localStorage only if n > current best
+```
+
+`loadBest()` is called once on init. `saveBest(score)` is called when `status` transitions to `'game-over'`.
 
 ---
 
@@ -188,6 +228,14 @@ tick(state) → new state
 
 ---
 
+### 2.8 Fullscreen
+
+- An expand button (`#expand-btn`, bottom-right corner of the canvas wrap) toggles a `fullscreen` class on `<body>`.
+- When `body.fullscreen`: `#site-header` and `#site-footer` are hidden (`display:none`); `#game-view` gets `height:100vh`.
+- After toggling, `resizeCanvas()` is called so the canvas re-fits the new available area.
+
+---
+
 ## 5. Testing Strategy
 
 ### Philosophy
@@ -254,6 +302,16 @@ Rendering and the game loop are **not unit tested** — they are verified manual
 | F1 | Snake occupies 3 cells, food is null | Returns a cell not in those 3 cells |
 | F2 | Snake fills 399 of 400 cells | Returns the one remaining free cell |
 
+#### `loadBest()` and `saveBest(n)` — iteration 2
+| # | Scenario | Expected |
+|---|---|---|
+| LS1 | `loadBest()` when localStorage empty | `0` |
+| LS2 | `saveBest(10)` then `loadBest()` | `10` |
+| LS3 | `saveBest(5)` after `saveBest(10)` then `loadBest()` | `10` (lower score not saved) |
+| LS4 | `saveBest(15)` after `saveBest(10)` then `loadBest()` | `15` (higher score overwrites) |
+
+*(Note: localStorage tests run in browser only — not available in pure Node environments.)*
+
 ### Running Tests
 
 1. Open `games/snake/test.html` in any browser.
@@ -262,13 +320,8 @@ Rendering and the game loop are **not unit tested** — they are verified manual
 
 ---
 
-## 6. Known Limitations (Iteration 1)
+## 6. Known Limitations (Iteration 2)
 
-- No meta bar (added in iteration 2).
-- No touch controls (added in iteration 2).
 - No speed progression — fixed 200ms tick (added in iteration 3).
 - No cherry or golden apple food (added in iteration 3).
 - No sounds (added in iteration 3).
-- No `localStorage` high score (added in iteration 2).
-- Score displayed as plain canvas text, not in a styled UI.
-- No `idle` or `paused` states — game starts immediately on page load.

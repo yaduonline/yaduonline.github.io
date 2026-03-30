@@ -16,6 +16,15 @@
             overflow: hidden;
         }
 
+        body.fullscreen #site-header,
+        body.fullscreen #site-footer {
+            display: none;
+        }
+
+        body.fullscreen #game-view {
+            height: 100vh;
+        }
+
         #game-view {
             flex: 1;
             display: flex;
@@ -24,8 +33,76 @@
             min-height: 0;
         }
 
+        /* ── Meta bar ── */
+        #meta-bar {
+            height: 48px;
+            flex-shrink: 0;
+            background: #2e5c4e;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            gap: 4px;
+            user-select: none;
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0 10px;
+        }
+
+        .meta-label {
+            font-size: 10px;
+            color: #6aabbb;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .meta-value {
+            font-size: 15px;
+            font-weight: 600;
+            color: #b8dde8;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .meta-sep {
+            width: 1px;
+            height: 28px;
+            background: #3d7a6a;
+            flex-shrink: 0;
+        }
+
+        #sound-btn, #restart-btn {
+            margin-left: auto;
+            background: #2e7a68;
+            color: #b8dde8;
+            border: 1px solid #3d9982;
+            border-radius: 5px;
+            padding: 4px 10px;
+            font-size: 13px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        #sound-btn {
+            margin-left: auto;
+            font-size: 16px;
+            padding: 2px 8px;
+        }
+
+        #restart-btn {
+            margin-left: 6px;
+        }
+
+        #sound-btn:hover, #restart-btn:hover {
+            background: #3d9982;
+        }
+
+        /* ── Canvas area ── */
         #game-canvas-wrap {
             flex: 1;
+            position: relative;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -35,8 +112,24 @@
 
         canvas#game-canvas {
             display: block;
-            /* size set by JS to be the largest square that fits */
         }
+
+        /* ── Expand button ── */
+        #expand-btn {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(46,92,78,0.85);
+            color: #b8dde8;
+            border: 1px solid #3d9982;
+            border-radius: 5px;
+            padding: 4px 8px;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        #expand-btn:hover { background: rgba(61,153,130,0.9); }
     </style>
 </head>
 <body>
@@ -57,8 +150,28 @@
     </script>
 
     <div id="game-view">
+        <div id="meta-bar">
+            <div class="meta-item">
+                <span class="meta-label">Score</span>
+                <span class="meta-value" id="score-display">0</span>
+            </div>
+            <div class="meta-sep"></div>
+            <div class="meta-item">
+                <span class="meta-label">Best</span>
+                <span class="meta-value" id="best-display">--</span>
+            </div>
+            <div class="meta-sep"></div>
+            <div class="meta-item">
+                <span class="meta-label">Length</span>
+                <span class="meta-value" id="length-display">3</span>
+            </div>
+            <div class="meta-sep"></div>
+            <button id="sound-btn" title="Toggle sound">🔇</button>
+            <button id="restart-btn" title="Restart game">Restart</button>
+        </div>
         <div id="game-canvas-wrap">
             <canvas id="game-canvas"></canvas>
+            <button id="expand-btn" title="Toggle fullscreen">⛶</button>
         </div>
     </div>
 
@@ -68,6 +181,7 @@
     // ─────────────────────────────────────────────
     const GRID_SIZE = 20;
     const TICK_MS   = 200;
+    const LS_KEY    = 'snake_highscore';
 
     // Visual constants
     const COLOR_BG        = '#1a1a2e';
@@ -182,7 +296,7 @@
             nextDir:   null,
             food:      spawnFood(snake, null),
             score:     0,
-            status:    'idle',   // 'idle' | 'playing' | 'game-over'
+            status:    'idle',   // 'idle' | 'playing' | 'paused' | 'game-over'
         };
     }
 
@@ -224,6 +338,20 @@
         }
 
         return { snake, direction, nextDir, food, score, status };
+    }
+
+    // ─────────────────────────────────────────────
+    //  LOCALSTORAGE
+    // ─────────────────────────────────────────────
+    function loadBest() {
+        const v = parseInt(localStorage.getItem(LS_KEY), 10);
+        return isNaN(v) ? 0 : v;
+    }
+
+    function saveBest(score) {
+        if (score > loadBest()) {
+            localStorage.setItem(LS_KEY, String(score));
+        }
     }
 
     // ─────────────────────────────────────────────
@@ -278,7 +406,7 @@
         for (let i = s.snake.length - 1; i >= 0; i--) {
             const seg = s.snake[i];
             const isHead = i === 0;
-            const pad = isHead ? cs * 0.08 : cs * 0.12;
+            const pad = isHead ? cs * 0.06 : cs * 0.12;
             ctx.fillStyle = isHead ? COLOR_HEAD : COLOR_BODY;
             ctx.beginPath();
             ctx.roundRect(
@@ -286,28 +414,46 @@
                 seg.y * cs + pad,
                 cs - pad * 2,
                 cs - pad * 2,
-                isHead ? cs * 0.25 : cs * 0.2
+                isHead ? cs * 0.28 : cs * 0.2
             );
             ctx.fill();
         }
 
-        // Score (top-left)
-        const scoreFontSize = Math.max(12, Math.round(cs * 0.55));
-        ctx.font = `bold ${scoreFontSize}px system-ui, sans-serif`;
-        ctx.textBaseline = 'top';
-
-        // Shadow for legibility
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillText(`Score: ${s.score}`, cs * 0.4 + 1, cs * 0.25 + 1);
-        ctx.fillStyle = COLOR_TEXT;
-        ctx.fillText(`Score: ${s.score}`, cs * 0.4, cs * 0.25);
+        // Eyes on head — indicate direction
+        {
+            const head = s.snake[0];
+            const d = s.direction;
+            const hx = head.x * cs + cs / 2;
+            const hy = head.y * cs + cs / 2;
+            const eyeR = cs * 0.1;
+            const eyeOffset = cs * 0.22;
+            // perpendicular to direction
+            const px = d.dy, py = -d.dx; // perpendicular unit vector
+            ctx.fillStyle = '#1a1a2e';
+            ctx.beginPath();
+            ctx.arc(hx + d.dx * eyeOffset + px * eyeOffset * 0.7,
+                    hy + d.dy * eyeOffset + py * eyeOffset * 0.7, eyeR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(hx + d.dx * eyeOffset - px * eyeOffset * 0.7,
+                    hy + d.dy * eyeOffset - py * eyeOffset * 0.7, eyeR, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
         // Idle overlay
         if (s.status === 'idle') {
             ctx.fillStyle = COLOR_OVERLAY;
             ctx.fillRect(0, 0, W, H);
             drawCenteredText('Snake', W / 2, H / 2 - cs * 1.6, Math.round(cs * 1.2), COLOR_HEAD, true);
-            drawCenteredText('Press any arrow key to start', W / 2, H / 2, Math.round(cs * 0.5), COLOR_TEXT, false);
+            drawCenteredText('Press any arrow key or swipe to start', W / 2, H / 2, Math.round(cs * 0.46), COLOR_TEXT, false);
+        }
+
+        // Paused overlay
+        if (s.status === 'paused') {
+            ctx.fillStyle = 'rgba(0,0,0,0.45)';
+            ctx.fillRect(0, 0, W, H);
+            drawCenteredText('PAUSED', W / 2, H / 2, Math.round(cs * 1.1), COLOR_TEXT, true);
+            drawCenteredText('Press Space or tap to resume', W / 2, H / 2 + cs * 1.2, Math.round(cs * 0.46), COLOR_LABEL, false);
         }
 
         // Game-over overlay
@@ -316,7 +462,11 @@
             ctx.fillRect(0, 0, W, H);
             drawCenteredText('Game Over', W / 2, H / 2 - cs * 1.4, Math.round(cs * 1.1), '#ef4444', true);
             drawCenteredText(`Score: ${s.score}`, W / 2, H / 2 - cs * 0.1, Math.round(cs * 0.65), COLOR_TEXT, false);
-            drawCenteredText('Press any key to play again', W / 2, H / 2 + cs * 0.9, Math.round(cs * 0.48), COLOR_LABEL, false);
+            const best = loadBest();
+            if (s.score > 0 && s.score === best) {
+                drawCenteredText('New Best!', W / 2, H / 2 + cs * 0.75, Math.round(cs * 0.55), '#fbbf24', true);
+            }
+            drawCenteredText('Press any key or Restart to play again', W / 2, H / 2 + cs * 1.55, Math.round(cs * 0.44), COLOR_LABEL, false);
         }
     }
 
@@ -327,6 +477,20 @@
         ctx.fillText(text, x - ctx.measureText(text).width / 2 + 1, y + 1);
         ctx.fillStyle = color;
         ctx.fillText(text, x - ctx.measureText(text).width / 2, y);
+    }
+
+    // ─────────────────────────────────────────────
+    //  META BAR UPDATE
+    // ─────────────────────────────────────────────
+    const scoreDisplay  = document.getElementById('score-display');
+    const bestDisplay   = document.getElementById('best-display');
+    const lengthDisplay = document.getElementById('length-display');
+
+    function updateMetaBar(s) {
+        scoreDisplay.textContent  = s.score;
+        lengthDisplay.textContent = s.snake.length;
+        const best = loadBest();
+        bestDisplay.textContent   = best > 0 ? best : '--';
     }
 
     // ─────────────────────────────────────────────
@@ -348,9 +512,13 @@
         }
 
         render(state);
+        updateMetaBar(state);
 
-        if (state.status !== 'game-over') {
+        if (state.status === 'playing') {
             rafId = requestAnimationFrame(loop);
+        } else if (state.status === 'game-over') {
+            saveBest(state.score);
+            updateMetaBar(state);  // refresh best display
         }
     }
 
@@ -371,6 +539,18 @@
         stopLoop();
         state = initState();
         render(state);
+        updateMetaBar(state);
+    }
+
+    function togglePause() {
+        if (state.status === 'playing') {
+            state.status = 'paused';
+            stopLoop();
+            render(state);
+        } else if (state.status === 'paused') {
+            state.status = 'playing';
+            startLoop();
+        }
     }
 
     // ─────────────────────────────────────────────
@@ -398,6 +578,13 @@
             return;
         }
 
+        // Space: toggle pause
+        if (e.key === ' ' || e.code === 'Space') {
+            e.preventDefault();
+            togglePause();
+            return;
+        }
+
         const newDir = DIR_MAP[e.key];
         if (!newDir) return;
 
@@ -416,11 +603,76 @@
     });
 
     // ─────────────────────────────────────────────
+    //  TOUCH CONTROLS
+    // ─────────────────────────────────────────────
+    let touchStartX = 0, touchStartY = 0;
+    const MIN_SWIPE = 20;
+
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Tap: toggle pause
+        if (dist < MIN_SWIPE) {
+            if (state.status === 'game-over') { resetGame(); return; }
+            togglePause();
+            return;
+        }
+
+        // Swipe: determine direction
+        let newDir;
+        if (Math.abs(dx) >= Math.abs(dy)) {
+            newDir = dx > 0 ? { dx: 1, dy: 0 } : { dx: -1, dy: 0 };
+        } else {
+            newDir = dy > 0 ? { dx: 0, dy: 1 } : { dx: 0, dy: -1 };
+        }
+
+        if (isOppositeDir(state.direction, newDir)) return;
+        state.nextDir = newDir;
+
+        if (state.status === 'idle') {
+            state.status = 'playing';
+            startLoop();
+        } else if (state.status === 'paused') {
+            // swipe while paused: queue direction but don't resume automatically
+        }
+    }, { passive: false });
+
+    // ─────────────────────────────────────────────
+    //  BUTTON WIRING
+    // ─────────────────────────────────────────────
+    let soundEnabled = false;
+
+    document.getElementById('sound-btn').addEventListener('click', () => {
+        soundEnabled = !soundEnabled;
+        document.getElementById('sound-btn').textContent = soundEnabled ? '🔊' : '🔇';
+    });
+
+    document.getElementById('restart-btn').addEventListener('click', () => {
+        resetGame();
+    });
+
+    document.getElementById('expand-btn').addEventListener('click', () => {
+        document.body.classList.toggle('fullscreen');
+        setTimeout(resizeCanvas, 50);
+    });
+
+    // ─────────────────────────────────────────────
     //  INIT
     // ─────────────────────────────────────────────
     window.addEventListener('resize', resizeCanvas);
     // Small delay so header/footer fetch has time to affect layout
     setTimeout(resizeCanvas, 50);
+    // Load best score into meta bar on init
+    updateMetaBar(initState());
     </script>
 </body>
 </html>
