@@ -502,6 +502,33 @@
             display: none;
         }
 
+        /* Opponent (CPU) cars */
+        .opponent-car {
+            position: absolute;
+            width: 56px;
+            height: 100px;
+            z-index: 9;
+            transform: translateX(-50%);
+            perspective: 500px;
+            filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.35));
+            pointer-events: none;
+            display: none;
+        }
+        .opponent-label {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 9px;
+            font-weight: 700;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.55);
+            padding: 1px 5px;
+            border-radius: 3px;
+            white-space: nowrap;
+            letter-spacing: 0.5px;
+        }
+
         /* Collision flash */
         @keyframes collision-flash {
             0%, 100% { filter: none; }
@@ -656,6 +683,15 @@
         let trafficCars = [];
         let playerCollided = false; // true while car is stopped after a crash
         let collidingWith = null;    // the traffic car object involved in current collision
+
+        // Opponents
+        const OPPONENT_COUNT = 3;
+        const OPPONENT_CONFIGS = [
+            { body: '#e63946', light: '#ff6b74', dark: '#9d0208', speed: 138 }, // CPU 1 — red
+            { body: '#f77f00', light: '#fca311', dark: '#c55c00', speed: 148 }, // CPU 2 — amber
+            { body: '#7b2d8b', light: '#b45bc4', dark: '#4a1a54', speed: 155 }, // CPU 3 — purple
+        ];
+        let opponentCars = [];
 
         const TERRAIN_DECOR_COUNT = 48;
 
@@ -827,6 +863,7 @@
             collisionMsg.style.display = 'none';
             initTerrainDecorations();
             initTrafficCars();
+            initOpponentCars();
         }
 
         // Traffic helpers
@@ -916,6 +953,65 @@
                     triggerCollision(tc);
                     return;
                 }
+            }
+        }
+
+        // Opponent (CPU) car helpers
+        function createOpponentCarEl(num, cfg) {
+            const div = document.createElement('div');
+            div.className = 'opponent-car';
+            div.style.setProperty('--car-body', cfg.body);
+            div.style.setProperty('--car-body-light', cfg.light);
+            div.style.setProperty('--car-body-dark', cfg.dark);
+            div.innerHTML =
+                '<div class="opponent-label">CPU ' + num + '</div>' +
+                '<div class="car-body">' +
+                '<div class="car-mirror car-mirror--l"></div>' +
+                '<div class="car-mirror car-mirror--r"></div>' +
+                '<div class="headlights"></div>' +
+                '<div class="car-rear-window"></div>' +
+                '<div class="tail-lights"></div>' +
+                '<div class="spoiler"></div>' +
+                '</div>';
+            return div;
+        }
+
+        function initOpponentCars() {
+            for (const oc of opponentCars) oc.el.remove();
+            opponentCars = [];
+            const road = document.getElementById('road-container');
+            const startLanes = [0, 2, 3]; // player starts in lane 1
+            for (let i = 0; i < OPPONENT_COUNT; i++) {
+                const cfg = OPPONENT_CONFIGS[i];
+                const el = createOpponentCarEl(i + 1, cfg);
+                road.appendChild(el);
+                opponentCars.push({
+                    el,
+                    lane: startLanes[i],
+                    worldY: startWorldY,
+                    speed: cfg.speed,
+                    finished: false,
+                });
+            }
+        }
+
+        function tickOpponentCars() {
+            for (const oc of opponentCars) {
+                if (!oc.finished) {
+                    oc.worldY += oc.speed / 8;
+                    if (oc.worldY >= finishWorldY) {
+                        oc.worldY = finishWorldY;
+                        oc.finished = true;
+                    }
+                }
+                const screenY = cachedCarCenterY - (oc.worldY - totalDistance);
+                if (screenY < -110 || screenY > cachedRoadHeight + 160) {
+                    oc.el.style.display = 'none';
+                    continue;
+                }
+                oc.el.style.display = 'block';
+                oc.el.style.top  = (screenY - 50) + 'px';
+                oc.el.style.left = getLaneCenterX(oc.lane) + 'px';
             }
         }
 
@@ -1069,6 +1165,7 @@
             }
 
             tickTrafficCars();
+            tickOpponentCars();
             checkCollisions();
             updateRaceLines();
             // Live timer: update every frame while racing (tenths), freeze to hundredths on finish
@@ -1097,6 +1194,7 @@
         initRaceDistances();
         initTerrainDecorations();
         initTrafficCars();
+        initOpponentCars();
         restartBtn.addEventListener('click', restartRace);
         loop();
     </script>
