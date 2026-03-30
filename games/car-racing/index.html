@@ -36,6 +36,9 @@
             justify-content: center;
             align-items: center;
             touch-action: none; /* Prevent browser pan/zoom stealing gestures; pair with preventDefault on touchmove */
+            user-select: none;          /* Prevent text/element selection on tap/hold */
+            -webkit-user-select: none;  /* Safari/iOS */
+            -webkit-tap-highlight-color: transparent; /* Remove iOS blue-flash on tap */
         }
 
         /* Crisp grass (tight tiling — avoids soft/blurry radial smears) */
@@ -896,6 +899,7 @@
 
         gameView.addEventListener('touchstart', e => {
             if (e.touches.length !== 1) return;
+            e.preventDefault(); // Block tap selection, long-press menus, and tap highlight
             const t = e.touches[0];
             touchStartX = t.clientX;
             touchStartY = t.clientY;
@@ -907,7 +911,7 @@
                 collisionMsg.style.display = 'none';
             }
             targetSpeed = maxSpeed;
-        }, { passive: true });
+        }, { passive: false }); // passive:false required so e.preventDefault() is allowed
 
         gameView.addEventListener('touchmove', e => {
             if (!touchActive || e.touches.length !== 1) return;
