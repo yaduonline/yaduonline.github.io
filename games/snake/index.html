@@ -8,7 +8,7 @@
     <style>
         body {
             margin: 0;
-            background: #e8e6e0;
+            background: #ede9e0;  /* light mode default */
             font-family: system-ui, -apple-system, sans-serif;
             display: flex;
             flex-direction: column;
@@ -37,7 +37,7 @@
         #meta-bar {
             height: 48px;
             flex-shrink: 0;
-            background: #27364f;
+            background: #3d4e5c;
             display: flex;
             align-items: center;
             padding: 0 12px;
@@ -54,7 +54,7 @@
 
         .meta-label {
             font-size: 10px;
-            color: #7a8fa8;
+            color: #8a9aaa;
             text-transform: uppercase;
             letter-spacing: 0.04em;
         }
@@ -62,22 +62,22 @@
         .meta-value {
             font-size: 15px;
             font-weight: 600;
-            color: #c8d0e0;
+            color: #d8e0e8;
             font-variant-numeric: tabular-nums;
         }
 
         .meta-sep {
             width: 1px;
             height: 28px;
-            background: #3a4d68;
+            background: #4e6070;
             flex-shrink: 0;
         }
 
-        #sound-btn, #restart-btn {
+        #sound-btn, #theme-btn, #restart-btn {
             margin-left: auto;
-            background: #2f4260;
-            color: #c8d0e0;
-            border: 1px solid #3d5478;
+            background: #314252;
+            color: #d8e0e8;
+            border: 1px solid #4a5e6e;
             border-radius: 5px;
             padding: 4px 10px;
             font-size: 13px;
@@ -91,12 +91,12 @@
             padding: 2px 8px;
         }
 
-        #restart-btn {
+        #theme-btn, #restart-btn {
             margin-left: 6px;
         }
 
-        #sound-btn:hover, #restart-btn:hover {
-            background: #3d5478;
+        #sound-btn:hover, #theme-btn:hover, #restart-btn:hover {
+            background: #4a5e6e;
         }
 
         /* ── Canvas area ── */
@@ -106,7 +106,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            background: #141820;
+            background: #e8e0d4;  /* light mode: warm linen edge */
             min-height: 0;
         }
 
@@ -119,9 +119,9 @@
             position: absolute;
             bottom: 10px;
             right: 10px;
-            background: rgba(39,54,79,0.85);
-            color: #c8d0e0;
-            border: 1px solid #3d5478;
+            background: rgba(49,66,82,0.85);
+            color: #d8e0e8;
+            border: 1px solid #4a5e6e;
             border-radius: 5px;
             padding: 4px 8px;
             font-size: 16px;
@@ -129,7 +129,23 @@
             z-index: 10;
         }
 
-        #expand-btn:hover { background: rgba(61,84,120,0.9); }
+        #expand-btn:hover { background: rgba(74,94,110,0.9); }
+
+        /* ── Dark mode overrides ── */
+        body.dark { background: #1a1e28; }
+        body.dark #meta-bar { background: #27364f; }
+        body.dark .meta-label { color: #7a8fa8; }
+        body.dark .meta-value { color: #c8d0e0; }
+        body.dark .meta-sep { background: #3a4d68; }
+        body.dark #sound-btn,
+        body.dark #theme-btn,
+        body.dark #restart-btn { background: #2f4260; color: #c8d0e0; border-color: #3d5478; }
+        body.dark #sound-btn:hover,
+        body.dark #theme-btn:hover,
+        body.dark #restart-btn:hover { background: #3d5478; }
+        body.dark #game-canvas-wrap { background: #141820; }
+        body.dark #expand-btn { background: rgba(39,54,79,0.85); color: #c8d0e0; border-color: #3d5478; }
+        body.dark #expand-btn:hover { background: rgba(61,84,120,0.9); }
     </style>
 </head>
 <body>
@@ -167,6 +183,7 @@
             </div>
             <div class="meta-sep"></div>
             <button id="sound-btn" title="Toggle sound">🔇</button>
+            <button id="theme-btn" title="Toggle light/dark mode">🌙</button>
             <button id="restart-btn" title="Restart game">Restart</button>
         </div>
         <div id="game-canvas-wrap">
@@ -198,17 +215,41 @@
     const GOLDEN_SPAWN_CHANCE     = 0.15;
     const CHERRY_APPLE_INTERVAL   = 5;    // every Nth apple eaten
 
-    // Visual constants
-    const COLOR_BG        = '#1c2030';  // warm dark slate
-    const COLOR_GRID      = '#232840';  // barely-lighter for grid lines
-    const COLOR_HEAD      = '#6ec6a2';  // muted sage-teal
-    const COLOR_BODY      = '#9ad4bf';  // soft mint
-    const COLOR_FOOD      = '#e0856a';  // warm terracotta
-    const COLOR_CHERRY    = '#c47088';  // soft rose-mauve
-    const COLOR_GOLDEN    = '#d4a855';  // warm muted amber
-    const COLOR_OVERLAY   = 'rgba(12,14,26,0.68)';
-    const COLOR_TEXT      = '#c8d0e0';  // warm off-white
-    const COLOR_LABEL     = '#7a8fa8';  // muted slate
+    // ── Colour palettes (light default, dark optional) ──────────────
+    const LS_THEME_KEY = 'snake_theme';
+    const PALETTES = {
+        light: {
+            BG:      '#f0ece4',           // warm linen canvas
+            GRID:    '#e4ddd4',           // barely-visible warm lines
+            HEAD:    '#2e7d60',           // deep sage-teal
+            BODY:    '#4a9e82',           // medium sage
+            FOOD:    '#bf5a3a',           // earthy terracotta
+            CHERRY:  '#9e3a58',           // muted rose
+            GOLDEN:  '#a87020',           // warm amber
+            OVERLAY: 'rgba(50,40,30,0.65)',
+            TEXT:    '#3a3530',           // warm near-black
+            LABEL:   '#8a7a68',           // warm mid-brown
+            DANGER:  '#bf4040',           // soft red
+            EYE:     '#f0ece4',           // light dots on dark head
+        },
+        dark: {
+            BG:      '#1c2030',           // warm dark slate
+            GRID:    '#232840',           // barely-lighter grid lines
+            HEAD:    '#6ec6a2',           // muted sage-teal
+            BODY:    '#9ad4bf',           // soft mint
+            FOOD:    '#e0856a',           // warm terracotta
+            CHERRY:  '#c47088',           // soft rose-mauve
+            GOLDEN:  '#d4a855',           // warm muted amber
+            OVERLAY: 'rgba(12,14,26,0.68)',
+            TEXT:    '#c8d0e0',           // warm off-white
+            LABEL:   '#7a8fa8',           // muted slate
+            DANGER:  '#e07070',           // soft warm red
+            EYE:     '#1c2030',           // dark dots on light head
+        },
+    };
+
+    let theme = 'light';
+    let pal   = PALETTES.light;
 
     // ─────────────────────────────────────────────
     //  PURE LOGIC (shared with test.html)
@@ -475,6 +516,15 @@
         }
     }
 
+    function applyTheme(t) {
+        theme = t;
+        pal   = PALETTES[t];
+        document.body.classList.toggle('dark', t === 'dark');
+        const btn = document.getElementById('theme-btn');
+        if (btn) btn.textContent = t === 'dark' ? '☀️' : '🌙';
+        localStorage.setItem(LS_THEME_KEY, t);
+    }
+
     // ─────────────────────────────────────────────
     //  RENDERER
     // ─────────────────────────────────────────────
@@ -497,11 +547,11 @@
         const cs = cellSize;
 
         // Background
-        ctx.fillStyle = COLOR_BG;
+        ctx.fillStyle = pal.BG;
         ctx.fillRect(0, 0, W, H);
 
         // Grid lines
-        ctx.strokeStyle = COLOR_GRID;
+        ctx.strokeStyle = pal.GRID;
         ctx.lineWidth = 0.5;
         for (let i = 1; i < GRID_SIZE; i++) {
             ctx.beginPath();
@@ -515,18 +565,18 @@
         }
 
         // Food (apple)
-        drawFoodItem(s.food.x, s.food.y, COLOR_FOOD, null, cs);
+        drawFoodItem(s.food.x, s.food.y, pal.FOOD, null, cs);
 
         // Cherry (timed)
         if (s.cherry) {
             const msLeft = Math.max(0, s.cherry.expiresAt - Date.now());
-            drawFoodItem(s.cherry.x, s.cherry.y, COLOR_CHERRY, msLeft, cs);
+            drawFoodItem(s.cherry.x, s.cherry.y, pal.CHERRY, msLeft, cs);
         }
 
         // Golden apple (timed)
         if (s.goldenApple) {
             const msLeft = Math.max(0, s.goldenApple.expiresAt - Date.now());
-            drawFoodItem(s.goldenApple.x, s.goldenApple.y, COLOR_GOLDEN, msLeft, cs);
+            drawFoodItem(s.goldenApple.x, s.goldenApple.y, pal.GOLDEN, msLeft, cs);
         }
 
         // Snake — body first, then head on top
@@ -534,7 +584,7 @@
             const seg = s.snake[i];
             const isHead = i === 0;
             const pad = isHead ? cs * 0.06 : cs * 0.12;
-            ctx.fillStyle = isHead ? COLOR_HEAD : COLOR_BODY;
+            ctx.fillStyle = isHead ? pal.HEAD : pal.BODY;
             ctx.beginPath();
             ctx.roundRect(
                 seg.x * cs + pad,
@@ -556,7 +606,7 @@
             const eyeOffset = cs * 0.22;
             // perpendicular to direction
             const px = d.dy, py = -d.dx; // perpendicular unit vector
-            ctx.fillStyle = '#1a1a2e';
+            ctx.fillStyle = pal.EYE;
             ctx.beginPath();
             ctx.arc(hx + d.dx * eyeOffset + px * eyeOffset * 0.7,
                     hy + d.dy * eyeOffset + py * eyeOffset * 0.7, eyeR, 0, Math.PI * 2);
@@ -569,31 +619,31 @@
 
         // Idle overlay
         if (s.status === 'idle') {
-            ctx.fillStyle = COLOR_OVERLAY;
+            ctx.fillStyle = pal.OVERLAY;
             ctx.fillRect(0, 0, W, H);
-            drawCenteredText('Snake', W / 2, H / 2 - cs * 1.6, Math.round(cs * 1.2), COLOR_HEAD, true);
-            drawCenteredText('Press any arrow key or swipe to start', W / 2, H / 2, Math.round(cs * 0.46), COLOR_TEXT, false);
+            drawCenteredText('Snake', W / 2, H / 2 - cs * 1.6, Math.round(cs * 1.2), pal.HEAD, true);
+            drawCenteredText('Press any arrow key or swipe to start', W / 2, H / 2, Math.round(cs * 0.46), pal.TEXT, false);
         }
 
         // Paused overlay
         if (s.status === 'paused') {
-            ctx.fillStyle = 'rgba(0,0,0,0.45)';
+            ctx.fillStyle = pal.OVERLAY;
             ctx.fillRect(0, 0, W, H);
-            drawCenteredText('PAUSED', W / 2, H / 2, Math.round(cs * 1.1), COLOR_TEXT, true);
-            drawCenteredText('Press Space or tap to resume', W / 2, H / 2 + cs * 1.2, Math.round(cs * 0.46), COLOR_LABEL, false);
+            drawCenteredText('PAUSED', W / 2, H / 2, Math.round(cs * 1.1), pal.TEXT, true);
+            drawCenteredText('Press Space or tap to resume', W / 2, H / 2 + cs * 1.2, Math.round(cs * 0.46), pal.LABEL, false);
         }
 
         // Game-over overlay
         if (s.status === 'game-over') {
-            ctx.fillStyle = COLOR_OVERLAY;
+            ctx.fillStyle = pal.OVERLAY;
             ctx.fillRect(0, 0, W, H);
-            drawCenteredText('Game Over', W / 2, H / 2 - cs * 1.4, Math.round(cs * 1.1), '#ef4444', true);
-            drawCenteredText(`Score: ${s.score}`, W / 2, H / 2 - cs * 0.1, Math.round(cs * 0.65), COLOR_TEXT, false);
+            drawCenteredText('Game Over', W / 2, H / 2 - cs * 1.4, Math.round(cs * 1.1), pal.DANGER, true);
+            drawCenteredText(`Score: ${s.score}`, W / 2, H / 2 - cs * 0.1, Math.round(cs * 0.65), pal.TEXT, false);
             const best = loadBest();
             if (s.score > 0 && s.score === best) {
-                drawCenteredText('New Best!', W / 2, H / 2 + cs * 0.75, Math.round(cs * 0.55), '#fbbf24', true);
+                drawCenteredText('New Best!', W / 2, H / 2 + cs * 0.75, Math.round(cs * 0.55), pal.GOLDEN, true);
             }
-            drawCenteredText('Press any key or Restart to play again', W / 2, H / 2 + cs * 1.55, Math.round(cs * 0.44), COLOR_LABEL, false);
+            drawCenteredText('Press any key or Restart to play again', W / 2, H / 2 + cs * 1.55, Math.round(cs * 0.44), pal.LABEL, false);
         }
     }
 
@@ -815,6 +865,11 @@
         getAudioCtx();
     });
 
+    document.getElementById('theme-btn').addEventListener('click', () => {
+        applyTheme(theme === 'light' ? 'dark' : 'light');
+        render(state);
+    });
+
     document.getElementById('restart-btn').addEventListener('click', () => {
         resetGame();
     });
@@ -828,6 +883,7 @@
     //  INIT
     // ─────────────────────────────────────────────
     window.addEventListener('resize', resizeCanvas);
+    applyTheme(localStorage.getItem(LS_THEME_KEY) || 'light');
     // Small delay so header/footer fetch has time to affect layout
     setTimeout(resizeCanvas, 50);
     // Load best score into meta bar on init
