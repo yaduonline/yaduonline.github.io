@@ -49,9 +49,7 @@
 const GRID_SIZE = 20;
 
 function wrapCoord(val, max) {
-    if (val < 0)    return max - 1;
-    if (val >= max) return 0;
-    return val;
+    return ((val % max) + max) % max;
 }
 
 function isOppositeDir(a, b) {

@@ -90,9 +90,7 @@
      * @returns {number}
      */
     function wrapCoord(val, max) {
-        if (val < 0)   return max - 1;
-        if (val >= max) return 0;
-        return val;
+        return ((val % max) + max) % max;
     }
 
     /**

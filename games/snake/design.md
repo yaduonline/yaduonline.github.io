@@ -55,7 +55,7 @@ Pure functions that operate on `gameState` data. They take state as input and re
 | Function | Signature | Description |
 |---|---|---|
 | `initState()` | `() → gameState` | Returns a fresh initial state: snake at center, facing right, random food, score 0, status 'idle'. |
-| `wrapCoord(val, max)` | `(number, number) → number` | Wraps a coordinate: if `val < 0` returns `max - 1`; if `val >= max` returns `0`; otherwise returns `val`. |
+| `wrapCoord(val, max)` | `(number, number) → number` | Wraps a coordinate using modulo: `((val % max) + max) % max`. Handles negative values, exact-boundary, and multi-step overflows correctly. |
 | `nextHead(snake, dir)` | `(Array, {dx,dy}) → {x,y}` | Returns the cell the head will move into next tick, after wrap-around is applied. |
 | `isSelfCollision(head, snake)` | `({x,y}, Array) → boolean` | Returns `true` if `head` matches any cell in `snake` (excluding the current head at index 0). |
 | `isOppositeDir(a, b)` | `({dx,dy}, {dx,dy}) → boolean` | Returns `true` if `b` is the exact reverse of `a` (e.g. right vs left). Used to block illegal direction reversals. |
