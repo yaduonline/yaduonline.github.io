@@ -1057,9 +1057,10 @@
                 opponentCars.push({
                     el,
                     lane: startLanes[i],
-                    worldY: startWorldY,
+                    worldY: 0,
                     speed: cfg.speed,
                     currentSpeed: 0,
+                    finishing: false,
                     finished: false,
                 });
             }
@@ -1068,15 +1069,24 @@
         function tickOpponentCars() {
             const moving = raceState === 'pre' || raceState === 'racing' || raceState === 'finishing' || raceState === 'finished';
             for (const oc of opponentCars) {
-                if (!oc.finished && moving) {
-                    // Accelerate from 0 toward top speed, slightly slower than player
-                    if (oc.currentSpeed < oc.speed) {
-                        oc.currentSpeed = Math.min(oc.speed, oc.currentSpeed + acceleration * 0.7);
-                    }
-                    oc.worldY += oc.currentSpeed / 8;
-                    if (oc.worldY >= finishWorldY) {
-                        oc.worldY = finishWorldY;
-                        oc.finished = true;
+                if (moving) {
+                    if (oc.finishing) {
+                        // Coast to stop after finish line
+                        oc.currentSpeed = Math.max(0, oc.currentSpeed - friction * 10);
+                        oc.worldY += oc.currentSpeed / 8;
+                        if (oc.currentSpeed <= 0) {
+                            oc.finishing = false;
+                            oc.finished = true;
+                        }
+                    } else if (!oc.finished) {
+                        // Accelerate from 0 toward top speed
+                        if (oc.currentSpeed < oc.speed) {
+                            oc.currentSpeed = Math.min(oc.speed, oc.currentSpeed + acceleration * 0.7);
+                        }
+                        oc.worldY += oc.currentSpeed / 8;
+                        if (oc.worldY >= finishWorldY) {
+                            oc.finishing = true;
+                        }
                     }
                 }
                 const screenY = cachedCarCenterY - (oc.worldY - totalDistance);
