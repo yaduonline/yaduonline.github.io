@@ -529,6 +529,35 @@
             letter-spacing: 0.5px;
         }
 
+        /* ── Countdown overlay ───────────────────────────────────────── */
+        #countdown-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+        #countdown-text {
+            font-size: 96px;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 0 4px 24px rgba(0,0,0,0.7), 0 0 4px #000;
+            letter-spacing: -2px;
+            opacity: 0;
+            transform: scale(1.6);
+            transition: opacity 0.15s ease, transform 0.15s ease;
+        }
+        #countdown-text.show {
+            opacity: 1;
+            transform: scale(1);
+        }
+        #countdown-text.go {
+            color: #7dff9a;
+            text-shadow: 0 4px 24px rgba(0,0,0,0.7), 0 0 12px #00ff55;
+        }
+
         /* Collision flash */
         @keyframes collision-flash {
             0%, 100% { filter: none; }
@@ -618,6 +647,11 @@
                 </div>
             </div>
 
+            <!-- Countdown overlay -->
+            <div id="countdown-overlay" style="display:none">
+                <span id="countdown-text"></span>
+            </div>
+
             <!-- Expand / collapse button (bottom-right of game canvas) -->
             <button id="expand-btn" title="Toggle fullscreen" aria-label="Toggle fullscreen">
                 <svg id="icon-fs-expand" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round">
@@ -650,6 +684,8 @@
         const metaRaceTime = document.getElementById('meta-race-time');
         const collisionMsg = document.getElementById('collision-msg');
         const expandBtn = document.getElementById('expand-btn');
+        const countdownOverlay = document.getElementById('countdown-overlay');
+        const countdownText = document.getElementById('countdown-text');
 
         let currentLane = 1; // 0-3
         let speed = 0;
@@ -683,6 +719,8 @@
         let trafficCars = [];
         let playerCollided = false; // true while car is stopped after a crash
         let collidingWith = null;    // the traffic car object involved in current collision
+
+        let countdownActive = false;
 
         // Opponents
         const OPPONENT_COUNT = 3;
@@ -838,9 +876,39 @@
             restartBtn.style.display = 'block';
         }
 
+        function startCountdown() {
+            countdownActive = true;
+            raceState = 'countdown';
+            countdownOverlay.style.display = 'flex';
+            const steps = [
+                { label: '3', delay: 0 },
+                { label: '2', delay: 1000 },
+                { label: '1', delay: 2000 },
+                { label: 'GO!', delay: 3000, go: true },
+            ];
+            steps.forEach(({ label, delay, go }) => {
+                setTimeout(() => {
+                    countdownText.textContent = label;
+                    countdownText.classList.remove('show', 'go');
+                    if (go) countdownText.classList.add('go');
+                    // Force reflow to restart CSS transition
+                    void countdownText.offsetWidth;
+                    countdownText.classList.add('show');
+                }, delay);
+            });
+            setTimeout(() => {
+                countdownText.classList.remove('show', 'go');
+                setTimeout(() => {
+                    countdownOverlay.style.display = 'none';
+                    countdownActive = false;
+                    raceState = 'pre';
+                }, 200);
+            }, 3700);
+        }
+
         function restartRace() {
             totalDistance = 0;
-            raceState = 'pre';
+            raceState = 'countdown';
             raceStartTime = null;
             raceEndTime = null;
             speed = 0;
@@ -864,6 +932,7 @@
             initTerrainDecorations();
             initTrafficCars();
             initOpponentCars();
+            startCountdown();
         }
 
         // Traffic helpers
@@ -990,15 +1059,21 @@
                     lane: startLanes[i],
                     worldY: startWorldY,
                     speed: cfg.speed,
+                    currentSpeed: 0,
                     finished: false,
                 });
             }
         }
 
         function tickOpponentCars() {
+            const moving = raceState === 'pre' || raceState === 'racing' || raceState === 'finishing' || raceState === 'finished';
             for (const oc of opponentCars) {
-                if (!oc.finished) {
-                    oc.worldY += oc.speed / 8;
+                if (!oc.finished && moving) {
+                    // Accelerate from 0 toward top speed, slightly slower than player
+                    if (oc.currentSpeed < oc.speed) {
+                        oc.currentSpeed = Math.min(oc.speed, oc.currentSpeed + acceleration * 0.7);
+                    }
+                    oc.worldY += oc.currentSpeed / 8;
                     if (oc.worldY >= finishWorldY) {
                         oc.worldY = finishWorldY;
                         oc.finished = true;
@@ -1124,7 +1199,7 @@
                     speed = 0;
                     raceState = 'finished';
                 }
-            } else if (raceState !== 'finished') {
+            } else if (raceState !== 'finished' && raceState !== 'countdown') {
                 if (playerCollided) {
                     targetSpeed = 0;
                 } else {
@@ -1132,6 +1207,8 @@
                     else if (keys['ArrowDown']) targetSpeed = 0;
                     else if (!touchActive) targetSpeed = Math.max(0, targetSpeed - friction);
                 }
+            } else if (raceState === 'countdown') {
+                targetSpeed = 0;
             }
 
             if (speed < targetSpeed) {
@@ -1196,6 +1273,7 @@
         initTrafficCars();
         initOpponentCars();
         restartBtn.addEventListener('click', restartRace);
+        startCountdown();
         loop();
     </script>
 </body>
