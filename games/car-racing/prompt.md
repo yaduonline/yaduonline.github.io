@@ -1,60 +1,82 @@
 # Car Racing Game Prompt
 
 ## Overview
-Create a simple car-racing game where the player controls one car in a four-lane highway, competing against three computer-controlled opponents. The game features random traffic obstacles, multiple routes, difficulty levels, and supports both keyboard and touch controls for cross-device playability.
+A top-down car racing game where the player drives one car on a four-lane highway from a start line to a finish line, navigating slower traffic cars. The game supports both keyboard and touch controls for cross-device playability. Future phases will add opponent AI cars, route selection, and difficulty levels.
 
-## Game Features
-- **Lanes**: Four parallel lanes on the highway.
-- **Players**: One user-controlled car and three computer-controlled cars.
-- **Traffic**: Non-playing cars appear randomly on each lane as obstacles.
-- **Collision**: If the user's car collides with any other car (opponent or traffic), the user's car stops, however game continues. User has to press upward keyboard button or touch screen again to start the car again.
-- **Lane Changing**: User can change lanes to avoid collisions.
-- **Acceleration/Deceleration**: 
-  - Up arrow or simple touch on the screen or upward swipe: Accelerate the car. Constant press against the screen means car keeps accelerating until the press is over.
-  - Down arrow or downward swipe: Decelerate the car.
-- **Routes**: Multiple predefined routes (e.g., city, highway, mountain). User selects a route before starting.
-- **Difficulty Levels**: Five named levels from beginner to expert, affecting opponent AI behavior (e.g., speed, lane-changing frequency).
-- **Starting Lane**: User selects their starting lane at the beginning.
-- **Game End**: Game continues until collision; no win condition beyond survival.
+---
 
-## Controls
-- **Keyboard**:
-  - Left/Right arrows: Change lanes.
-  - Up arrow: Accelerate (hold to keep accelerating).
-  - Down arrow: Decelerate.
-- **Touch/Mobile**:
-  - Swipe left/right: Change lanes.
-  - Touch (tap or swipe up): Accelerate (hold to keep accelerating).
-  - Swipe down: Decelerate.
-- Ensure touch controls prevent page scrolling and are responsive on mobile devices.
+## What Has Been Built (Current State)
 
-## User Interface
-- **Simple Design**: Clean, minimalistic interface.
-- **Cars**: All cars look identical except for color. User's car has a distinctive symbol (e.g., a star or unique shape) to differentiate it.
-- **Display**: Show current speed, selected route, difficulty level, and lane position.
-- **Responsive**: Adapts to different screen sizes, with touch-friendly controls on mobile.
+### Layout & UI
+- Single HTML file, pure vanilla JS/CSS/HTML, no external dependencies.
+- **Meta bar** (48px, dark teal `#2e5c4e`) fixed at the top of the game view showing:
+  - Speed (e.g. `87 km/h`) — fixed-width column, always single line
+  - Position (e.g. `1/1`) — will update when opponents are added
+  - Time — starts as `--`, ticks live at 0.1s precision during race, freezes to 0.01s at finish
+  - **Race Again** button (hidden until race is finished)
+- **Expand/collapse button** (bottom-right) toggles fullscreen by hiding the site header/footer.
+- All meta bar text uses the system default font.
 
-## Difficulty Levels
-1. **Beginner**: Slow opponents, fewer traffic cars, easy lane changes.
-2. **Intermediate**: Moderate opponent speed and traffic.
-3. **Advanced**: Faster opponents, more frequent traffic.
-4. **Expert**: High-speed opponents with aggressive lane changes, dense traffic.
-5. **Master**: Maximum difficulty with unpredictable AI and constant obstacles.
+### Road & Terrain
+- Four-lane road rendered with CSS, scrolling lane markers.
+- Scrolling terrain on both sides (grass, trees, rocks).
 
-## Implementation Guidelines
-- **Self-Contained**: Single HTML file with embedded CSS and JavaScript.
-- **No External Dependencies**: Pure vanilla JS, HTML, CSS.
-- **Responsive and Mobile-Friendly**: Works on desktop and mobile, with proper touch handling.
-- **Cross-Device Controls**: Support keyboard and touch seamlessly.
-- **Performance**: Smooth animations, no lag on mobile devices.
-- **Persistence**: Use localStorage for high scores or settings if added later.
-- **Testing**: Ensure compatibility across browsers and devices.
-- **Code Quality**: Readable, commented code for maintainability.
+### Player Car
+- Top-down teal car with mirrors, headlights, tail lights, spoiler.
+- Spawns at the **start line** on page load.
 
-## Development Phases
-1. **Design**: Sketch UI layout, define game loop, AI logic for opponents.
-2. **Prototype**: Basic movement, collision detection, controls.
-3. **Polish**: Add routes, difficulty levels, animations, responsive design.
-4. **Testing**: Cross-device testing, bug fixes.
+### Race
+- **Start line**: white line where the car spawns.
+- **Finish line**: checkered line 25,000 scroll-units ahead.
+- **Race states**: `pre → racing → finishing → finished`
+  - `racing` begins the moment the car crosses the start line.
+  - `finishing` triggers at the finish line: timer freezes, car coasts to a stop using high friction (`friction × 10`).
+  - `finished`: Race Again button appears.
+- Race can be restarted via the Race Again button; timer resets to `--`.
 
-This prompt will be reviewed before proceeding to design and implementation.
+### Controls
+- **Keyboard**: Up/Down arrows accelerate/decelerate; Left/Right arrows change lanes.
+- **Touch**: Tap/hold to accelerate; swipe left/right to change lanes; swipe down to decelerate.
+- Touch events use `passive: false` + `preventDefault()` to prevent page scroll.
+- `user-select: none` and `-webkit-tap-highlight-color: transparent` on the game canvas.
+
+### Physics
+- `maxSpeed = 160`, `acceleration = 0.6`, `friction = 0.4`
+- Speed interpolates toward `targetSpeed` each frame with friction-based braking.
+
+### Traffic Cars
+- 8 background traffic cars (`TRAFFIC_COUNT = 8`) in 6 color variants.
+- Drive in the same direction as the player at `TRAFFIC_BASE_SPEED = 55`, slower than max player speed.
+- Spawn ahead of the player and recycle when far behind.
+- **Rear-end collision**: player car stops smoothly; overlap is capped so the player can't pass through. Resume by pressing Up or tapping.
+- **Sideways collision**: prevented — lane change is blocked if the target lane is occupied.
+- Collision flash effect and "COLLISION" message shown on impact.
+
+---
+
+## Next Step: Opponent Cars
+
+Add **3 computer-controlled opponent cars** that race from start to finish alongside the player.
+
+### Behaviour
+- Opponents start at the start line alongside the player.
+- Each opponent drives at a speed slightly varied around a base opponent speed (e.g. ±10–20% of player max speed), making them competitive.
+- Opponents change lanes autonomously to overtake traffic cars (simple AI: if a traffic car is close ahead, change to an adjacent free lane).
+- Opponents do not collide with each other or stop — they simply slow behind traffic if stuck.
+- Opponents finish the race when they cross the finish line; their finish time is recorded.
+
+### Position Display
+- The **Position** value in the meta bar updates live (e.g. `2/4`, `1/4`) based on how far each car has travelled relative to the finish line.
+- At race end, show the player's final finishing position.
+
+### Visual Distinction
+- Opponent cars look identical to the player car in shape but use different colors (not teal).
+- A small label or indicator above each opponent car shows their number (e.g. "CPU 1").
+
+---
+
+## Planned Future Features (not yet built)
+- **Route selection**: city / highway / mountain, affecting terrain visuals and traffic density.
+- **Difficulty levels**: 5 levels (Beginner → Master) affecting opponent speed and aggression.
+- **Starting lane selection**: player picks their lane before the race begins.
+- **High scores**: persist best finish times in `localStorage`.
