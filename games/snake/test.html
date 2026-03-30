@@ -70,7 +70,9 @@ function isSelfCollision(candidate, snake) {
     return false;
 }
 
-function spawnFood(snake, existing) {
+function spawnFood(snake, exclusions) {
+    const excList = Array.isArray(exclusions) ? exclusions.filter(Boolean)
+                    : (exclusions ? [exclusions] : []);
     let cell;
     let attempts = 0;
     do {
@@ -83,15 +85,33 @@ function spawnFood(snake, existing) {
             for (let row = 0; row < GRID_SIZE; row++) {
                 for (let col = 0; col < GRID_SIZE; col++) {
                     const c = { x: col, y: row };
-                    if (!snake.some(s => s.x === c.x && s.y === c.y)) return c;
+                    const blocked = snake.some(s => s.x === c.x && s.y === c.y) ||
+                                    excList.some(e => e.x === c.x && e.y === c.y);
+                    if (!blocked) return c;
                 }
             }
         }
     } while (
         snake.some(s => s.x === cell.x && s.y === cell.y) ||
-        (existing && existing.x === cell.x && existing.y === cell.y)
+        excList.some(e => e.x === cell.x && e.y === cell.y)
     );
     return cell;
+}
+
+const SPEED_TABLE = [
+    { minLen: 31, tickMs:  95 },
+    { minLen: 21, tickMs: 110 },
+    { minLen: 16, tickMs: 125 },
+    { minLen: 11, tickMs: 145 },
+    { minLen:  6, tickMs: 170 },
+    { minLen:  3, tickMs: 200 },
+];
+
+function getTickMs(length) {
+    for (const entry of SPEED_TABLE) {
+        if (length >= entry.minLen) return entry.tickMs;
+    }
+    return 200;
 }
 
 function initState() {
@@ -104,16 +124,20 @@ function initState() {
     ];
     return {
         snake,
-        direction: { dx: 1, dy: 0 },
-        nextDir:   null,
-        food:      spawnFood(snake, null),
-        score:     0,
-        status:    'idle',
+        direction:   { dx: 1, dy: 0 },
+        nextDir:     null,
+        food:        spawnFood(snake, []),
+        score:       0,
+        status:      'idle',
+        applesEaten: 0,
+        cherry:      null,
+        goldenApple: null,
     };
 }
 
 function tick(state) {
-    let { snake, direction, nextDir, food, score, status } = state;
+    let { snake, direction, nextDir, food, score, status,
+          applesEaten, cherry, goldenApple } = state;
     snake = snake.slice();
 
     if (nextDir && !isOppositeDir(direction, nextDir)) {
@@ -121,22 +145,56 @@ function tick(state) {
     }
     nextDir = null;
 
+    const now = Date.now();
+    if (cherry      && now > cherry.expiresAt)      cherry      = null;
+    if (goldenApple && now > goldenApple.expiresAt) goldenApple = null;
+
     const head = nextHead(snake[0], direction);
 
     if (isSelfCollision(head, snake)) {
-        return { snake, direction, nextDir, food, score, status: 'game-over' };
+        return { snake, direction, nextDir, food, score, status: 'game-over',
+                 applesEaten, cherry, goldenApple };
     }
 
     snake.unshift(head);
+    let grew = false;
+    let ateType = null;
+
+    const CHERRY_APPLE_INTERVAL = 5;
+    const CHERRY_DURATION_MS    = 10000;
+    const GOLDEN_DURATION_MS    = 7000;
+    const GOLDEN_SPAWN_CHANCE   = 0.15;
 
     if (head.x === food.x && head.y === food.y) {
+        grew = true;
+        ateType = 'apple';
         score += 1;
-        food = spawnFood(snake, null);
-    } else {
-        snake.pop();
+        applesEaten += 1;
+        food = spawnFood(snake, [cherry, goldenApple]);
+        if (applesEaten % CHERRY_APPLE_INTERVAL === 0 && !cherry) {
+            const pos = spawnFood(snake, [food, goldenApple]);
+            cherry = { x: pos.x, y: pos.y, expiresAt: now + CHERRY_DURATION_MS };
+        }
+        if (!goldenApple && Math.random() < GOLDEN_SPAWN_CHANCE) {
+            const pos = spawnFood(snake, [food, cherry]);
+            goldenApple = { x: pos.x, y: pos.y, expiresAt: now + GOLDEN_DURATION_MS };
+        }
+    } else if (cherry && head.x === cherry.x && head.y === cherry.y) {
+        grew = true;
+        ateType = 'cherry';
+        score += 3;
+        cherry = null;
+    } else if (goldenApple && head.x === goldenApple.x && head.y === goldenApple.y) {
+        grew = true;
+        ateType = 'golden';
+        score += 5;
+        goldenApple = null;
     }
 
-    return { snake, direction, nextDir, food, score, status };
+    if (!grew) snake.pop();
+
+    return { snake, direction, nextDir, food, score, status,
+             applesEaten, cherry, goldenApple, _ate: ateType };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -222,32 +280,28 @@ assert('C4 — moving into middle of body is a collision',
 
 // T: tick — movement and growth
 suite('tick(state) — movement');
+const baseState = (overrides) => ({
+    snake: [{x:5,y:5},{x:4,y:5},{x:3,y:5}],
+    direction: {dx:1,dy:0},
+    nextDir: null,
+    food: {x:0,y:0},
+    score: 0,
+    status: 'playing',
+    applesEaten: 0,
+    cherry: null,
+    goldenApple: null,
+    ...overrides,
+});
 {
     // T1: normal move, no food ahead
-    const s = {
-        snake: [{x:5,y:5},{x:4,y:5},{x:3,y:5}],
-        direction: {dx:1,dy:0},
-        nextDir: null,
-        food: {x:0,y:0},
-        score: 0,
-        status: 'playing',
-    };
-    const s2 = tick(s);
+    const s2 = tick(baseState({}));
     assert('T1 — head advances right',          s2.snake[0],       {x:6,y:5});
     assert('T1 — length unchanged after move',  s2.snake.length,   3);
     assert('T1 — score unchanged',              s2.score,          0);
 }
 {
     // T2: eating food
-    const s = {
-        snake: [{x:5,y:5},{x:4,y:5},{x:3,y:5}],
-        direction: {dx:1,dy:0},
-        nextDir: null,
-        food: {x:6,y:5},
-        score: 0,
-        status: 'playing',
-    };
-    const s2 = tick(s);
+    const s2 = tick(baseState({ food: {x:6,y:5} }));
     assert('T2 — head on food cell',                s2.snake[0],      {x:6,y:5});
     assert('T2 — snake grew by 1',                  s2.snake.length,  4);
     assert('T2 — score incremented',                s2.score,         1);
@@ -257,75 +311,45 @@ suite('tick(state) — movement');
 }
 {
     // T3: wrap-around during tick
-    const s = {
-        snake: [{x:19,y:5},{x:18,y:5},{x:17,y:5}],
-        direction: {dx:1,dy:0},
-        nextDir: null,
-        food: {x:0,y:0},
-        score: 0,
-        status: 'playing',
-    };
-    const s2 = tick(s);
+    const s2 = tick(baseState({ snake: [{x:19,y:5},{x:18,y:5},{x:17,y:5}] }));
     assert('T3 — head wraps to left edge', s2.snake[0], {x:0,y:5});
 }
 {
-    // T4: self-collision
-    // Snake in a U: head will step into body
-    const s = {
+    // T4: self-collision — U-shape, head steps into body
+    const s2 = tick(baseState({
         snake: [{x:5,y:5},{x:5,y:6},{x:4,y:6},{x:4,y:5},{x:4,y:4}],
-        direction: {dx:-1,dy:0},  // moving left, will hit {x:4,y:5}
-        nextDir: null,
-        food: {x:0,y:0},
-        score: 0,
-        status: 'playing',
-    };
-    const s2 = tick(s);
+        direction: {dx:-1,dy:0},
+    }));
     assert('T4 — status is game-over after self-collision', s2.status, 'game-over');
     assert('T4 — snake unchanged on game-over',             s2.snake.length, 5);
 }
 {
     // T5: opposite direction input is ignored
-    const s = {
-        snake: [{x:5,y:5},{x:4,y:5},{x:3,y:5}],
-        direction: {dx:1,dy:0},   // moving right
-        nextDir: {dx:-1,dy:0},    // queued: left (illegal)
-        food: {x:0,y:0},
-        score: 0,
-        status: 'playing',
-    };
-    const s2 = tick(s);
+    const s2 = tick(baseState({ nextDir: {dx:-1,dy:0} }));
     assert('T5 — still moves right when opposite queued', s2.snake[0], {x:6,y:5});
     assert('T5 — status still playing',                   s2.status,   'playing');
 }
 {
     // T6: valid perpendicular direction applied
-    const s = {
-        snake: [{x:5,y:5},{x:4,y:5},{x:3,y:5}],
-        direction: {dx:1,dy:0},   // moving right
-        nextDir: {dx:0,dy:-1},    // queued: up (valid)
-        food: {x:0,y:0},
-        score: 0,
-        status: 'playing',
-    };
-    const s2 = tick(s);
+    const s2 = tick(baseState({ nextDir: {dx:0,dy:-1} }));
     assert('T6 — turns up when up queued', s2.snake[0], {x:5,y:4});
     assert('T6 — new direction is up',     s2.direction, {dx:0,dy:-1});
 }
 
 // F: spawnFood
-suite('spawnFood(snake, existing)');
+suite('spawnFood(snake, exclusions)');
 {
-    // F1: food not on snake
+    // F1: food not on snake (array exclusion form)
     const snake = [{x:5,y:5},{x:4,y:5},{x:3,y:5}];
     let ok = true;
     for (let i = 0; i < 200; i++) {
-        const f = spawnFood(snake, null);
+        const f = spawnFood(snake, []);
         if (snake.some(s => s.x === f.x && s.y === f.y)) { ok = false; break; }
     }
     assertCond('F1 — food never spawns on snake (200 trials)', ok, 'spawned on snake body at least once');
 }
 {
-    // F2: board almost full — snake fills 399 of 400 cells, food goes to last free
+    // F2: board almost full
     const snake = [];
     for (let row = 0; row < GRID_SIZE; row++) {
         for (let col = 0; col < GRID_SIZE; col++) {
@@ -334,8 +358,89 @@ suite('spawnFood(snake, existing)');
             }
         }
     }
-    const f = spawnFood(snake, null);
+    const f = spawnFood(snake, []);
     assert('F2 — finds last free cell when board almost full', f, {x: GRID_SIZE-1, y: GRID_SIZE-1});
+}
+{
+    // F3: respects array exclusions
+    const snake = [{x:0,y:0}];
+    const excl  = [{x:1,y:0},{x:2,y:0},{x:3,y:0}];
+    let ok = true;
+    for (let i = 0; i < 200; i++) {
+        const f = spawnFood(snake, excl);
+        if (excl.some(e => e.x === f.x && e.y === f.y)) { ok = false; break; }
+        if (snake.some(s => s.x === f.x && s.y === f.y)) { ok = false; break; }
+    }
+    assertCond('F3 — food never spawns on exclusion cells (200 trials)', ok, 'spawned on excluded cell at least once');
+}
+
+// SP: speed progression
+suite('getTickMs(length)');
+assert('SP1 — length 3 gives 200ms',   getTickMs(3),  200);
+assert('SP2 — length 5 gives 200ms',   getTickMs(5),  200);
+assert('SP3 — length 6 gives 170ms',   getTickMs(6),  170);
+assert('SP4 — length 11 gives 145ms',  getTickMs(11), 145);
+assert('SP5 — length 16 gives 125ms',  getTickMs(16), 125);
+assert('SP6 — length 21 gives 110ms',  getTickMs(21), 110);
+assert('SP7 — length 31 gives 95ms',   getTickMs(31),  95);
+assert('SP8 — length 50 still 95ms',   getTickMs(50),  95);
+
+// SF: special food via tick
+suite('tick — cherry and golden apple');
+{
+    // SF1: eating apple increments applesEaten and score
+    const s = {
+        snake: [{x:5,y:5},{x:4,y:5},{x:3,y:5}],
+        direction: {dx:1,dy:0}, nextDir: null,
+        food: {x:6,y:5}, score: 0, status: 'playing',
+        applesEaten: 0, cherry: null, goldenApple: null,
+    };
+    const s2 = tick(s);
+    assert('SF1 — applesEaten increments on apple eat', s2.applesEaten, 1);
+    assert('SF1 — score +1 on apple', s2.score, 1);
+    assert('SF1 — _ate is apple', s2._ate, 'apple');
+}
+{
+    // SF2: eating cherry gives +3, clears cherry slot
+    const cherry = { x:6,y:5, expiresAt: Date.now() + 10000 };
+    const s = {
+        snake: [{x:5,y:5},{x:4,y:5},{x:3,y:5}],
+        direction: {dx:1,dy:0}, nextDir: null,
+        food: {x:0,y:0}, score: 0, status: 'playing',
+        applesEaten: 0, cherry, goldenApple: null,
+    };
+    const s2 = tick(s);
+    assert('SF2 — score +3 on cherry', s2.score, 3);
+    assert('SF2 — cherry cleared after eating', s2.cherry, null);
+    assert('SF2 — _ate is cherry', s2._ate, 'cherry');
+    assert('SF2 — snake grew on cherry', s2.snake.length, 4);
+}
+{
+    // SF3: eating golden apple gives +5, clears golden slot
+    const goldenApple = { x:6,y:5, expiresAt: Date.now() + 10000 };
+    const s = {
+        snake: [{x:5,y:5},{x:4,y:5},{x:3,y:5}],
+        direction: {dx:1,dy:0}, nextDir: null,
+        food: {x:0,y:0}, score: 0, status: 'playing',
+        applesEaten: 0, cherry: null, goldenApple,
+    };
+    const s2 = tick(s);
+    assert('SF3 — score +5 on golden apple', s2.score, 5);
+    assert('SF3 — goldenApple cleared after eating', s2.goldenApple, null);
+    assert('SF3 — _ate is golden', s2._ate, 'golden');
+}
+{
+    // SF4: expired cherry is removed during tick
+    const cherry = { x:6,y:5, expiresAt: Date.now() - 1 }; // already expired
+    const s = {
+        snake: [{x:5,y:5},{x:4,y:5},{x:3,y:5}],
+        direction: {dx:1,dy:0}, nextDir: null,
+        food: {x:0,y:0}, score: 0, status: 'playing',
+        applesEaten: 0, cherry, goldenApple: null,
+    };
+    const s2 = tick(s);
+    assert('SF4 — expired cherry cleared in tick', s2.cherry, null);
+    assert('SF4 — score unchanged when cherry expired', s2.score, 0);
 }
 
 // LS: localStorage helpers

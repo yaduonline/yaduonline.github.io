@@ -1,6 +1,6 @@
 # Snake Game — Design Document
 
-> **Current iteration**: Iteration 2 — Polish & Persistence  
+> **Current iteration**: Iteration 3 — Food Variety, Speed & Sound  
 > Update this file at the start of each new iteration to reflect new components, changed logic, and additional tests.
 
 ---
@@ -43,9 +43,20 @@ gameState {
 **Constants** (not in gameState — fixed for the session):
 ```
 GRID_SIZE        = 20          // number of cells per side
-TICK_MS          = 200         // fixed tick interval (speed progression added in iteration 3)
 LS_HIGHSCORE_KEY = 'snake_highscore'   // localStorage key
+
+// Speed progression: tick interval by snake length
+SPEED_TABLE = [
+    { minLen:  3, tickMs: 200 },
+    { minLen:  6, tickMs: 170 },
+    { minLen: 11, tickMs: 145 },
+    { minLen: 16, tickMs: 125 },
+    { minLen: 21, tickMs: 110 },
+    { minLen: 31, tickMs:  95 },
+];
 ```
+
+`getTickMs(length)` — pure function, returns the correct tick interval for the current snake length. Used by the game loop instead of a fixed `TICK_MS`.
 
 ---
 
@@ -62,6 +73,8 @@ Pure functions that operate on `gameState` data. They take state as input and re
 | `isOppositeDir(a, b)` | `({dx,dy}, {dx,dy}) → boolean` | Returns `true` if `b` is the exact reverse of `a` (e.g. right vs left). Used to block illegal direction reversals. |
 | `spawnFood(snake, existing)` | `(Array, {x,y}|null) → {x,y}` | Returns a random grid cell not occupied by the snake or existing food. |
 | `tick(state)` | `(gameState) → gameState` | Advances the game by one tick. Returns the updated state. See section 3 for full logic. |
+| `getTickMs(length)` | `(number) → number` | Returns the tick interval in ms for the given snake length, using the speed progression table. |
+| `spawnSpecialFood(type, snake, existingFoods)` | `(string, Array, Array) → specialFood` | Spawns a cherry or golden apple at a random free cell. Returns `{type, x, y, expiresAt}`. |
 
 ---
 
@@ -76,6 +89,51 @@ A 48px-tall fixed bar above the canvas (dark teal `#2e5c4e`, matching car-racing
 | Length | `#length-display` | `snake.length`, updates every tick |
 | Sound toggle | `#sound-btn` | `🔇` by default; click to toggle `🔊`. Mute state stored in `soundEnabled` variable |
 | Restart | `#restart-btn` | Always visible; calls `resetGame()` at any point |
+
+### 2.9 Special Food System (new in iteration 3)
+
+Three food types exist simultaneously on the board:
+
+| Type | Color | Points | Lifespan | Trigger |
+|---|---|---|---|---|
+| Apple | `#ef4444` red | +1 | Permanent | Always 1 on board |
+| Cherry | `#9f1239` dark red | +3 | 10 000ms | Spawns when `applesEaten % 5 === 0` (and > 0) |
+| Golden apple | `#fbbf24` gold | +5 | 7 000ms | 15% random chance each time apple is eaten; max 1 at a time |
+
+**State additions:**
+```
+gameState {
+    ...existing fields...
+    applesEaten:  number         // counts apple eats; triggers cherry
+    cherry:       {x,y,expiresAt} | null
+    goldenApple:  {x,y,expiresAt} | null
+}
+```
+
+**Tick additions:**
+- After eating any food, check cherries/golden apple: if `Date.now() > expiresAt`, remove them.
+- Check if head overlaps cherry or golden → eat, add points, clear slot.
+- On apple eat: maybe spawn cherry (every 5th apple) and maybe spawn golden (15% chance).
+- `expiresAt` is a wall-clock timestamp (`Date.now() + durationMs`). The renderer draws a countdown timer as text above each special food cell.
+
+### 2.10 Web Audio Sound System (new in iteration 3)
+
+All sounds synthesized via `AudioContext` + `OscillatorNode` + `GainNode`. No audio files, no external dependencies. Muted by default — `soundEnabled = false`.
+
+```
+playSound(type)
+  type: 'eat-apple' | 'eat-cherry' | 'eat-golden' | 'game-over' | 'pause'
+```
+
+Each call creates a fresh oscillator, connects it to a `GainNode`, schedules the envelope (attack + release), and disconnects on end. The `AudioContext` is created lazily on first user interaction (browser autoplay policy).
+
+| Event | Waveform | Frequency envelope | Duration |
+|---|---|---|---|
+| eat-apple | sine | 440 → 880 Hz | 80ms |
+| eat-cherry | sine | 440 → 660 → 880 Hz (2 notes) | 120ms |
+| eat-golden | sine | 440 → 660 → 880 → 1100 Hz (3 notes) | 200ms |
+| game-over | sawtooth | 440 → 110 Hz | 400ms |
+| pause | sine | 330 Hz flat | 50ms |
 
 ---
 
@@ -320,8 +378,7 @@ Rendering and the game loop are **not unit tested** — they are verified manual
 
 ---
 
-## 6. Known Limitations (Iteration 2)
+## 6. Known Limitations (Iteration 3)
 
-- No speed progression — fixed 200ms tick (added in iteration 3).
-- No cherry or golden apple food (added in iteration 3).
-- No sounds (added in iteration 3).
+- All MVP features are complete. No known limitations.
+- Future potential: difficulty select, route/theme select, 2-player mode.

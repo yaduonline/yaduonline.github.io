@@ -180,8 +180,23 @@
     //  CONSTANTS
     // ─────────────────────────────────────────────
     const GRID_SIZE = 20;
-    const TICK_MS   = 200;
     const LS_KEY    = 'snake_highscore';
+
+    // Speed progression: tick interval in ms by minimum snake length
+    const SPEED_TABLE = [
+        { minLen: 31, tickMs:  95 },
+        { minLen: 21, tickMs: 110 },
+        { minLen: 16, tickMs: 125 },
+        { minLen: 11, tickMs: 145 },
+        { minLen:  6, tickMs: 170 },
+        { minLen:  3, tickMs: 200 },
+    ];
+
+    // Special food durations
+    const CHERRY_DURATION_MS      = 10000;
+    const GOLDEN_DURATION_MS      =  7000;
+    const GOLDEN_SPAWN_CHANCE     = 0.15;
+    const CHERRY_APPLE_INTERVAL   = 5;    // every Nth apple eaten
 
     // Visual constants
     const COLOR_BG        = '#1a1a2e';
@@ -189,6 +204,8 @@
     const COLOR_HEAD      = '#22c55e';
     const COLOR_BODY      = '#4ade80';
     const COLOR_FOOD      = '#ef4444';
+    const COLOR_CHERRY    = '#9f1239';
+    const COLOR_GOLDEN    = '#fbbf24';
     const COLOR_OVERLAY   = 'rgba(0,0,0,0.55)';
     const COLOR_TEXT      = '#b8dde8';
     const COLOR_LABEL     = '#6aabbb';
@@ -247,12 +264,28 @@
     }
 
     /**
-     * Returns a random grid cell not occupied by the snake or the existing food.
-     * @param {Array<{x:number,y:number}>} snake
-     * @param {{x:number,y:number}|null} existing  pass null when there is no current food
+     * Returns the tick interval in ms for the current snake length.
+     * Sorted descending so first match wins.
+     * @param {number} length
+     * @returns {number}
+     */
+    function getTickMs(length) {
+        for (const entry of SPEED_TABLE) {
+            if (length >= entry.minLen) return entry.tickMs;
+        }
+        return 200;
+    }
+
+    /**
+     * Returns a random grid cell not occupied by snake or any of the given exclusions.
+     * @param {Array<{x,y}>} snake
+     * @param {Array<{x,y}|null>} exclusions  array of cells to avoid (nulls are skipped)
      * @returns {{x:number,y:number}}
      */
-    function spawnFood(snake, existing) {
+    function spawnFood(snake, exclusions) {
+        // exclusions is now an array of cells to avoid (or a single cell for backward compat)
+        const excList = Array.isArray(exclusions) ? exclusions.filter(Boolean)
+                        : (exclusions ? [exclusions] : []);
         let cell;
         let attempts = 0;
         do {
@@ -261,18 +294,19 @@
                 y: Math.floor(Math.random() * GRID_SIZE),
             };
             attempts++;
-            // Safety: if board is almost full iterate deterministically
             if (attempts > GRID_SIZE * GRID_SIZE * 2) {
                 for (let row = 0; row < GRID_SIZE; row++) {
                     for (let col = 0; col < GRID_SIZE; col++) {
                         const c = { x: col, y: row };
-                        if (!snake.some(s => s.x === c.x && s.y === c.y)) return c;
+                        const blocked = snake.some(s => s.x === c.x && s.y === c.y) ||
+                                        excList.some(e => e.x === c.x && e.y === c.y);
+                        if (!blocked) return c;
                     }
                 }
             }
         } while (
             snake.some(s => s.x === cell.x && s.y === cell.y) ||
-            (existing && existing.x === cell.x && existing.y === cell.y)
+            excList.some(e => e.x === cell.x && e.y === cell.y)
         );
         return cell;
     }
@@ -292,11 +326,14 @@
         ];
         return {
             snake,
-            direction: { dx: 1, dy: 0 },
-            nextDir:   null,
-            food:      spawnFood(snake, null),
-            score:     0,
-            status:    'idle',   // 'idle' | 'playing' | 'paused' | 'game-over'
+            direction:   { dx: 1, dy: 0 },
+            nextDir:     null,
+            food:        spawnFood(snake, []),
+            score:       0,
+            status:      'idle',   // 'idle' | 'playing' | 'paused' | 'game-over'
+            applesEaten: 0,
+            cherry:      null,     // {x, y, expiresAt} | null
+            goldenApple: null,     // {x, y, expiresAt} | null
         };
     }
 
@@ -307,9 +344,9 @@
      * @returns {object} new state
      */
     function tick(state) {
-        // Work on a shallow copy so the original is untouched
-        let { snake, direction, nextDir, food, score, status } = state;
-        snake = snake.slice(); // copy array (cells are treated as immutable)
+        let { snake, direction, nextDir, food, score, status,
+              applesEaten, cherry, goldenApple } = state;
+        snake = snake.slice();
 
         // 1. Apply queued direction (if valid)
         if (nextDir && !isOppositeDir(direction, nextDir)) {
@@ -317,27 +354,111 @@
         }
         nextDir = null;
 
-        // 2. Compute new head
+        // 2. Expire timed food
+        const now = Date.now();
+        if (cherry      && now > cherry.expiresAt)      cherry      = null;
+        if (goldenApple && now > goldenApple.expiresAt) goldenApple = null;
+
+        // 3. Compute new head
         const head = nextHead(snake[0], direction);
 
-        // 3. Self-collision check
+        // 4. Self-collision check
         if (isSelfCollision(head, snake)) {
-            return { snake, direction, nextDir, food, score, status: 'game-over' };
+            return { snake, direction, nextDir, food, score, status: 'game-over',
+                     applesEaten, cherry, goldenApple };
         }
 
-        // 4. Move snake
+        // 5. Move snake
         snake.unshift(head);
+        let grew = false;
+        let ateType = null;
 
         if (head.x === food.x && head.y === food.y) {
-            // Ate food — grow (tail stays), bump score, spawn new food
+            // Ate apple
+            grew = true;
+            ateType = 'apple';
             score += 1;
-            food = spawnFood(snake, null);
-        } else {
-            // Normal move — remove tail
-            snake.pop();
+            applesEaten += 1;
+            food = spawnFood(snake, [cherry, goldenApple]);
+            // Maybe spawn cherry (every CHERRY_APPLE_INTERVAL apples)
+            if (applesEaten % CHERRY_APPLE_INTERVAL === 0 && !cherry) {
+                const pos = spawnFood(snake, [food, goldenApple]);
+                cherry = { x: pos.x, y: pos.y, expiresAt: now + CHERRY_DURATION_MS };
+            }
+            // Maybe spawn golden apple (random chance, max 1)
+            if (!goldenApple && Math.random() < GOLDEN_SPAWN_CHANCE) {
+                const pos = spawnFood(snake, [food, cherry]);
+                goldenApple = { x: pos.x, y: pos.y, expiresAt: now + GOLDEN_DURATION_MS };
+            }
+        } else if (cherry && head.x === cherry.x && head.y === cherry.y) {
+            grew = true;
+            ateType = 'cherry';
+            score += 3;
+            cherry = null;
+        } else if (goldenApple && head.x === goldenApple.x && head.y === goldenApple.y) {
+            grew = true;
+            ateType = 'golden';
+            score += 5;
+            goldenApple = null;
         }
 
-        return { snake, direction, nextDir, food, score, status };
+        if (!grew) snake.pop();
+
+        return { snake, direction, nextDir, food, score, status,
+                 applesEaten, cherry, goldenApple, _ate: ateType };
+    }
+
+    // ─────────────────────────────────────────────
+    //  SOUND SYSTEM
+    // ─────────────────────────────────────────────
+    let audioCtx = null;
+    let soundEnabled = false;
+
+    function getAudioCtx() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        return audioCtx;
+    }
+
+    // Play a sequence of {freq, duration, type} notes
+    function playTone(notes, waveType = 'sine') {
+        if (!soundEnabled) return;
+        const ctx = getAudioCtx();
+        let t = ctx.currentTime;
+        notes.forEach(({ freq, dur }) => {
+            const osc  = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = waveType;
+            osc.frequency.setValueAtTime(freq, t);
+            gain.gain.setValueAtTime(0.18, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(t);
+            osc.stop(t + dur);
+            t += dur;
+        });
+    }
+
+    function playSound(type) {
+        switch (type) {
+            case 'eat-apple':
+                playTone([{ freq: 440, dur: 0.04 }, { freq: 880, dur: 0.04 }]);
+                break;
+            case 'eat-cherry':
+                playTone([{ freq: 440, dur: 0.05 }, { freq: 660, dur: 0.05 }, { freq: 880, dur: 0.05 }]);
+                break;
+            case 'eat-golden':
+                playTone([{ freq: 440, dur: 0.05 }, { freq: 660, dur: 0.05 },
+                          { freq: 880, dur: 0.05 }, { freq: 1100, dur: 0.07 }]);
+                break;
+            case 'game-over':
+                playTone([{ freq: 440, dur: 0.1 }, { freq: 330, dur: 0.1 },
+                          { freq: 220, dur: 0.12 }, { freq: 110, dur: 0.18 }], 'sawtooth');
+                break;
+            case 'pause':
+                playTone([{ freq: 330, dur: 0.05 }]);
+                break;
+        }
     }
 
     // ─────────────────────────────────────────────
@@ -393,14 +514,20 @@
             ctx.stroke();
         }
 
-        // Food
-        const fx = s.food.x * cs + cs / 2;
-        const fy = s.food.y * cs + cs / 2;
-        const fr = cs * 0.38;
-        ctx.fillStyle = COLOR_FOOD;
-        ctx.beginPath();
-        ctx.arc(fx, fy, fr, 0, Math.PI * 2);
-        ctx.fill();
+        // Food (apple)
+        drawFoodItem(s.food.x, s.food.y, COLOR_FOOD, null, cs);
+
+        // Cherry (timed)
+        if (s.cherry) {
+            const msLeft = Math.max(0, s.cherry.expiresAt - Date.now());
+            drawFoodItem(s.cherry.x, s.cherry.y, COLOR_CHERRY, msLeft, cs);
+        }
+
+        // Golden apple (timed)
+        if (s.goldenApple) {
+            const msLeft = Math.max(0, s.goldenApple.expiresAt - Date.now());
+            drawFoodItem(s.goldenApple.x, s.goldenApple.y, COLOR_GOLDEN, msLeft, cs);
+        }
 
         // Snake — body first, then head on top
         for (let i = s.snake.length - 1; i >= 0; i--) {
@@ -470,6 +597,27 @@
         }
     }
 
+    function drawFoodItem(gx, gy, color, msLeft, cs) {
+        const fx = gx * cs + cs / 2;
+        const fy = gy * cs + cs / 2;
+        const fr = cs * 0.38;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(fx, fy, fr, 0, Math.PI * 2);
+        ctx.fill();
+        // Countdown timer above the cell for timed items
+        if (msLeft !== null) {
+            const secs = Math.ceil(msLeft / 1000);
+            const fontSize = Math.max(9, Math.round(cs * 0.38));
+            ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
+            ctx.textBaseline = 'bottom';
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.fillText(secs, fx - ctx.measureText(secs).width / 2 + 1, gy * cs + 1);
+            ctx.fillStyle = color;
+            ctx.fillText(secs, fx - ctx.measureText(secs).width / 2, gy * cs);
+        }
+    }
+
     function drawCenteredText(text, x, y, size, color, bold) {
         ctx.font = `${bold ? 'bold ' : ''}${size}px system-ui, sans-serif`;
         ctx.textBaseline = 'middle';
@@ -506,9 +654,18 @@
         accumulator += ts - lastTs;
         lastTs = ts;
 
-        while (accumulator >= TICK_MS) {
-            state = tick(state);
-            accumulator -= TICK_MS;
+        const tickMs = getTickMs(state.snake.length);
+        while (accumulator >= tickMs) {
+            const newState = tick(state);
+            // Trigger sounds based on what happened this tick
+            if (newState._ate === 'apple')  playSound('eat-apple');
+            if (newState._ate === 'cherry') playSound('eat-cherry');
+            if (newState._ate === 'golden') playSound('eat-golden');
+            if (newState.status === 'game-over' && state.status !== 'game-over') {
+                playSound('game-over');
+            }
+            state = newState;
+            accumulator -= tickMs;
         }
 
         render(state);
@@ -547,9 +704,11 @@
             state.status = 'paused';
             stopLoop();
             render(state);
+            playSound('pause');
         } else if (state.status === 'paused') {
             state.status = 'playing';
             startLoop();
+            playSound('pause');
         }
     }
 
@@ -649,11 +808,11 @@
     // ─────────────────────────────────────────────
     //  BUTTON WIRING
     // ─────────────────────────────────────────────
-    let soundEnabled = false;
-
     document.getElementById('sound-btn').addEventListener('click', () => {
         soundEnabled = !soundEnabled;
         document.getElementById('sound-btn').textContent = soundEnabled ? '🔊' : '🔇';
+        // Warm up AudioContext on first interaction (browser autoplay policy)
+        getAudioCtx();
     });
 
     document.getElementById('restart-btn').addEventListener('click', () => {
