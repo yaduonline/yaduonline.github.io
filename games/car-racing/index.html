@@ -870,11 +870,24 @@
             }
         }
 
+        function getPlayerPosition() {
+            // Rank player vs opponents by distance travelled (higher worldY = further ahead)
+            const playerDist = totalDistance;
+            let ahead = 0;
+            for (const oc of opponentCars) {
+                if (!oc.finished && oc.worldY > playerDist) ahead++;
+                else if (oc.finished) ahead++;
+            }
+            return ahead + 1; // 1-based position
+        }
+
         function showRaceComplete() {
             const elapsed = raceEndTime - raceStartTime;
             const mins = Math.floor(elapsed / 60000);
             const secs = ((elapsed % 60000) / 1000).toFixed(2);
             raceTimeDisplay.textContent = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+            const finalPos = getPlayerPosition();
+            positionDisplay.textContent = `${finalPos}/4`;
             restartBtn.style.display = 'block';
         }
 
@@ -922,6 +935,7 @@
             touchHorizontalIntent = false;
             car.classList.remove('braking');
             raceTimeDisplay.textContent = '--';
+            positionDisplay.textContent = '1/4';
             restartBtn.style.display = 'none';
             markers.style.transform = 'translateY(0px)';
             terrain.style.backgroundPosition = '0 0';
@@ -1336,6 +1350,10 @@
                 raceTimeDisplay.textContent = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
             }
             speedMeter.innerText = `${Math.round(speed)} km/h`;
+            // Live position: rank player against all opponents every frame
+            if (raceState === 'racing' || raceState === 'pre') {
+                positionDisplay.textContent = `${getPlayerPosition()}/4`;
+            }
             requestAnimationFrame(loop);
         }
 
