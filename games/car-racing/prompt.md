@@ -1,7 +1,7 @@
 # Car Racing Game Prompt
 
 ## Overview
-A top-down car racing game where the player drives one car on a four-lane highway from a start line to a finish line, navigating slower traffic cars. The game supports both keyboard and touch controls for cross-device playability. Future phases will add opponent AI cars, route selection, and difficulty levels.
+A top-down car racing game where the player drives one car on a four-lane highway from a start line to a finish line, navigating slower traffic cars and racing against 3 CPU opponents. Supports both keyboard and touch controls for cross-device playability.
 
 ---
 
@@ -10,68 +10,56 @@ A top-down car racing game where the player drives one car on a four-lane highwa
 ### Layout & UI
 - Single HTML file, pure vanilla JS/CSS/HTML, no external dependencies.
 - **Meta bar** (48px, dark teal `#2e5c4e`) fixed at the top of the game view showing:
-  - Speed (e.g. `87 km/h`) — fixed-width column, always single line
-  - Position (e.g. `1/1`) — will update when opponents are added
+  - Speed (e.g. `87 km/h`) — fixed-width column, always single line, system default font
+  - Position (e.g. `2/4`) — updates live every frame based on race order
   - Time — starts as `--`, ticks live at 0.1s precision during race, freezes to 0.01s at finish
   - **Race Again** button (hidden until race is finished)
 - **Expand/collapse button** (bottom-right) toggles fullscreen by hiding the site header/footer.
-- All meta bar text uses the system default font.
 
 ### Road & Terrain
 - Four-lane road rendered with CSS, scrolling lane markers.
 - Scrolling terrain on both sides (grass, trees, rocks).
 
+### Race States
+`countdown → pre → racing → finishing → finished`
+- **countdown**: 3-2-1-GO! overlay shown, all input blocked, no cars move.
+- **pre**: cars move but timer hasn't started; timer starts the moment the player crosses the start line.
+- **racing**: live timer ticking at 0.1s.
+- **finishing**: player crosses finish line — timer freezes, car coasts to a stop (`friction × 10`).
+- **finished**: Race Again button appears, final position locked in meta bar.
+
 ### Player Car
 - Top-down teal car with mirrors, headlights, tail lights, spoiler.
-- Spawns at the **start line** on page load.
-
-### Race
-- **Start line**: white line where the car spawns.
-- **Finish line**: checkered line 25,000 scroll-units ahead.
-- **Race states**: `pre → racing → finishing → finished`
-  - `racing` begins the moment the car crosses the start line.
-  - `finishing` triggers at the finish line: timer freezes, car coasts to a stop using high friction (`friction × 10`).
-  - `finished`: Race Again button appears.
-- Race can be restarted via the Race Again button; timer resets to `--`.
-
-### Controls
-- **Keyboard**: Up/Down arrows accelerate/decelerate; Left/Right arrows change lanes.
+- Spawns at the start line on page load with countdown.
+- **Keyboard**: Up/Down arrows accelerate/decelerate; Left/Right change lanes.
 - **Touch**: Tap/hold to accelerate; swipe left/right to change lanes; swipe down to decelerate.
 - Touch events use `passive: false` + `preventDefault()` to prevent page scroll.
-- `user-select: none` and `-webkit-tap-highlight-color: transparent` on the game canvas.
 
 ### Physics
 - `maxSpeed = 160`, `acceleration = 0.6`, `friction = 0.4`
 - Speed interpolates toward `targetSpeed` each frame with friction-based braking.
 
 ### Traffic Cars
-- 8 background traffic cars (`TRAFFIC_COUNT = 8`) in 6 color variants.
-- Drive in the same direction as the player at `TRAFFIC_BASE_SPEED = 55`, slower than max player speed.
+- 8 background traffic cars in 6 color variants, driving at ~55 km/h.
 - Spawn ahead of the player and recycle when far behind.
-- **Rear-end collision**: player car stops smoothly; overlap is capped so the player can't pass through. Resume by pressing Up or tapping.
-- **Sideways collision**: prevented — lane change is blocked if the target lane is occupied.
-- Collision flash effect and "COLLISION" message shown on impact.
+- **Rear-end collision**: player decelerates smoothly with overlap cap; shows flash + "COLLISION" message. Resume by pressing Up or tapping.
+- **Sideways collision**: lane change blocked if target lane is occupied.
 
----
+### Opponent (CPU) Cars
+- **3 CPU opponents**: CPU 1 (red, 138 km/h), CPU 2 (amber, 148 km/h), CPU 3 (purple, 155 km/h).
+- Spawn at the start line in lanes 0, 2, 3; player starts in lane 1.
+- All cars (player + CPU) start from speed 0 after the countdown and accelerate gradually.
+- CPU cars accelerate at 70% of player's acceleration rate toward their top speed.
+- **Lane-avoidance AI**: each CPU car looks 200 units ahead; if its lane is blocked by traffic or another opponent, it switches to the nearest free adjacent lane. Lane changes use a 45-frame cooldown to prevent jitter.
+- **Smooth lane changes**: CSS `transition: left 0.28s cubic-bezier(...)` — `left` is only updated on actual lane changes.
+- **Collision with traffic**: same flash animation as player. CPU brakes hard, waits ~1.5s, then immediately tries to change lanes and resumes.
+- **Finish**: CPU enters a `finishing` state at the finish line and coasts to a stop (`friction × 10`) like the player.
 
-## Next Step: Opponent Cars
-
-Add **3 computer-controlled opponent cars** that race from start to finish alongside the player.
-
-### Behaviour
-- Opponents start at the start line alongside the player.
-- Each opponent drives at a speed slightly varied around a base opponent speed (e.g. ±10–20% of player max speed), making them competitive.
-- Opponents change lanes autonomously to overtake traffic cars (simple AI: if a traffic car is close ahead, change to an adjacent free lane).
-- Opponents do not collide with each other or stop — they simply slow behind traffic if stuck.
-- Opponents finish the race when they cross the finish line; their finish time is recorded.
-
-### Position Display
-- The **Position** value in the meta bar updates live (e.g. `2/4`, `1/4`) based on how far each car has travelled relative to the finish line.
-- At race end, show the player's final finishing position.
-
-### Visual Distinction
-- Opponent cars look identical to the player car in shape but use different colors (not teal).
-- A small label or indicator above each opponent car shows their number (e.g. "CPU 1").
+### Live Position Display
+- `getPlayerPosition()` runs every frame during `pre` and `racing` states.
+- Compares `totalDistance` (player) vs `worldY` (each opponent); any opponent further ahead = one position above.
+- Opponents who have already finished the race count as ahead.
+- Final position is frozen in the meta bar when the player finishes.
 
 ---
 
