@@ -567,7 +567,8 @@
             55%      { filter: brightness(2) saturate(0.2); }
             75%      { filter: none; }
         }
-        #player-car.collided .car-body { animation: collision-flash 0.8s ease; }
+        #player-car.collided .car-body,
+        .opponent-car.collided .car-body { animation: collision-flash 0.8s ease; }
 
         /* Collision status message (above player car) */
         #collision-msg {
@@ -1064,6 +1065,9 @@
                     currentSpeed: 0,
                     finishing: false,
                     finished: false,
+                    collided: false,
+                    collisionTimer: 0,
+                    collidingWithTc: null,
                 });
             }
         }
@@ -1094,30 +1098,63 @@
                             oc.finished = true;
                         }
                     } else if (!oc.finished) {
-                        // Lane-avoidance AI: look ahead ~200 units, switch if blocked
-                        if (!oc.laneChangeCooldown) oc.laneChangeCooldown = 0;
-                        oc.laneChangeCooldown = Math.max(0, oc.laneChangeCooldown - 1);
-                        if (oc.laneChangeCooldown === 0 && opponentLaneBlocked(oc.worldY, oc.lane, 200, oc)) {
-                            // Try left then right; pick whichever is free
-                            const candidates = [];
-                            if (oc.lane > 0) candidates.push(oc.lane - 1);
-                            if (oc.lane < 3) candidates.push(oc.lane + 1);
-                            for (const cl of candidates) {
-                                if (!opponentLaneBlocked(oc.worldY, cl, 160, oc)) {
-                                    oc.lane = cl;
-                                    oc.laneChangeCooldown = 45; // ~0.75s at 60fps before changing again
+                        // Handle active collision: brake hard, cap overlap, count down
+                        if (oc.collided) {
+                            oc.currentSpeed = Math.max(0, oc.currentSpeed - friction * 8);
+                            if (oc.collidingWithTc) {
+                                const maxDist = oc.collidingWithTc.worldY - 102;
+                                if (oc.worldY > maxDist) { oc.worldY = maxDist; oc.currentSpeed = 0; }
+                            }
+                            oc.collisionTimer = Math.max(0, oc.collisionTimer - 1);
+                            if (oc.collisionTimer === 0) {
+                                oc.collided = false;
+                                oc.collidingWithTc = null;
+                                oc.laneChangeCooldown = 0; // immediately try to escape
+                                oc.el.classList.remove('collided');
+                            }
+                        } else {
+                            // Check rear-end collision with traffic
+                            for (const tc of trafficCars) {
+                                if (tc.lane === oc.lane &&
+                                    oc.worldY + 50 > tc.worldY - 50 &&
+                                    oc.worldY - 50 < tc.worldY + 50) {
+                                    oc.collided = true;
+                                    oc.collisionTimer = 90; // ~1.5s
+                                    oc.collidingWithTc = tc;
+                                    oc.el.classList.remove('collided');
+                                    void oc.el.offsetWidth; // force reflow to restart animation
+                                    oc.el.classList.add('collided');
+                                    setTimeout(() => oc.el.classList.remove('collided'), 800);
                                     break;
                                 }
                             }
                         }
 
-                        // Accelerate from 0 toward top speed
-                        if (oc.currentSpeed < oc.speed) {
-                            oc.currentSpeed = Math.min(oc.speed, oc.currentSpeed + acceleration * 0.7);
-                        }
-                        oc.worldY += oc.currentSpeed / 8;
-                        if (oc.worldY >= finishWorldY) {
-                            oc.finishing = true;
+                        if (!oc.collided) {
+                            // Lane-avoidance AI: look ahead ~200 units, switch if blocked
+                            if (!oc.laneChangeCooldown) oc.laneChangeCooldown = 0;
+                            oc.laneChangeCooldown = Math.max(0, oc.laneChangeCooldown - 1);
+                            if (oc.laneChangeCooldown === 0 && opponentLaneBlocked(oc.worldY, oc.lane, 200, oc)) {
+                                const candidates = [];
+                                if (oc.lane > 0) candidates.push(oc.lane - 1);
+                                if (oc.lane < 3) candidates.push(oc.lane + 1);
+                                for (const cl of candidates) {
+                                    if (!opponentLaneBlocked(oc.worldY, cl, 160, oc)) {
+                                        oc.lane = cl;
+                                        oc.laneChangeCooldown = 45;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            // Accelerate from 0 toward top speed
+                            if (oc.currentSpeed < oc.speed) {
+                                oc.currentSpeed = Math.min(oc.speed, oc.currentSpeed + acceleration * 0.7);
+                            }
+                            oc.worldY += oc.currentSpeed / 8;
+                            if (oc.worldY >= finishWorldY) {
+                                oc.finishing = true;
+                            }
                         }
                     }
                 }
