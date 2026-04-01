@@ -533,18 +533,43 @@
     let   cellSize = 0;
 
     function resizeCanvas() {
-        const wrap = document.getElementById('game-canvas-wrap');
-        const size = Math.floor(Math.min(wrap.clientWidth, wrap.clientHeight) / GRID_SIZE) * GRID_SIZE;
-        canvas.width  = size;
-        canvas.height = size;
-        cellSize = size / GRID_SIZE;
-        render(state);
+        const wrap    = document.getElementById('game-canvas-wrap');
+        const dpr     = window.devicePixelRatio || 1;
+        const cssSize = Math.floor(Math.min(wrap.clientWidth, wrap.clientHeight) / GRID_SIZE) * GRID_SIZE;
+        canvas.style.width  = cssSize + 'px';
+        canvas.style.height = cssSize + 'px';
+        canvas.width  = cssSize * dpr;
+        canvas.height = cssSize * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);  // reset + scale in one call
+        cellSize = cssSize / GRID_SIZE;
+        render(state, 0);
     }
 
-    function render(s) {
-        const W = canvas.width;
-        const H = canvas.height;
+    /**
+     * Returns the interpolated pixel-space centre of snake segment[idx].
+     * Lerps from prevSnake[idx] → seg using t, with grid-wrap correction.
+     */
+    function getInterpPx(seg, idx, t, cs) {
+        if (!prevSnake || idx >= prevSnake.length) {
+            return { x: (seg.x + 0.5) * cs, y: (seg.y + 0.5) * cs };
+        }
+        const prev = prevSnake[idx];
+        let gdx = seg.x - prev.x;
+        let gdy = seg.y - prev.y;
+        if (gdx >  GRID_SIZE / 2) gdx -= GRID_SIZE;
+        if (gdx < -GRID_SIZE / 2) gdx += GRID_SIZE;
+        if (gdy >  GRID_SIZE / 2) gdy -= GRID_SIZE;
+        if (gdy < -GRID_SIZE / 2) gdy += GRID_SIZE;
+        return {
+            x: (prev.x + gdx * t + 0.5) * cs,
+            y: (prev.y + gdy * t + 0.5) * cs,
+        };
+    }
+
+    function render(s, t = 0) {
         const cs = cellSize;
+        const W  = GRID_SIZE * cs;   // CSS-pixel canvas extent
+        const H  = GRID_SIZE * cs;
 
         // Background
         ctx.fillStyle = pal.BG;
@@ -579,42 +604,85 @@
             drawFoodItem(s.goldenApple.x, s.goldenApple.y, pal.GOLDEN, msLeft, cs);
         }
 
-        // Snake — body first, then head on top
-        for (let i = s.snake.length - 1; i >= 0; i--) {
-            const seg = s.snake[i];
-            const isHead = i === 0;
-            const pad = isHead ? cs * 0.06 : cs * 0.12;
-            ctx.fillStyle = isHead ? pal.HEAD : pal.BODY;
-            ctx.beginPath();
-            ctx.roundRect(
-                seg.x * cs + pad,
-                seg.y * cs + pad,
-                cs - pad * 2,
-                cs - pad * 2,
-                isHead ? cs * 0.28 : cs * 0.2
-            );
-            ctx.fill();
-        }
-
-        // Eyes on head — indicate direction
+        // ── Continuous-tube snake with sub-frame interpolation ──────────
         {
-            const head = s.snake[0];
-            const d = s.direction;
-            const hx = head.x * cs + cs / 2;
-            const hy = head.y * cs + cs / 2;
-            const eyeR = cs * 0.1;
-            const eyeOffset = cs * 0.22;
-            // perpendicular to direction
-            const px = d.dy, py = -d.dx; // perpendicular unit vector
-            ctx.fillStyle = pal.EYE;
+            const tubeR = cs * 0.375;              // radius = ¾ cell ÷ 2
+            const tubeD = tubeR * 2;               // stroke width = ¾ cell
+
+            // Interpolated pixel-space centres for every segment
+            const pts = s.snake.map((seg, i) => getInterpPx(seg, i, t, cs));
+
+            // Draw a thick rounded polyline through an array of points.
+            // Breaks the path wherever two adjacent pts are >1.5 cells apart
+            // (wrap boundary) so no diagonal line crosses the canvas.
+            const strokeTubePath = (points, color) => {
+                ctx.strokeStyle = color;
+                ctx.lineWidth   = tubeD;
+                ctx.lineJoin    = 'round';
+                ctx.lineCap     = 'round';
+                let started = false;
+                ctx.beginPath();
+                for (let i = 0; i < points.length; i++) {
+                    const p = points[i];
+                    if (i > 0) {
+                        const prev = points[i - 1];
+                        if (Math.abs(p.x - prev.x) + Math.abs(p.y - prev.y) > cs * 1.5) {
+                            ctx.stroke();
+                            ctx.beginPath();
+                            started = false;
+                        }
+                    }
+                    if (!started) { ctx.moveTo(p.x, p.y); started = true; }
+                    else            ctx.lineTo(p.x, p.y);
+                }
+                ctx.stroke();
+            };
+
+            // When a segment's interpolated coord goes off an edge (wrap in
+            // progress), also draw a shifted copy so the snake appears to
+            // emerge seamlessly from the opposite side.
+            const strokeWithWraps = (points, color) => {
+                strokeTubePath(points, color);
+                const GW = GRID_SIZE * cs;
+                for (const axis of ['x', 'y']) {
+                    if (points.some(p => p[axis] < tubeR || p[axis] > GW - tubeR)) {
+                        const shift = points.some(p => p[axis] < tubeR) ? GW : -GW;
+                        strokeTubePath(points.map(p =>
+                            axis === 'x' ? { x: p.x + shift, y: p.y }
+                                        : { x: p.x, y: p.y + shift }
+                        ), color);
+                    }
+                }
+            };
+
+            // Body (whole snake in body colour)
+            strokeWithWraps(pts, pal.BODY);
+
+            // Head cap — overdraw first segment in head colour
+            ctx.fillStyle = pal.HEAD;
             ctx.beginPath();
-            ctx.arc(hx + d.dx * eyeOffset + px * eyeOffset * 0.7,
-                    hy + d.dy * eyeOffset + py * eyeOffset * 0.7, eyeR, 0, Math.PI * 2);
+            ctx.arc(pts[0].x, pts[0].y, tubeR, 0, Math.PI * 2);
             ctx.fill();
-            ctx.beginPath();
-            ctx.arc(hx + d.dx * eyeOffset - px * eyeOffset * 0.7,
-                    hy + d.dy * eyeOffset - py * eyeOffset * 0.7, eyeR, 0, Math.PI * 2);
-            ctx.fill();
+
+            // Eyes on head, oriented to current direction
+            {
+                const d       = s.direction;
+                const hx      = pts[0].x;
+                const hy      = pts[0].y;
+                const eyeR    = tubeR * 0.26;
+                const fwdOff  = tubeR * 0.5;
+                const sideOff = tubeR * 0.5;
+                const epx = d.dy, epy = -d.dx;   // perpendicular unit
+                ctx.fillStyle = pal.EYE;
+                ctx.beginPath();
+                ctx.arc(hx + d.dx * fwdOff + epx * sideOff,
+                        hy + d.dy * fwdOff + epy * sideOff, eyeR, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(hx + d.dx * fwdOff - epx * sideOff,
+                        hy + d.dy * fwdOff - epy * sideOff, eyeR, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
 
         // Idle overlay
@@ -695,6 +763,7 @@
     //  GAME LOOP
     // ─────────────────────────────────────────────
     let state       = initState();
+    let prevSnake   = null;   // segment positions before the last tick (for interpolation)
     let lastTs      = null;
     let accumulator = 0;
     let rafId       = null;
@@ -706,6 +775,7 @@
 
         const tickMs = getTickMs(state.snake.length);
         while (accumulator >= tickMs) {
+            prevSnake = state.snake;                   // snapshot before advancing
             const newState = tick(state);
             // Trigger sounds based on what happened this tick
             if (newState._ate === 'apple')  playSound('eat-apple');
@@ -718,7 +788,9 @@
             accumulator -= tickMs;
         }
 
-        render(state);
+        // Fractional progress through the current tick — drives smooth interpolation
+        const t = accumulator / tickMs;
+        render(state, t);
         updateMetaBar(state);
 
         if (state.status === 'playing') {
@@ -730,6 +802,7 @@
     }
 
     function startLoop() {
+        prevSnake   = state.snake;  // ensure first tick can interpolate from idle positions
         lastTs      = null;
         accumulator = 0;
         rafId       = requestAnimationFrame(loop);
@@ -744,8 +817,9 @@
 
     function resetGame() {
         stopLoop();
-        state = initState();
-        render(state);
+        state     = initState();
+        prevSnake = null;
+        render(state, 0);
         updateMetaBar(state);
     }
 
