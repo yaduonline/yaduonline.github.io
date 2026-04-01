@@ -631,8 +631,21 @@
 
         // Replace every interpolated bend-corner with its fixed grid-snapped
         // anchor so the bezier control point is stable during animation.
+        // Wrap-align each snapped anchor to the same unwrapped "tile" as its
+        // corresponding pts[i]: when a bend falls exactly on the wrap cell the
+        // two accumulation paths (interpolated vs snapped) start from different
+        // sides of the grid, putting snapped[i] exactly GW away from pts[i].
+        // Without the correction strokeSmooth draws a long line across the canvas.
+        const GW = GRID_SIZE * cs;
         for (let i = 1; i < n - 1; i++) {
-            if (isGridBend(s.snake, i)) pts[i] = snapped[i];
+            if (isGridBend(s.snake, i)) {
+                let sp = { x: snapped[i].x, y: snapped[i].y };
+                if      (sp.x - pts[i].x >  GW / 2) sp.x -= GW;
+                else if (pts[i].x - sp.x >  GW / 2) sp.x += GW;
+                if      (sp.y - pts[i].y >  GW / 2) sp.y -= GW;
+                else if (pts[i].y - sp.y >  GW / 2) sp.y += GW;
+                pts[i] = sp;
+            }
         }
 
         return pts;
