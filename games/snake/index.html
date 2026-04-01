@@ -344,6 +344,9 @@
                         if (!blocked) return c;
                     }
                 }
+                // Board completely full — return the food's current position unchanged
+                // (practically unreachable: collision ends the game before this)
+                return snake[0];
             }
         } while (
             snake.some(s => s.x === cell.x && s.y === cell.y) ||
@@ -368,7 +371,7 @@
         return {
             snake,
             direction:   { dx: 1, dy: 0 },
-            nextDir:     null,
+            nextDir:     [],           // up to 2 queued direction changes
             food:        spawnFood(snake, []),
             score:       0,
             status:      'idle',   // 'idle' | 'playing' | 'paused' | 'game-over'
@@ -387,13 +390,17 @@
     function tick(state) {
         let { snake, direction, nextDir, food, score, status,
               applesEaten, cherry, goldenApple } = state;
-        snake = snake.slice();
+        snake   = snake.slice();
+        nextDir = nextDir.slice();   // shallow copy so we never mutate state
 
-        // 1. Apply queued direction (if valid)
-        if (nextDir && !isOppositeDir(direction, nextDir)) {
-            direction = nextDir;
+        // 1. Apply queued direction (dequeue first entry if valid)
+        if (nextDir.length > 0) {
+            const candidate = nextDir[0];
+            if (!isOppositeDir(direction, candidate)) {
+                direction = candidate;
+            }
+            nextDir.shift();
         }
-        nextDir = null;
 
         // 2. Expire timed food
         const now = Date.now();
@@ -405,7 +412,7 @@
 
         // 4. Self-collision check
         if (isSelfCollision(head, snake)) {
-            return { snake, direction, nextDir, food, score, status: 'game-over',
+            return { snake, direction, nextDir: [], food, score, status: 'game-over',
                      applesEaten, cherry, goldenApple };
         }
 
@@ -832,6 +839,7 @@
     let state       = initState();
     let prevSnake   = null;   // segment positions before the last tick (for interpolation)
     let lastTs      = null;
+    let lastT       = 0;      // most recent interpolation fraction, for one-off renders
     let accumulator = 0;
     let rafId       = null;
 
@@ -841,6 +849,8 @@
         lastTs = ts;
 
         const tickMs = getTickMs(state.snake.length);
+        // Cap accumulator to prevent a burst of ticks after the tab was backgrounded
+        if (accumulator > tickMs * 3) accumulator = tickMs * 3;
         while (accumulator >= tickMs) {
             prevSnake = state.snake;                   // snapshot before advancing
             const newState = tick(state);
@@ -853,10 +863,12 @@
             }
             state = newState;
             accumulator -= tickMs;
+            if (state.status === 'game-over') break;  // don't tick a dead snake
         }
 
         // Fractional progress through the current tick — drives smooth interpolation
         const t = accumulator / tickMs;
+        lastT = t;
         render(state, t);
         updateMetaBar(state);
 
@@ -894,7 +906,7 @@
         if (state.status === 'playing') {
             state.status = 'paused';
             stopLoop();
-            render(state);
+            render(state, lastT);
             playSound('pause');
         } else if (state.status === 'paused') {
             state.status = 'playing';
@@ -941,9 +953,10 @@
         // Prevent page scroll
         e.preventDefault();
 
-        if (isOppositeDir(state.direction, newDir)) return;
-
-        state.nextDir = newDir;
+        // Queue the direction if not opposite to the last queued (or current) direction
+        const lastQueued = state.nextDir.length > 0 ? state.nextDir[state.nextDir.length - 1] : state.direction;
+        if (isOppositeDir(lastQueued, newDir)) return;
+        if (state.nextDir.length < 2) state.nextDir.push(newDir);
 
         // Idle: first direction key starts the loop
         if (state.status === 'idle') {
@@ -985,8 +998,9 @@
             newDir = dy > 0 ? { dx: 0, dy: 1 } : { dx: 0, dy: -1 };
         }
 
-        if (isOppositeDir(state.direction, newDir)) return;
-        state.nextDir = newDir;
+        const lastQueued = state.nextDir.length > 0 ? state.nextDir[state.nextDir.length - 1] : state.direction;
+        if (isOppositeDir(lastQueued, newDir)) return;
+        if (state.nextDir.length < 2) state.nextDir.push(newDir);
 
         if (state.status === 'idle') {
             state.status = 'playing';
@@ -1008,7 +1022,7 @@
 
     document.getElementById('theme-btn').addEventListener('click', () => {
         applyTheme(theme === 'light' ? 'dark' : 'light');
-        render(state);
+        render(state, lastT);
     });
 
     document.getElementById('restart-btn').addEventListener('click', () => {
@@ -1028,7 +1042,7 @@
     // Small delay so header/footer fetch has time to affect layout
     setTimeout(resizeCanvas, 50);
     // Load best score into meta bar on init
-    updateMetaBar(initState());
+    updateMetaBar(state);
     </script>
 </body>
 </html>
