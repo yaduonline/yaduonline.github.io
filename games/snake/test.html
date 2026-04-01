@@ -197,6 +197,17 @@ function tick(state) {
              applesEaten, cherry, goldenApple, _ate: ateType };
 }
 
+// True if the bend corner at index i was already a corner in the previous
+// tick.  Every tick the snake array shifts by one slot (new head prepended,
+// tail popped), so prevSnake[i-1] holds the cell that is now at curSnake[i].
+// When that cell is the corner cell, the corner has been stable for ≥1 tick.
+function isEstablishedCorner(prevSnake, curSnake, i) {
+    if (!prevSnake) return false;
+    if (i < 1 || i - 1 >= prevSnake.length) return false;
+    return prevSnake[i - 1].x === curSnake[i].x &&
+           prevSnake[i - 1].y === curSnake[i].y;
+}
+
 // ─────────────────────────────────────────────────────────────
 //  MICRO TEST FRAMEWORK
 // ─────────────────────────────────────────────────────────────
@@ -625,13 +636,6 @@ suite('alignAnchorToTile — fix for wrap-bend line artifact');
 //    isEstablishedCorner(prevSnake, curSnake, i)
 //      → true when prevSnake[i-1] === curSnake[i]  (cell equality)
 // ─────────────────────────────────────────────────────────────
-function isEstablishedCorner(prevSnake, curSnake, i) {
-    if (!prevSnake) return false;
-    if (i < 1 || i - 1 >= prevSnake.length) return false;
-    return prevSnake[i - 1].x === curSnake[i].x &&
-           prevSnake[i - 1].y === curSnake[i].y;
-}
-
 suite('isEstablishedCorner — stutter-free bend detection');
 {
     // Scenario: snake moves right then turns down.
@@ -674,7 +678,7 @@ suite('isEstablishedCorner — stutter-free bend detection');
     // Brand-new corner (second tick after turn, new head arrived):
     // prevSnake = [{x:5,y:6},{x:5,y:5},{x:4,y:5},{x:3,y:5}]  (just-turned)
     // curSnake  = [{x:5,y:7},{x:5,y:6},{x:5,y:5},{x:4,y:5}]
-    // Bend at index 2 (cell {5,5}).  prevSnake[1]={5,y:5}? No, prevSnake[1]={5,5} === curSnake[2]={5,5} → true
+    // Bend at index 2 (cell {5,5}).  prevSnake[1]={5,5} === curSnake[2]={5,5} → true
     // This is still established — the corner persists.
     const prevJustTurned = [{x:5,y:6},{x:5,y:5},{x:4,y:5},{x:3,y:5}];
     const curContinued   = [{x:5,y:7},{x:5,y:6},{x:5,y:5},{x:4,y:5}];
