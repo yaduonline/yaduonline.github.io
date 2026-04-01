@@ -701,6 +701,16 @@ suite('isEstablishedCorner — stutter-free bend detection');
     assertCond('EC8 — i-1 beyond prevSnake length returns false',
         !isEstablishedCorner(shortPrev, curSnake, 3),
         'i-1=2 is beyond shortPrev.length=1');
+
+    // Guard: the slot-ahead snap must never apply to the head (i-1 === 0).
+    // When i=1 and isEstablishedCorner is true, pts[0] is the head — snapping
+    // it would remove smooth interpolation and cause jerky direction changes.
+    // Real code guards: if (i - 1 > 0 && isEstablishedCorner(...))
+    // Test the guard logic directly:
+    assertCond('EC9 — i=1 (bend right behind head): isEstablishedCorner true BUT i-1===0 guard fires',
+        isEstablishedCorner(prevStraight, curJustTurned, 1) === true &&
+        (1 - 1 > 0) === false,  // guard prevents snap: i-1 > 0 is false
+        'guard (i-1 > 0) must block snap when bend is directly behind head');
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -661,7 +661,9 @@
                 // corner to its fully-arrived grid position so the two adjacent
                 // spine points are already separated at t=0 and the bezier arc
                 // is clean for the whole tick (no kink-then-open animation).
-                if (isEstablishedCorner(prevSnake, s.snake, i)) {
+                // Guard: never snap pts[0] (the head) — it must always interpolate
+                // smoothly so direction changes don't look jerky.
+                if (i - 1 > 0 && isEstablishedCorner(prevSnake, s.snake, i)) {
                     let ap = { x: snapped[i - 1].x, y: snapped[i - 1].y };
                     if      (ap.x - pts[i - 1].x >  GW / 2) ap.x -= GW;
                     else if (pts[i - 1].x - ap.x >  GW / 2) ap.x += GW;
