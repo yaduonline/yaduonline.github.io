@@ -546,24 +546,37 @@
     }
 
     /**
-     * Returns the interpolated pixel-space centre of snake segment[idx].
-     * Lerps from prevSnake[idx] → seg using t, with grid-wrap correction.
+     * Builds the snake's spine in "unwrapped" pixel space.
+     * Only the HEAD is sub-frame interpolated; all other segments sit at
+     * their current grid positions.  Adjacent segments that cross a wrap
+     * boundary are "unfolded" so the whole path is contiguous with no gaps.
      */
-    function getInterpPx(seg, idx, t, cs) {
-        if (!prevSnake || idx >= prevSnake.length) {
-            return { x: (seg.x + 0.5) * cs, y: (seg.y + 0.5) * cs };
-        }
-        const prev = prevSnake[idx];
-        let gdx = seg.x - prev.x;
-        let gdy = seg.y - prev.y;
+    function buildUnwrappedSpine(s, t, cs) {
+        const from = prevSnake ? prevSnake[0] : s.snake[0];
+        let gdx = s.snake[0].x - from.x;
+        let gdy = s.snake[0].y - from.y;
         if (gdx >  GRID_SIZE / 2) gdx -= GRID_SIZE;
         if (gdx < -GRID_SIZE / 2) gdx += GRID_SIZE;
         if (gdy >  GRID_SIZE / 2) gdy -= GRID_SIZE;
         if (gdy < -GRID_SIZE / 2) gdy += GRID_SIZE;
-        return {
-            x: (prev.x + gdx * t + 0.5) * cs,
-            y: (prev.y + gdy * t + 0.5) * cs,
-        };
+        // Head fractional grid coords (may be outside [0, GRID_SIZE))
+        let px = from.x + gdx * t;
+        let py = from.y + gdy * t;
+        const pts = [{ x: (px + 0.5) * cs, y: (py + 0.5) * cs }];
+        for (let i = 1; i < s.snake.length; i++) {
+            const seg = s.snake[i];
+            // Nearest-neighbour unwrap relative to previous unwrapped point
+            let rx = seg.x - px;
+            let ry = seg.y - py;
+            if (rx >  GRID_SIZE / 2) rx -= GRID_SIZE;
+            if (rx < -GRID_SIZE / 2) rx += GRID_SIZE;
+            if (ry >  GRID_SIZE / 2) ry -= GRID_SIZE;
+            if (ry < -GRID_SIZE / 2) ry += GRID_SIZE;
+            px += rx;
+            py += ry;
+            pts.push({ x: (px + 0.5) * cs, y: (py + 0.5) * cs });
+        }
+        return pts;
     }
 
     function render(s, t = 0) {
@@ -604,84 +617,86 @@
             drawFoodItem(s.goldenApple.x, s.goldenApple.y, pal.GOLDEN, msLeft, cs);
         }
 
-        // ── Continuous-tube snake with sub-frame interpolation ──────────
+        // ── Smooth snake tube ──────────────────────────────────────────
         {
-            const tubeR = cs * 0.375;              // radius = ¾ cell ÷ 2
-            const tubeD = tubeR * 2;               // stroke width = ¾ cell
+            const tubeR = cs * 0.375;   // radius = ¾ cell ÷ 2
+            const tubeD = tubeR * 2;    // stroke width = ¾ cell
+            const GW    = GRID_SIZE * cs;
+            const pts   = buildUnwrappedSpine(s, t, cs);
 
-            // Interpolated pixel-space centres for every segment
-            const pts = s.snake.map((seg, i) => getInterpPx(seg, i, t, cs));
-
-            // Draw a thick rounded polyline through an array of points.
-            // Breaks the path wherever two adjacent pts are >1.5 cells apart
-            // (wrap boundary) so no diagonal line crosses the canvas.
-            const strokeTubePath = (points, color) => {
-                ctx.strokeStyle = color;
-                ctx.lineWidth   = tubeD;
-                ctx.lineJoin    = 'round';
-                ctx.lineCap     = 'round';
-                let started = false;
+            // Bezier-smoothed tube: at each interior corner, replace the sharp
+            // vertex with a quadratic arc from mid-prev→corner→mid-next.
+            // This gives organic bend curves instead of hard kinks.
+            const strokeSmooth = (points) => {
+                if (points.length === 0) return;
+                ctx.lineWidth = tubeD;
+                ctx.lineJoin  = 'round';
+                ctx.lineCap   = 'round';
                 ctx.beginPath();
-                for (let i = 0; i < points.length; i++) {
-                    const p = points[i];
-                    if (i > 0) {
-                        const prev = points[i - 1];
-                        if (Math.abs(p.x - prev.x) + Math.abs(p.y - prev.y) > cs * 1.5) {
-                            ctx.stroke();
-                            ctx.beginPath();
-                            started = false;
-                        }
-                    }
-                    if (!started) { ctx.moveTo(p.x, p.y); started = true; }
-                    else            ctx.lineTo(p.x, p.y);
+                ctx.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i < points.length - 1; i++) {
+                    const pr = points[i - 1], cu = points[i], nx = points[i + 1];
+                    const mx1 = (pr.x + cu.x) * 0.5, my1 = (pr.y + cu.y) * 0.5;
+                    const mx2 = (cu.x + nx.x) * 0.5, my2 = (cu.y + nx.y) * 0.5;
+                    ctx.lineTo(mx1, my1);
+                    ctx.quadraticCurveTo(cu.x, cu.y, mx2, my2);
                 }
+                ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
                 ctx.stroke();
             };
 
-            // When a segment's interpolated coord goes off an edge (wrap in
-            // progress), also draw a shifted copy so the snake appears to
-            // emerge seamlessly from the opposite side.
-            const strokeWithWraps = (points, color) => {
-                strokeTubePath(points, color);
-                const GW = GRID_SIZE * cs;
-                for (const axis of ['x', 'y']) {
-                    if (points.some(p => p[axis] < tubeR || p[axis] > GW - tubeR)) {
-                        const shift = points.some(p => p[axis] < tubeR) ? GW : -GW;
-                        strokeTubePath(points.map(p =>
-                            axis === 'x' ? { x: p.x + shift, y: p.y }
-                                        : { x: p.x, y: p.y + shift }
-                        ), color);
-                    }
-                }
+            // Draw main path + 4 axial ghost copies for wrap-around.
+            // Canvas clip [0,0,GW,GW] ensures only the parts of each ghost
+            // that re-enter the visible area are drawn — no stray circles.
+            ctx.save();
+            ctx.beginPath(); ctx.rect(0, 0, GW, GW); ctx.clip();
+
+            ctx.strokeStyle = pal.BODY;
+            strokeSmooth(pts);
+            strokeSmooth(pts.map(p => ({ x: p.x - GW, y: p.y })));
+            strokeSmooth(pts.map(p => ({ x: p.x + GW, y: p.y })));
+            strokeSmooth(pts.map(p => ({ x: p.x, y: p.y - GW })));
+            strokeSmooth(pts.map(p => ({ x: p.x, y: p.y + GW })));
+
+            // Head cap — overdraw in head colour; ghost caps for wrap edges
+            const hx = pts[0].x, hy = pts[0].y;
+            const drawHeadCap = (x, y) => {
+                ctx.fillStyle = pal.HEAD;
+                ctx.beginPath();
+                ctx.arc(x, y, tubeR, 0, Math.PI * 2);
+                ctx.fill();
             };
+            drawHeadCap(hx, hy);
+            if (hx < tubeR)       drawHeadCap(hx + GW, hy);
+            if (hx > GW - tubeR)  drawHeadCap(hx - GW, hy);
+            if (hy < tubeR)       drawHeadCap(hx, hy + GW);
+            if (hy > GW - tubeR)  drawHeadCap(hx, hy - GW);
 
-            // Body (whole snake in body colour)
-            strokeWithWraps(pts, pal.BODY);
+            ctx.restore();
 
-            // Head cap — overdraw first segment in head colour
-            ctx.fillStyle = pal.HEAD;
-            ctx.beginPath();
-            ctx.arc(pts[0].x, pts[0].y, tubeR, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Eyes on head, oriented to current direction
+            // Eyes — drawn after restore so they sit on top
             {
                 const d       = s.direction;
-                const hx      = pts[0].x;
-                const hy      = pts[0].y;
                 const eyeR    = tubeR * 0.26;
                 const fwdOff  = tubeR * 0.5;
                 const sideOff = tubeR * 0.5;
-                const epx = d.dy, epy = -d.dx;   // perpendicular unit
-                ctx.fillStyle = pal.EYE;
-                ctx.beginPath();
-                ctx.arc(hx + d.dx * fwdOff + epx * sideOff,
-                        hy + d.dy * fwdOff + epy * sideOff, eyeR, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(hx + d.dx * fwdOff - epx * sideOff,
-                        hy + d.dy * fwdOff - epy * sideOff, eyeR, 0, Math.PI * 2);
-                ctx.fill();
+                const epx = d.dy, epy = -d.dx;
+                const drawEyes = (x, y) => {
+                    ctx.fillStyle = pal.EYE;
+                    ctx.beginPath();
+                    ctx.arc(x + d.dx * fwdOff + epx * sideOff,
+                            y + d.dy * fwdOff + epy * sideOff, eyeR, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(x + d.dx * fwdOff - epx * sideOff,
+                            y + d.dy * fwdOff - epy * sideOff, eyeR, 0, Math.PI * 2);
+                    ctx.fill();
+                };
+                drawEyes(hx, hy);
+                if (hx < tubeR)       drawEyes(hx + GW, hy);
+                if (hx > GW - tubeR)  drawEyes(hx - GW, hy);
+                if (hy < tubeR)       drawEyes(hx, hy + GW);
+                if (hy > GW - tubeR)  drawEyes(hx, hy - GW);
             }
         }
 
