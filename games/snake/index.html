@@ -547,33 +547,48 @@
 
     /**
      * Builds the snake's spine in "unwrapped" pixel space.
-     * Only the HEAD is sub-frame interpolated; all other segments sit at
-     * their current grid positions.  Adjacent segments that cross a wrap
-     * boundary are "unfolded" so the whole path is contiguous with no gaps.
+     * Every segment is sub-frame interpolated from prevSnake[i] → snake[i]
+     * using t, so the whole body — including the tail — slides smoothly
+     * rather than the tail jumping a full cell per tick.
+     * Adjacent segments that cross a wrap boundary are "unfolded" so the
+     * whole path is one contiguous line with no gaps.
      */
     function buildUnwrappedSpine(s, t, cs) {
-        const from = prevSnake ? prevSnake[0] : s.snake[0];
-        let gdx = s.snake[0].x - from.x;
-        let gdy = s.snake[0].y - from.y;
-        if (gdx >  GRID_SIZE / 2) gdx -= GRID_SIZE;
-        if (gdx < -GRID_SIZE / 2) gdx += GRID_SIZE;
-        if (gdy >  GRID_SIZE / 2) gdy -= GRID_SIZE;
-        if (gdy < -GRID_SIZE / 2) gdy += GRID_SIZE;
-        // Head fractional grid coords (may be outside [0, GRID_SIZE))
-        let px = from.x + gdx * t;
-        let py = from.y + gdy * t;
-        const pts = [{ x: (px + 0.5) * cs, y: (py + 0.5) * cs }];
-        for (let i = 1; i < s.snake.length; i++) {
-            const seg = s.snake[i];
-            // Nearest-neighbour unwrap relative to previous unwrapped point
-            let rx = seg.x - px;
-            let ry = seg.y - py;
-            if (rx >  GRID_SIZE / 2) rx -= GRID_SIZE;
-            if (rx < -GRID_SIZE / 2) rx += GRID_SIZE;
-            if (ry >  GRID_SIZE / 2) ry -= GRID_SIZE;
-            if (ry < -GRID_SIZE / 2) ry += GRID_SIZE;
-            px += rx;
-            py += ry;
+        const n   = s.snake.length;
+        const pts = [];
+        let px, py;          // running unwrapped grid coords
+
+        for (let i = 0; i < n; i++) {
+            const cur  = s.snake[i];
+            const prev = (prevSnake && i < prevSnake.length) ? prevSnake[i] : cur;
+
+            // Delta cur − prev, wrap-corrected to shortest path
+            let gdx = cur.x - prev.x;
+            let gdy = cur.y - prev.y;
+            if (gdx >  GRID_SIZE / 2) gdx -= GRID_SIZE;
+            if (gdx < -GRID_SIZE / 2) gdx += GRID_SIZE;
+            if (gdy >  GRID_SIZE / 2) gdy -= GRID_SIZE;
+            if (gdy < -GRID_SIZE / 2) gdy += GRID_SIZE;
+
+            // Interpolated grid coord for this segment
+            const igx = prev.x + gdx * t;
+            const igy = prev.y + gdy * t;
+
+            if (i === 0) {
+                px = igx;
+                py = igy;
+            } else {
+                // Unwrap relative to previous unwrapped point
+                let rx = igx - px;
+                let ry = igy - py;
+                if (rx >  GRID_SIZE / 2) rx -= GRID_SIZE;
+                if (rx < -GRID_SIZE / 2) rx += GRID_SIZE;
+                if (ry >  GRID_SIZE / 2) ry -= GRID_SIZE;
+                if (ry < -GRID_SIZE / 2) ry += GRID_SIZE;
+                px += rx;
+                py += ry;
+            }
+
             pts.push({ x: (px + 0.5) * cs, y: (py + 0.5) * cs });
         }
         return pts;
