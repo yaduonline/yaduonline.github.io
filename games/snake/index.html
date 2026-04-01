@@ -545,18 +545,42 @@
         render(state, 0);
     }
 
+    // Wrap-aware direction vector from grid cell a → b
+    function gridDir(a, b) {
+        let dx = b.x - a.x, dy = b.y - a.y;
+        if (dx >  GRID_SIZE / 2) dx -= GRID_SIZE;
+        if (dx < -GRID_SIZE / 2) dx += GRID_SIZE;
+        if (dy >  GRID_SIZE / 2) dy -= GRID_SIZE;
+        if (dy < -GRID_SIZE / 2) dy += GRID_SIZE;
+        return { dx, dy };
+    }
+
+    // True if segment i is a turning cell: the incoming and outgoing
+    // directions are perpendicular (dot-product == 0).
+    function isGridBend(snake, i) {
+        if (i < 1 || i >= snake.length - 1) return false;
+        const d1 = gridDir(snake[i - 1], snake[i]);
+        const d2 = gridDir(snake[i], snake[i + 1]);
+        return (d1.dx * d2.dx + d1.dy * d2.dy) === 0;
+    }
+
     /**
      * Builds the snake's spine in "unwrapped" pixel space.
-     * Every segment is sub-frame interpolated from prevSnake[i] → snake[i]
-     * using t, so the whole body — including the tail — slides smoothly
-     * rather than the tail jumping a full cell per tick.
-     * Adjacent segments that cross a wrap boundary are "unfolded" so the
-     * whole path is one contiguous line with no gaps.
+     *
+     * Every segment is sub-frame interpolated (prevSnake[i] → snake[i], t)
+     * so the whole body slides smoothly each frame.
+     *
+     * Bend cells (turning corners of the snake) are additionally pinned to
+     * their post-tick grid-snapped position.  This keeps the corner anchor
+     * fixed while the approach/departure segments still interpolate, so the
+     * bezier arc at a bend is stable and doesn't pulse in width.
      */
     function buildUnwrappedSpine(s, t, cs) {
-        const n   = s.snake.length;
-        const pts = [];
-        let px, py;          // running unwrapped grid coords
+        const n       = s.snake.length;
+        const pts     = [];   // interpolated pixel positions
+        const snapped = [];   // grid-snapped (t=1) pixel positions, same unwrap
+        let px, py;           // running unwrapped interpolated grid coords
+        let qx, qy;           // running unwrapped snapped grid coords
 
         for (let i = 0; i < n; i++) {
             const cur  = s.snake[i];
@@ -570,27 +594,40 @@
             if (gdy >  GRID_SIZE / 2) gdy -= GRID_SIZE;
             if (gdy < -GRID_SIZE / 2) gdy += GRID_SIZE;
 
-            // Interpolated grid coord for this segment
-            const igx = prev.x + gdx * t;
-            const igy = prev.y + gdy * t;
+            const igx = prev.x + gdx * t;  // interpolated grid x
+            const igy = prev.y + gdy * t;  // interpolated grid y
 
             if (i === 0) {
-                px = igx;
-                py = igy;
+                px = igx; py = igy;
+                qx = cur.x; qy = cur.y;
             } else {
-                // Unwrap relative to previous unwrapped point
-                let rx = igx - px;
-                let ry = igy - py;
+                // Unwrap interpolated point relative to previous
+                let rx = igx - px, ry = igy - py;
                 if (rx >  GRID_SIZE / 2) rx -= GRID_SIZE;
                 if (rx < -GRID_SIZE / 2) rx += GRID_SIZE;
                 if (ry >  GRID_SIZE / 2) ry -= GRID_SIZE;
                 if (ry < -GRID_SIZE / 2) ry += GRID_SIZE;
-                px += rx;
-                py += ry;
+                px += rx; py += ry;
+
+                // Unwrap snapped point identically
+                let sx = cur.x - qx, sy = cur.y - qy;
+                if (sx >  GRID_SIZE / 2) sx -= GRID_SIZE;
+                if (sx < -GRID_SIZE / 2) sx += GRID_SIZE;
+                if (sy >  GRID_SIZE / 2) sy -= GRID_SIZE;
+                if (sy < -GRID_SIZE / 2) sy += GRID_SIZE;
+                qx += sx; qy += sy;
             }
 
             pts.push({ x: (px + 0.5) * cs, y: (py + 0.5) * cs });
+            snapped.push({ x: (qx + 0.5) * cs, y: (qy + 0.5) * cs });
         }
+
+        // Replace every interpolated bend-corner with its fixed grid-snapped
+        // anchor so the bezier control point is stable during animation.
+        for (let i = 1; i < n - 1; i++) {
+            if (isGridBend(s.snake, i)) pts[i] = snapped[i];
+        }
+
         return pts;
     }
 
