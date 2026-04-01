@@ -475,6 +475,144 @@ suite('loadBest() and saveBest(n)');
 }
 
 // ─────────────────────────────────────────────────────────────
+//  WRAP-BEND RENDERING HELPERS
+//  (gridDir, isGridBend, alignAnchorToTile)
+//  These are the pure functions underlying the fix for the
+//  "line across canvas" artifact when a bend corner crosses a
+//  grid wrap boundary.
+// ─────────────────────────────────────────────────────────────
+function gridDir(a, b) {
+    let dx = b.x - a.x, dy = b.y - a.y;
+    if (dx >  GRID_SIZE / 2) dx -= GRID_SIZE;
+    if (dx < -GRID_SIZE / 2) dx += GRID_SIZE;
+    if (dy >  GRID_SIZE / 2) dy -= GRID_SIZE;
+    if (dy < -GRID_SIZE / 2) dy += GRID_SIZE;
+    return { dx, dy };
+}
+
+function isGridBend(snake, i) {
+    if (i < 1 || i >= snake.length - 1) return false;
+    const d1 = gridDir(snake[i - 1], snake[i]);
+    const d2 = gridDir(snake[i], snake[i + 1]);
+    return (d1.dx * d2.dx + d1.dy * d2.dy) === 0;
+}
+
+// Pure version of the anchor tile-alignment fix from buildUnwrappedSpine.
+// Shifts sp so it is in the same unwrapped tile as ref (both in pixel space).
+function alignAnchorToTile(sp, ref, GW) {
+    const out = { x: sp.x, y: sp.y };
+    if      (out.x - ref.x >  GW / 2) out.x -= GW;
+    else if (ref.x - out.x >  GW / 2) out.x += GW;
+    if      (out.y - ref.y >  GW / 2) out.y -= GW;
+    else if (ref.y - out.y >  GW / 2) out.y += GW;
+    return out;
+}
+
+suite('gridDir — wrap-aware direction vector');
+{
+    // No wrap needed – normal adjacent cells
+    assert('GD1 — right step',        gridDir({x:5,y:5},{x:6,y:5}), {dx:1,dy:0});
+    assert('GD2 — left step',         gridDir({x:5,y:5},{x:4,y:5}), {dx:-1,dy:0});
+    assert('GD3 — down step',         gridDir({x:5,y:5},{x:5,y:6}), {dx:0,dy:1});
+    assert('GD4 — up step',           gridDir({x:5,y:5},{x:5,y:4}), {dx:0,dy:-1});
+
+    // Wrap crossing – right edge to left edge (x: 19 → 0)
+    assert('GD5 — right-wall wrap',   gridDir({x:19,y:5},{x:0,y:5}), {dx:1,dy:0});
+    // Wrap crossing – left edge to right edge (x: 0 → 19)
+    assert('GD6 — left-wall wrap',    gridDir({x:0,y:5},{x:19,y:5}), {dx:-1,dy:0});
+    // Wrap crossing – bottom edge to top edge (y: 19 → 0)
+    assert('GD7 — bottom-wall wrap',  gridDir({x:5,y:19},{x:5,y:0}), {dx:0,dy:1});
+    // Wrap crossing – top edge to bottom edge (y: 0 → 19)
+    assert('GD8 — top-wall wrap',     gridDir({x:5,y:0},{x:5,y:19}), {dx:0,dy:-1});
+}
+
+suite('isGridBend — detect turns in snake body');
+{
+    // Straight horizontal — no bend
+    const straight = [{x:5,y:5},{x:4,y:5},{x:3,y:5}];
+    assertCond('GB1 — straight body, middle cell is not a bend',
+        !isGridBend(straight, 1), 'should return false for straight run');
+
+    // Right-then-down: segments (5,5)→(5,4)→(4,4) — bend at index 1
+    const bend = [{x:5,y:5},{x:5,y:4},{x:4,y:4}];
+    assertCond('GB2 — right-then-down, middle cell is a bend',
+        isGridBend(bend, 1), 'should return true for 90° turn');
+
+    // Head (index 0) is never a bend
+    assertCond('GB3 — head (i=0) is never a bend',
+        !isGridBend(bend, 0), 'should return false for head');
+
+    // Tail (last index) is never a bend
+    assertCond('GB4 — tail last index is never a bend',
+        !isGridBend(bend, bend.length - 1), 'should return false for tail');
+
+    // Bend crossing wrap: segments going right reach x=19, then turn down at x=0
+    // Incoming dir: (18,5)→(19,5) = dx+1; outgoing: (19,5)→(19,6) = dy+1  → bend
+    const wrapTurn = [{x:18,y:5},{x:19,y:5},{x:19,y:6}];
+    assertCond('GB5 — bend at right-edge cell (no wrap crossing here)',
+        isGridBend(wrapTurn, 1), 'turn at x=19 should be detected');
+
+    // Wrap-crossing segment into a bend: e.g. (19,5)→(0,5)→(0,6)
+    // incoming wrap-dir dx+1, outgoing dy+1 → bend
+    const wrapBend = [{x:19,y:5},{x:0,y:5},{x:0,y:6}];
+    assertCond('GB6 — bend where one segment crosses the right→left wrap edge',
+        isGridBend(wrapBend, 1), 'bend with wrap crossing must be detected');
+}
+
+suite('alignAnchorToTile — fix for wrap-bend line artifact');
+{
+    const GW = 400; // 20 cells × 20px hypothetical
+
+    // Anchor already in same tile — should be unchanged
+    const sp1 = {x:100,y:100}, ref1 = {x:110,y:110};
+    const r1 = alignAnchorToTile(sp1, ref1, GW);
+    assertCond('BA1 — anchor already close, no shift',
+        r1.x === 100 && r1.y === 100,
+        `got x=${r1.x} y=${r1.y}`);
+
+    // Anchor is exactly GW to the right of ref (the bug scenario for x)
+    const sp2 = {x:410,y:100}, ref2 = {x:10,y:100};
+    const r2 = alignAnchorToTile(sp2, ref2, GW);
+    assertCond('BA2 — anchor GW ahead on x axis → shift left by GW',
+        r2.x === 10 && r2.y === 100,
+        `got x=${r2.x} y=${r2.y}`);
+
+    // Anchor is GW to the left of ref (opposite wrap)
+    const sp3 = {x:-10,y:100}, ref3 = {x:390,y:100};
+    const r3 = alignAnchorToTile(sp3, ref3, GW);
+    assertCond('BA3 — anchor GW behind on x axis → shift right by GW',
+        r3.x === 390 && r3.y === 100,
+        `got x=${r3.x} y=${r3.y}`);
+
+    // Anchor is GW below ref (y axis wrap)
+    const sp4 = {x:100,y:410}, ref4 = {x:100,y:10};
+    const r4 = alignAnchorToTile(sp4, ref4, GW);
+    assertCond('BA4 — anchor GW below on y axis → shift up by GW',
+        r4.x === 100 && r4.y === 10,
+        `got x=${r4.x} y=${r4.y}`);
+
+    // Anchor is GW above ref (y axis wrap)
+    const sp5 = {x:100,y:-10}, ref5 = {x:100,y:390};
+    const r5 = alignAnchorToTile(sp5, ref5, GW);
+    assertCond('BA5 — anchor GW above on y axis → shift down by GW',
+        r5.x === 100 && r5.y === 390,
+        `got x=${r5.x} y=${r5.y}`);
+
+    // After alignment the anchor should always be within GW/2 of the ref
+    const cases = [
+        { sp:{x:405,y:205}, ref:{x:5,y:5} },    // both axes wrapped
+        { sp:{x:-5,y:-5},   ref:{x:395,y:395} }, // both axes other direction
+    ];
+    cases.forEach(({sp, ref}, ci) => {
+        const aligned = alignAnchorToTile(sp, ref, GW);
+        const dx = Math.abs(aligned.x - ref.x), dy = Math.abs(aligned.y - ref.y);
+        assertCond(`BA${6+ci} — aligned anchor within GW/2 of ref (case ${ci+1})`,
+            dx <= GW / 2 && dy <= GW / 2,
+            `distance after alignment: dx=${dx} dy=${dy}`);
+    });
+}
+
+// ─────────────────────────────────────────────────────────────
 //  SUMMARY
 // ─────────────────────────────────────────────────────────────
 const summary = document.getElementById('summary');
