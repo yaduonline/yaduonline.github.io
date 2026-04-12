@@ -815,16 +815,22 @@
     const vMinCy = Math.max(0, Math.floor(camera.wy / CONFIG.CELL_SIZE) - 1);
     const vMaxCy = Math.min(N - 1, Math.ceil((camera.wy + camera.vh) / CONFIG.CELL_SIZE) + 1);
 
-    // Draw territory as merged horizontal spans to eliminate sub-pixel gaps
-    // that would otherwise appear as a visible grid pattern.
+    // Draw territory as merged horizontal spans with pixel-snapped coords
+    // to eliminate sub-pixel gaps that appear as a visible grid pattern.
     for (let cy = vMinCy; cy <= vMaxCy; cy++) {
+      const wy0 = cy * CONFIG.CELL_SIZE;
+      const wy1 = (cy + 1) * CONFIG.CELL_SIZE;
+      const pyTop    = Math.floor((wy0 - camera.wy) * scale);
+      const pyBottom = Math.ceil((wy1 - camera.wy) * scale);
+      const rowH = Math.max(1, pyBottom - pyTop);
+
       let spanOwner = -1, spanStartCx = 0;
       const flushSpan = (endCx) => {
         if (spanOwner < 0) return;
-        const { sx, sy } = worldToScreen(spanStartCx * CONFIG.CELL_SIZE, cy * CONFIG.CELL_SIZE);
-        const { sx: ex } = worldToScreen(endCx * CONFIG.CELL_SIZE, cy * CONFIG.CELL_SIZE);
+        const pxLeft  = Math.floor((spanStartCx * CONFIG.CELL_SIZE - camera.wx) * scale);
+        const pxRight = Math.ceil((endCx * CONFIG.CELL_SIZE - camera.wx) * scale);
         ctx.fillStyle = toRgba(CONFIG.PALETTE[spanOwner].base, 0.35);
-        ctx.fillRect(sx, sy, ex - sx, Math.ceil(cellPx) + 1);
+        ctx.fillRect(pxLeft, pyTop, Math.max(1, pxRight - pxLeft), rowH);
       };
       for (let cx = vMinCx; cx <= vMaxCx; cx++) {
         const owner = G.ownershipGrid[cellIdx(cx, cy)];
