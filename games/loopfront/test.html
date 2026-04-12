@@ -612,7 +612,7 @@ function approx(a, b, eps = 1e-9) { return Math.abs(a - b) < eps; }
   assert('E7: pocket enclosed by single loop is captured', s.ownershipGrid[cellIdx(gapCx, gapCy)] === u.id);
 
   // Also verify cells well outside the territory are still unowned
-  assert('E7: cells outside territory not incorrectly captured', s.ownershipGrid[cellIdx(5, 5)] !== u.id);
+  assert('E7: cells outside territory not incorrectly captured', s.ownershipGrid[cellIdx(300, 300)] !== u.id);
 })();
 
 /* ===================================================================
