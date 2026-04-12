@@ -815,29 +815,26 @@
     const vMinCy = Math.max(0, Math.floor(camera.wy / CONFIG.CELL_SIZE) - 1);
     const vMaxCy = Math.min(N - 1, Math.ceil((camera.wy + camera.vh) / CONFIG.CELL_SIZE) + 1);
 
-    // Draw territory as merged horizontal spans with pixel-snapped coords
-    // to eliminate sub-pixel gaps that appear as a visible grid pattern.
+    // Draw territory as merged horizontal spans with pixel-snapped coords.
+    // Both pyTop and pyBottom use Math.floor so that adjacent rows tile
+    // perfectly: pyTop(cy+1) === pyBottom(cy), no horizontal gaps.
     for (let cy = vMinCy; cy <= vMaxCy; cy++) {
-      const wy0 = cy * CONFIG.CELL_SIZE;
-      const wy1 = (cy + 1) * CONFIG.CELL_SIZE;
-      const pyTop    = Math.floor((wy0 - camera.wy) * scale);
-      const pyBottom = Math.ceil((wy1 - camera.wy) * scale);
-      const rowH = Math.max(1, pyBottom - pyTop);
+      const pyTop    = Math.floor((cy       * CONFIG.CELL_SIZE - camera.wy) * scale);
+      const pyBottom = Math.floor(((cy + 1) * CONFIG.CELL_SIZE - camera.wy) * scale);
+      const rowH = pyBottom - pyTop;
+      if (rowH <= 0) continue; // cells smaller than 1px at this zoom — skip
 
       let spanOwner = -1, spanStartCx = 0;
       const flushSpan = (endCx) => {
         if (spanOwner < 0) return;
         const pxLeft  = Math.floor((spanStartCx * CONFIG.CELL_SIZE - camera.wx) * scale);
-        const pxRight = Math.ceil((endCx * CONFIG.CELL_SIZE - camera.wx) * scale);
+        const pxRight = Math.floor((endCx        * CONFIG.CELL_SIZE - camera.wx) * scale);
         ctx.fillStyle = toRgba(CONFIG.PALETTE[spanOwner].base, 0.35);
         ctx.fillRect(pxLeft, pyTop, Math.max(1, pxRight - pxLeft), rowH);
       };
       for (let cx = vMinCx; cx <= vMaxCx; cx++) {
         const owner = G.ownershipGrid[cellIdx(cx, cy)];
-        if (owner !== spanOwner) {
-          flushSpan(cx);
-          spanOwner = owner; spanStartCx = cx;
-        }
+        if (owner !== spanOwner) { flushSpan(cx); spanOwner = owner; spanStartCx = cx; }
       }
       flushSpan(vMaxCx + 1);
     }
