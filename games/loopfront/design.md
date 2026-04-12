@@ -71,12 +71,13 @@ Even though production is a single `index.html`, code is organized in sections:
 
 ### Loop Capture (MVP approach)
 1. Build a temporary barrier from tail path + touched boundary contact.
-2. Flood-fill regions on a local bounding box.
-3. Select enclosed region that should be captured by the returning player.
+2. Flood-fill from all 4 map edges across the full grid to mark cells reachable from outside.
+3. Any cell not reachable from the map edge (and not already owned by the player) is enclosed and captured.
 4. Mark enclosed cells + path cells as owned by that player.
 5. Clear tail path and deactivate tail.
 
 Notes:
+- Global map-edge flood-fill (rather than a local bbox) correctly captures pockets that are enclosed progressively by multiple separate loops over time.
 - This gives deterministic captures and supports non-square looking territory due to dense grid + 16-direction travel.
 
 ### Elimination Logic
@@ -144,7 +145,7 @@ Notes:
 - Fixed timestep simulation (for deterministic rules).
 - Decouple simulation update rate from render frame rate.
 - Use dirty-rect or cached ownership texture updates where possible.
-- Keep flood-fill bounded to local candidate region instead of full map.
+- Flood-fill runs over the full grid (N×N cells) seeded from map edges; this is infrequent (only on loop closure) and completes in a few milliseconds at MAP_CELLS=800.
 
 ## Testing Strategy (during implementation)
 - Unit-like checks for:
