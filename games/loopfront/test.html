@@ -34,6 +34,7 @@ const CONFIG = Object.freeze({
   PLAYER_RADIUS:      6,
   TAIL_WIDTH:         4,
   TAIL_SAMPLE_DIST:   2,
+  TAIL_CAPTURE_RADIUS_CELLS: 1,
   SEED_HALF:          20,
   CPU_COUNT:          3,
   TICK_MS:            30,
@@ -153,60 +154,71 @@ function captureLoop(player, ownershipGrid, tailGrid) {
 
   const N = CONFIG.MAP_CELLS;
   const tempBoundary = new Uint8Array(N * N);
+  const tailBoundary = new Uint8Array(N * N);
   for (const pt of player.tailPath) {
     const { cx, cy } = cellXY(pt.wx, pt.wy);
-    if (cx >= 0 && cx < N && cy >= 0 && cy < N) tempBoundary[cellIdx(cx, cy)] = 1;
+    if (cx >= 0 && cx < N && cy >= 0 && cy < N) {
+      const i = cellIdx(cx, cy);
+      tempBoundary[i] = 1;
+      tailBoundary[i] = 1;
+    }
   }
   for (let i = 0; i < ownershipGrid.length; i++) {
     if (ownershipGrid[i] === player.id) tempBoundary[i] = 1;
   }
 
+  // Diagonal sealing: close checkerboard gaps involving tail cells
   let minCx = N, maxCx = 0, minCy = N, maxCy = 0;
   for (const pt of player.tailPath) {
     const { cx, cy } = cellXY(pt.wx, pt.wy);
     if (cx < minCx) minCx = cx; if (cx > maxCx) maxCx = cx;
     if (cy < minCy) minCy = cy; if (cy > maxCy) maxCy = cy;
   }
-  minCx = Math.max(0, minCx - 1); minCy = Math.max(0, minCy - 1);
-  maxCx = Math.min(N - 1, maxCx + 1); maxCy = Math.min(N - 1, maxCy + 1);
+  const boundaryPad = CONFIG.TAIL_CAPTURE_RADIUS_CELLS + 2;
+  minCx = Math.max(0, minCx - boundaryPad); minCy = Math.max(0, minCy - boundaryPad);
+  maxCx = Math.min(N - 1, maxCx + boundaryPad); maxCy = Math.min(N - 1, maxCy + boundaryPad);
+  if (maxCx < minCx || maxCy < minCy) return;
 
-  const bw = maxCx - minCx + 1, bh = maxCy - minCy + 1;
-  if (bw <= 0 || bh <= 0) return;
-
-  const outside = new Uint8Array(bw * bh);
-  const bIdx = (cx, cy) => (cy - minCy) * bw + (cx - minCx);
-  const inBox = (cx, cy) => cx >= minCx && cx <= maxCx && cy >= minCy && cy <= maxCy;
-
-  const queue = [];
-  for (let cx = minCx; cx <= maxCx; cx++) {
-    for (let cy = minCy; cy <= maxCy; cy++) {
-      if (cx !== minCx && cx !== maxCx && cy !== minCy && cy !== maxCy) continue;
-      const gi = cellIdx(cx, cy), bi = bIdx(cx, cy);
-      if (!tempBoundary[gi] && ownershipGrid[gi] !== player.id && !outside[bi]) {
-        outside[bi] = 1; queue.push(cx, cy);
+  for (let cy = minCy; cy < maxCy; cy++) {
+    for (let cx = minCx; cx < maxCx; cx++) {
+      const a = cellIdx(cx, cy), b = cellIdx(cx+1, cy+1);
+      const c = cellIdx(cx+1, cy), d = cellIdx(cx, cy+1);
+      if (tempBoundary[a] && tempBoundary[b] && (tailBoundary[a] || tailBoundary[b])) {
+        if (!tempBoundary[c]) tempBoundary[c] = 1;
+        if (!tempBoundary[d]) tempBoundary[d] = 1;
+      }
+      const e = cellIdx(cx+1, cy), f = cellIdx(cx, cy+1);
+      const g = cellIdx(cx, cy), h = cellIdx(cx+1, cy+1);
+      if (tempBoundary[e] && tempBoundary[f] && (tailBoundary[e] || tailBoundary[f])) {
+        if (!tempBoundary[g]) tempBoundary[g] = 1;
+        if (!tempBoundary[h]) tempBoundary[h] = 1;
       }
     }
   }
+
+  // Global flood-fill from map edges
+  const outside = new Uint8Array(N * N);
+  const queue = [];
+  const tryAdd = (cx, cy) => {
+    if (cx < 0 || cx >= N || cy < 0 || cy >= N) return;
+    const gi = cellIdx(cx, cy);
+    if (outside[gi] || tempBoundary[gi]) return;
+    outside[gi] = 1; queue.push(cx, cy);
+  };
+  for (let cx = 0; cx < N; cx++) { tryAdd(cx, 0); tryAdd(cx, N - 1); }
+  for (let cy = 1; cy < N - 1; cy++) { tryAdd(0, cy); tryAdd(N - 1, cy); }
+
   const dx4 = [1,-1,0,0], dy4 = [0,0,1,-1];
   let qi = 0;
   while (qi < queue.length) {
     const cx = queue[qi++], cy = queue[qi++];
-    for (let d = 0; d < 4; d++) {
-      const nx = cx + dx4[d], ny = cy + dy4[d];
-      if (!inBox(nx, ny)) continue;
-      const bi = bIdx(nx, ny), gi = cellIdx(nx, ny);
-      if (outside[bi] || tempBoundary[gi] || ownershipGrid[gi] === player.id) continue;
-      outside[bi] = 1; queue.push(nx, ny);
-    }
+    for (let d = 0; d < 4; d++) tryAdd(cx + dx4[d], cy + dy4[d]);
   }
 
   let newCells = 0;
-  for (let cx = minCx; cx <= maxCx; cx++) {
-    for (let cy = minCy; cy <= maxCy; cy++) {
-      const bi = bIdx(cx, cy), gi = cellIdx(cx, cy);
-      if (!outside[bi] && ownershipGrid[gi] !== player.id) {
-        ownershipGrid[gi] = player.id; newCells++;
-      }
+  for (let gi = 0; gi < N * N; gi++) {
+    if (!outside[gi] && ownershipGrid[gi] !== player.id) {
+      ownershipGrid[gi] = player.id; newCells++;
     }
   }
   player.capturedArea += newCells;
@@ -556,6 +568,51 @@ function approx(a, b, eps = 1e-9) { return Math.abs(a - b) < eps; }
   const notchNearCx = ux + 2;
   const notchNearCy = uy + 11;
   assert('E6: cells near tight U-notch are still captured', s8.ownershipGrid[cellIdx(notchNearCx, notchNearCy)] === u8.id);
+})();
+
+// E7: Pocket enclosed progressively by two separate captures is filled
+// Reproduces the real-world bug where a strip between two adjacent loops
+// was never captured because each individual loop's bbox excluded the gap.
+(function testE7() {
+  const s = initState();
+  const u = s.players[0];
+  const CS = CONFIG.CELL_SIZE;
+  const N = CONFIG.MAP_CELLS;
+
+  // Build a rectangular territory block at cx=10..30, cy=20..40
+  for (let cx = 10; cx <= 30; cx++)
+    for (let cy = 20; cy <= 40; cy++)
+      s.ownershipGrid[cellIdx(cx, cy)] = u.id;
+
+  // First loop: extends south from cy=40 to cy=50, cx=10..20
+  // Gap row at cy=41..43, cx=21..29 should end up enclosed after both loops
+  for (let cx = 21; cx <= 29; cx++)
+    for (let cy = 41; cy <= 43; cy++)
+      s.ownershipGrid[cellIdx(cx, cy)] = -1; // explicitly unowned gap
+
+  // Simulate the first loop: player traces a path that closes on the south side
+  // Path: start inside at (20,40), go south to (20,50), east to (30,50), north to (30,40), back inside
+  u.tailActive = true;
+  u.tailPath = [];
+  for (let cy = 40; cy <= 50; cy++) u.tailPath.push({ wx: 20 * CS, wy: cy * CS });
+  for (let cx = 20; cx <= 30; cx++) u.tailPath.push({ wx: cx * CS, wy: 50 * CS });
+  for (let cy = 50; cy >= 40; cy--) u.tailPath.push({ wx: 30 * CS, wy: cy * CS });
+  u.tailPath.push({ wx: 25 * CS, wy: 40 * CS }); // return to territory
+  u.wx = 25 * CS; u.wy = 40 * CS;
+  captureLoop(u, s.ownershipGrid, s.tailGrid);
+
+  // Now the gap cx=21..29, cy=41..43 should be enclosed by:
+  //   north: cy=40 (original territory + new south strip cx=20..30,cy=40)
+  //   south: cy=50 row just captured
+  //   west:  cx=20 column just captured
+  //   east:  cx=30 column just captured
+  // Global flood-fill must fill it; bbox-based fill would miss it
+  // because the gap was never INSIDE the single capture's bbox interior.
+  const gapCx = 25, gapCy = 42;
+  assert('E7: pocket enclosed by single loop is captured', s.ownershipGrid[cellIdx(gapCx, gapCy)] === u.id);
+
+  // Also verify cells well outside the territory are still unowned
+  assert('E7: cells outside territory not incorrectly captured', s.ownershipGrid[cellIdx(5, 5)] !== u.id);
 })();
 
 /* ===================================================================
