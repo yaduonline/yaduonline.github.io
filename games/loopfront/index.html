@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Loopfront - Yadnyesh Joshi</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    /* ── Reset & Layout ───────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body { background: #1b2030; color: #c8d0e0; font-family: system-ui, sans-serif; }
+
+    #game-wrap {
+      display: flex;
+      flex-direction: column;
+      height: calc(100dvh - var(--header-height, 0px) - var(--footer-height, 0px));
+      min-height: 300px;
+    }
+
+    /* ── HUD bar ──────────────────────────────────────────────────────── */
+    #hud {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      height: 48px;
+      padding: 0 16px;
+      background: #27364f;
+      flex-shrink: 0;
+      font-size: 13px;
+      user-select: none;
+    }
+    .hud-item { display: flex; flex-direction: column; align-items: center; }
+    .hud-label { font-size: 10px; color: #7a8fa8; text-transform: uppercase; letter-spacing: .05em; }
+    .hud-value { font-size: 15px; font-weight: 600; color: #c8d0e0; min-width: 36px; text-align: center; }
+    #hud-buttons { margin-left: auto; display: flex; gap: 8px; }
+    .hud-btn {
+      background: #2f4260; border: 1px solid #3d5478; color: #c8d0e0;
+      padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;
+    }
+    .hud-btn:hover { background: #3a5278; }
+
+    /* ── Canvas area ──────────────────────────────────────────────────── */
+    #canvas-wrap {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+      background: #1b2030;
+    }
+    #game { display: block; width: 100%; height: 100%; }
+
+    /* ── Minimap ──────────────────────────────────────────────────────── */
+    #minimap {
+      position: absolute;
+      bottom: 12px;
+      right: 12px;
+      border: 1px solid #3d5478;
+      border-radius: 3px;
+      background: rgba(27,32,48,0.85);
+    }
+
+    /* ── Overlay ──────────────────────────────────────────────────────── */
+    #overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(12,14,26,0.72);
+      gap: 14px;
+    }
+    #overlay.hidden { display: none; }
+    #overlay h2 { font-size: 32px; color: #e0d0b0; }
+    #overlay p  { font-size: 15px; color: #9ab0c8; max-width: 340px; text-align: center; line-height: 1.5; }
+    #overlay .stats-grid {
+      display: grid; grid-template-columns: repeat(2, auto);
+      gap: 4px 20px; font-size: 13px; color: #c8d0e0;
+    }
+    #overlay .stats-grid span.lbl { color: #7a8fa8; }
+  </style>
+</head>
+<body>
+  <div id="site-header"></div>
+
+  <div id="game-wrap">
+    <div id="hud">
+      <div class="hud-item">
+        <span class="hud-label">Territory</span>
+        <span class="hud-value" id="hud-territory">0%</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">Players</span>
+        <span class="hud-value" id="hud-players">4/4</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">Tick</span>
+        <span class="hud-value" id="hud-tick">0</span>
+      </div>
+      <div id="hud-buttons">
+        <button class="hud-btn" id="btn-difficulty">Diff: Normal</button>
+        <button class="hud-btn" id="btn-restart">Restart</button>
+        <button class="hud-btn" id="btn-expand">&#x26f6;</button>
+      </div>
+    </div>
+
+    <div id="canvas-wrap">
+      <canvas id="game"></canvas>
+      <canvas id="minimap"></canvas>
+
+      <div id="overlay">
+        <h2 id="overlay-title">Loopfront</h2>
+        <p id="overlay-msg">Use arrow keys to steer. Claim territory by looping back to your region. Cut enemy tails to eliminate them.</p>
+        <div class="stats-grid" id="overlay-stats" style="display:none"></div>
+        <button class="hud-btn" id="overlay-btn" style="font-size:14px;padding:8px 24px;">Start</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="site-footer"></div>
+  <script src="/inc/include.js"></script>
+
+  <script>
+  /* ===================================================================
+     LOOPFRONT  —  Vanilla JS / HTML / CSS  —  Single file
+     Sections:
+       1.  Config
+       2.  Direction system
+       3.  State model & init
+       4.  Input
+       5.  Simulation core
+       6.  Capture system (flood-fill)
+       7.  Elimination & match end
+       8.  Camera
+       9.  Rendering
+      10.  CPU logic
+      11.  Game loop
+      12.  Bootstrap
+  =================================================================== */
+
+  // ─────────────────────────────────────────────────────────────────
+  // 1. CONFIG
+  // ─────────────────────────────────────────────────────────────────
+  const CONFIG = Object.freeze({
+    MAP_CELLS:          400,   // logical grid: MAP_CELLS × MAP_CELLS
+    CELL_SIZE:          4,     // world units per cell
+    PLAYER_SPEED:       1.6,   // world units per tick
+    PLAYER_RADIUS:      6,     // visual arrow bounding radius (world units)
+    TAIL_WIDTH:         4,     // visual tail width (world units)
+    TAIL_SAMPLE_DIST:   2,     // min world units between tail path samples
+    SEED_HALF:          20,    // half-size of corner seed territory (cells)
+    CPU_COUNT:          3,
+    TICK_MS:            30,    // simulation target tick interval (ms)
+    allowSelfTailDeath: false,
+    USER_TURN_STEP:     1,     // heading index steps per tick toward requested direction
+
+    // Camera
+    DEAD_ZONE_FRAC: 0.25,      // dead-zone fraction of viewport
+    LOOK_AHEAD:     80,        // world units of look-ahead
+    PAN_LERP:       0.08,
+
+    // Minimap
+    MINIMAP_PX: 140,
+
+    // Palette: base color per player, fixed high-contrast accent for user
+    PALETTE: [
+      { base: '#5b9bd5', name: 'Blue'  },  // 0 — user
+      { base: '#c0856a', name: 'Terra' },  // 1 — cpu 1
+      { base: '#74b87e', name: 'Sage'  },  // 2 — cpu 2
+      { base: '#a87ab4', name: 'Plum'  },  // 3 — cpu 3
+    ],
+    USER_ACCENT: '#ffffff',
+  });
+
+  const WORLD_SIZE = CONFIG.MAP_CELLS * CONFIG.CELL_SIZE;
+
+  const DIFFICULTY_PRESETS = Object.freeze({
+    easy:   Object.freeze({ label: 'Easy',   thinkMin: 12, thinkMax: 24, turnStep: 1, jitterChance: 0.36, jitterSteps: 2, expandScale: 1.5, interceptChance: 0.08 }),
+    normal: Object.freeze({ label: 'Normal', thinkMin: 7,  thinkMax: 14, turnStep: 1, jitterChance: 0.20, jitterSteps: 1, expandScale: 2.0, interceptChance: 0.20 }),
+    hard:   Object.freeze({ label: 'Hard',   thinkMin: 3,  thinkMax: 7,  turnStep: 2, jitterChance: 0.08, jitterSteps: 1, expandScale: 2.5, interceptChance: 0.38 }),
+  });
+  const DIFFICULTY_KEYS = Object.keys(DIFFICULTY_PRESETS);
+  let difficultyIndex = DIFFICULTY_KEYS.indexOf('normal');
+
+  function currentDifficultyKey() {
+    return DIFFICULTY_KEYS[difficultyIndex];
+  }
+  function currentDifficulty() {
+    return DIFFICULTY_PRESETS[currentDifficultyKey()];
+  }
+  function updateDifficultyUI() {
+    const btn = document.getElementById('btn-difficulty');
+    if (btn) btn.textContent = `Diff: ${currentDifficulty().label}`;
+  }
+  function cycleDifficulty() {
+    difficultyIndex = (difficultyIndex + 1) % DIFFICULTY_KEYS.length;
+    updateDifficultyUI();
+  }
+
+  function randInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // 2. DIRECTION SYSTEM  (16-way)
+  // ─────────────────────────────────────────────────────────────────
+  // Index 0 = East (right on screen), increasing clockwise in screen coords.
+  // angle = index * (2π/16);  x = cos(angle),  y = sin(angle)
+  const DIRECTIONS = Object.freeze(
+    Array.from({ length: 16 }, (_, i) => {
+      const a = i * (2 * Math.PI / 16);
+      return Object.freeze({ dx: Math.cos(a), dy: Math.sin(a) });
+    })
+  );
+
+  /** Map angle (radians, 0=right, +clockwise in screen space) → heading index [0..15] */
+  function angleToHeadingIndex(angle) {
+    const norm = ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    return Math.round(norm / (2 * Math.PI) * 16) % 16;
+  }
+
+  /** True if b is the exact opposite of a (offset of 8) */
+  function isOppositeHeading(a, b) {
+    return ((a - b + 16) % 16) === 8;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // 3. STATE MODEL & INIT
+  // ─────────────────────────────────────────────────────────────────
+  let G = null;
+
+  function cellXY(wx, wy) {
+    return {
+      cx: Math.floor(wx / CONFIG.CELL_SIZE),
+      cy: Math.floor(wy / CONFIG.CELL_SIZE),
+    };
+  }
+  function cellToWorld(cx, cy) {
+    return {
+      wx: cx * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2,
+      wy: cy * CONFIG.CELL_SIZE + CONFIG.CELL_SIZE / 2,
+    };
+  }
+  function cellIdx(cx, cy) {
+    return cy * CONFIG.MAP_CELLS + cx;
+  }
+
+  function seedCorner(grid, playerId, cx0, cy0) {
+    const h = CONFIG.SEED_HALF;
+    const lx = Math.max(0, cx0 - h),  hx = Math.min(CONFIG.MAP_CELLS - 1, cx0 + h);
+    const ly = Math.max(0, cy0 - h),  hy = Math.min(CONFIG.MAP_CELLS - 1, cy0 + h);
+    for (let cy = ly; cy <= hy; cy++)
+      for (let cx = lx; cx <= hx; cx++)
+        grid[cellIdx(cx, cy)] = playerId;
+  }
+
+  function headingTowardCenter(wx, wy) {
+    const angle = Math.atan2(WORLD_SIZE / 2 - wy, WORLD_SIZE / 2 - wx);
+    return angleToHeadingIndex(angle);
+  }
+
+  function initState() {
+    const N = CONFIG.MAP_CELLS;
+    const ownershipGrid = new Int8Array(N * N).fill(-1);
+    const tailGrid      = new Uint8Array(N * N);  // bitmask: bit i = player i has tail here
+
+    const margin = CONFIG.SEED_HALF * CONFIG.CELL_SIZE + CONFIG.PLAYER_RADIUS * 2;
+    const corners = [
+      { wx: margin,              wy: margin              },  // top-left  (user)
+      { wx: WORLD_SIZE - margin, wy: margin              },  // top-right (cpu1)
+      { wx: margin,              wy: WORLD_SIZE - margin },  // bot-left  (cpu2)
+      { wx: WORLD_SIZE - margin, wy: WORLD_SIZE - margin },  // bot-right (cpu3)
+    ];
+
+    const seedArea = (2 * CONFIG.SEED_HALF + 1) * (2 * CONFIG.SEED_HALF + 1);
+
+    const players = corners.map((pos, i) => {
+      const { cx, cy } = cellXY(pos.wx, pos.wy);
+      seedCorner(ownershipGrid, i, cx, cy);
+      return {
+        id:           i,
+        type:         i === 0 ? 'user' : 'cpu',
+        alive:        true,
+        color:        CONFIG.PALETTE[i].base,
+        name:         CONFIG.PALETTE[i].name,
+        wx:           pos.wx,
+        wy:           pos.wy,
+        headingIndex: headingTowardCenter(pos.wx, pos.wy),
+        speed:        CONFIG.PLAYER_SPEED,
+        tailActive:   false,
+        tailPath:     [],
+        capturedArea: seedArea,
+        aiTargetHeading: headingTowardCenter(pos.wx, pos.wy),
+        aiNextThinkTick: 0,
+      };
+    });
+
+    return {
+      phase:    'start',   // 'start' | 'running' | 'ended'
+      tick:     0,
+      winnerId: null,
+      players,
+      ownershipGrid,
+      tailGrid,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // 4. INPUT
+  // ─────────────────────────────────────────────────────────────────
+  const input = { targetHeading: null };
+
+  function stepHeadingToward(current, target, maxStep) {
+    const cw  = (target - current + 16) % 16;
+    const ccw = (current - target + 16) % 16;
+    if (cw === 0) return current;
+    if (cw <= ccw) return (current + Math.min(maxStep, cw)) % 16;
+    return (current - Math.min(maxStep, ccw) + 16) % 16;
+  }
+
+  function requestHeading(newIdx) {
+    if (!G || G.phase !== 'running') return;
+    const user = G.players[0];
+    if (!user.alive) return;
+    if (isOppositeHeading(user.headingIndex, newIdx)) return;
+    input.targetHeading = newIdx;
+  }
+
+  window.addEventListener('keydown', e => {
+    if (!G) return;
+    if (G.phase === 'start' || G.phase === 'ended') {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startGame(); return; }
+    }
+    if (G.phase !== 'running') return;
+    const user = G.players[0];
+    const base = input.targetHeading !== null ? input.targetHeading : user.headingIndex;
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); requestHeading((base - 1 + 16) % 16); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); requestHeading((base + 1) % 16); }
+    if (e.key === 'ArrowUp')    { e.preventDefault(); requestHeading((base - 2 + 16) % 16); }
+    if (e.key === 'ArrowDown')  { e.preventDefault(); requestHeading((base + 2) % 16); }
+  });
+
+  {
+    let touchStart = null;
+    document.addEventListener('touchstart', e => {
+      if (G && (G.phase === 'start' || G.phase === 'ended')) return;
+      e.preventDefault();
+      const t = e.touches[0];
+      touchStart = { x: t.clientX, y: t.clientY };
+    }, { passive: false });
+
+    document.addEventListener('touchend', e => {
+      if (G && (G.phase === 'start' || G.phase === 'ended')) {
+        touchStart = null; startGame(); return;
+      }
+      if (!touchStart) return;
+      e.preventDefault();
+      const t = e.changedTouches[0];
+      const dx = t.clientX - touchStart.x;
+      const dy = t.clientY - touchStart.y;
+      touchStart = null;
+      if (Math.hypot(dx, dy) < 20) return;
+      requestHeading(angleToHeadingIndex(Math.atan2(dy, dx)));
+    }, { passive: false });
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // 5. SIMULATION CORE
+  // ─────────────────────────────────────────────────────────────────
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+  function isInsideOwnTerritory(player) {
+    const { cx, cy } = cellXY(player.wx, player.wy);
+    if (cx < 0 || cx >= CONFIG.MAP_CELLS || cy < 0 || cy >= CONFIG.MAP_CELLS) return false;
+    return G.ownershipGrid[cellIdx(cx, cy)] === player.id;
+  }
+
+  function stampTailCell(player) {
+    const { cx, cy } = cellXY(player.wx, player.wy);
+    if (cx < 0 || cx >= CONFIG.MAP_CELLS || cy < 0 || cy >= CONFIG.MAP_CELLS) return;
+    G.tailGrid[cellIdx(cx, cy)] |= (1 << player.id);
+  }
+
+  function movePlayer(player) {
+    const dir = DIRECTIONS[player.headingIndex];
+    player.wx = clamp(player.wx + dir.dx * player.speed, 0, WORLD_SIZE - 0.01);
+    player.wy = clamp(player.wy + dir.dy * player.speed, 0, WORLD_SIZE - 0.01);
+  }
+
+  function updateTail(player) {
+    const inside = isInsideOwnTerritory(player);
+    if (inside) {
+      // If tail is active, closure detected — captureLoop handles cleanup
+      return;
+    }
+    if (!player.tailActive) {
+      player.tailActive = true;
+      player.tailPath = [];
+    }
+    const last = player.tailPath[player.tailPath.length - 1];
+    const dist = last ? Math.hypot(player.wx - last.wx, player.wy - last.wy) : Infinity;
+    if (dist >= CONFIG.TAIL_SAMPLE_DIST || player.tailPath.length === 0) {
+      player.tailPath.push({ wx: player.wx, wy: player.wy });
+      stampTailCell(player);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // 6. CAPTURE SYSTEM
+  // ─────────────────────────────────────────────────────────────────
+  function captureLoop(player) {
+    if (player.tailPath.length < 2) return;  // guard: need a real path
+    if (!isInsideOwnTerritory(player)) return;
+
+    const N = CONFIG.MAP_CELLS;
+    const tempBoundary = new Uint8Array(N * N);
+
+    // Mark tail path cells as boundary
+    for (const pt of player.tailPath) {
+      const { cx, cy } = cellXY(pt.wx, pt.wy);
+      if (cx >= 0 && cx < N && cy >= 0 && cy < N) tempBoundary[cellIdx(cx, cy)] = 1;
+    }
+    // Mark own territory as boundary (so fill stays enclosed)
+    for (let i = 0; i < G.ownershipGrid.length; i++) {
+      if (G.ownershipGrid[i] === player.id) tempBoundary[i] = 1;
+    }
+
+    // Bounding box of tail path
+    let minCx = N, maxCx = 0, minCy = N, maxCy = 0;
+    for (const pt of player.tailPath) {
+      const { cx, cy } = cellXY(pt.wx, pt.wy);
+      if (cx < minCx) minCx = cx; if (cx > maxCx) maxCx = cx;
+      if (cy < minCy) minCy = cy; if (cy > maxCy) maxCy = cy;
+    }
+    minCx = Math.max(0, minCx - 1); minCy = Math.max(0, minCy - 1);
+    maxCx = Math.min(N - 1, maxCx + 1); maxCy = Math.min(N - 1, maxCy + 1);
+
+    const bw = maxCx - minCx + 1;
+    const bh = maxCy - minCy + 1;
+    if (bw <= 0 || bh <= 0) return;
+
+    const outside = new Uint8Array(bw * bh);
+    const bIdx = (cx, cy) => (cy - minCy) * bw + (cx - minCx);
+    const inBox = (cx, cy) => cx >= minCx && cx <= maxCx && cy >= minCy && cy <= maxCy;
+
+    // Flood from bbox edges → mark "outside"
+    const queue = [];
+    for (let cx = minCx; cx <= maxCx; cx++) {
+      for (let cy = minCy; cy <= maxCy; cy++) {
+        if (cx !== minCx && cx !== maxCx && cy !== minCy && cy !== maxCy) continue;
+        const gi = cellIdx(cx, cy);
+        const bi = bIdx(cx, cy);
+        if (!tempBoundary[gi] && G.ownershipGrid[gi] !== player.id && !outside[bi]) {
+          outside[bi] = 1; queue.push(cx, cy);
+        }
+      }
+    }
+
+    const dx4 = [1,-1,0,0], dy4 = [0,0,1,-1];
+    let qi = 0;
+    while (qi < queue.length) {
+      const cx = queue[qi++], cy = queue[qi++];
+      for (let d = 0; d < 4; d++) {
+        const nx = cx + dx4[d], ny = cy + dy4[d];
+        if (!inBox(nx, ny)) continue;
+        const bi = bIdx(nx, ny);
+        const gi = cellIdx(nx, ny);
+        if (outside[bi] || tempBoundary[gi] || G.ownershipGrid[gi] === player.id) continue;
+        outside[bi] = 1; queue.push(nx, ny);
+      }
+    }
+
+    // Capture cells inside bbox not marked outside and not already owned by player
+    let newCells = 0;
+    for (let cx = minCx; cx <= maxCx; cx++) {
+      for (let cy = minCy; cy <= maxCy; cy++) {
+        const bi = bIdx(cx, cy);
+        const gi = cellIdx(cx, cy);
+        if (!outside[bi] && G.ownershipGrid[gi] !== player.id) {
+          G.ownershipGrid[gi] = player.id;
+          newCells++;
+        }
+      }
+    }
+    player.capturedArea += newCells;
+
+    // Clear tail
+    for (const pt of player.tailPath) {
+      const { cx, cy } = cellXY(pt.wx, pt.wy);
+      if (cx >= 0 && cx < N && cy >= 0 && cy < N) {
+        G.tailGrid[cellIdx(cx, cy)] &= ~(1 << player.id);
+      }
+    }
+    player.tailPath = [];
+    player.tailActive = false;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // 7. ELIMINATION & MATCH END
+  // ─────────────────────────────────────────────────────────────────
+  function checkEliminations() {
+    for (const mover of G.players) {
+      if (!mover.alive) continue;
+      const { cx, cy } = cellXY(mover.wx, mover.wy);
+      if (cx < 0 || cx >= CONFIG.MAP_CELLS || cy < 0 || cy >= CONFIG.MAP_CELLS) continue;
+      const bits = G.tailGrid[cellIdx(cx, cy)];
+      if (!bits) continue;
+
+      for (const victim of G.players) {
+        if (!victim.alive || !victim.tailActive) continue;
+        if (!(bits & (1 << victim.id))) continue;
+        if (mover.id === victim.id && !CONFIG.allowSelfTailDeath) continue;
+
+        victim.alive = false;
+        victim.tailActive = false;
+        for (const pt of victim.tailPath) {
+          const { cx: tx, cy: ty } = cellXY(pt.wx, pt.wy);
+          if (tx >= 0 && tx < CONFIG.MAP_CELLS && ty >= 0 && ty < CONFIG.MAP_CELLS) {
+            G.tailGrid[cellIdx(tx, ty)] &= ~(1 << victim.id);
+          }
+        }
+        victim.tailPath = [];
+      }
+    }
+  }
+
+  function checkMatchEnd() {
+    const user = G.players[0];
+    const allCpuDead = G.players.filter(p => p.type === 'cpu').every(p => !p.alive);
+    if (!user.alive || allCpuDead) {
+      G.phase = 'ended';
+      let best = G.players.reduce((a, b) => b.capturedArea > a.capturedArea ? b : a);
+      G.winnerId = best.id;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // 8. CAMERA
+  // ─────────────────────────────────────────────────────────────────
+  const camera = { wx: 0, wy: 0, vw: 1, vh: 1, screenW: 1, screenH: 1 };
+
+  function cameraUpdate() {
+    const user = G.players[0];
+    if (!user.alive) return;
+    const dw = camera.vw * CONFIG.DEAD_ZONE_FRAC;
+    const dh = camera.vh * CONFIG.DEAD_ZONE_FRAC;
+    const dzL = camera.wx + (camera.vw - dw) / 2;
+    const dzR = dzL + dw;
+    const dzT = camera.wy + (camera.vh - dh) / 2;
+    const dzB = dzT + dh;
+
+    if (user.wx < dzL || user.wx > dzR || user.wy < dzT || user.wy > dzB) {
+      const dir = DIRECTIONS[user.headingIndex];
+      const tWx = user.wx + dir.dx * CONFIG.LOOK_AHEAD - camera.vw / 2;
+      const tWy = user.wy + dir.dy * CONFIG.LOOK_AHEAD - camera.vh / 2;
+      camera.wx += (tWx - camera.wx) * CONFIG.PAN_LERP;
+      camera.wy += (tWy - camera.wy) * CONFIG.PAN_LERP;
+    }
+    camera.wx = clamp(camera.wx, 0, WORLD_SIZE - camera.vw);
+    camera.wy = clamp(camera.wy, 0, WORLD_SIZE - camera.vh);
+  }
+
+  function worldToScreen(wx, wy) {
+    const scale = camera.screenW / camera.vw;
+    return { sx: (wx - camera.wx) * scale, sy: (wy - camera.wy) * scale };
+  }
+
+  function resizeCamera() {
+    const wrap   = document.getElementById('canvas-wrap');
+    const canvas = document.getElementById('game');
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    canvas.width = w; canvas.height = h;
+    camera.screenW = w; camera.screenH = h;
+    const viewWU = WORLD_SIZE * 0.38;
+    camera.vw = viewWU;
+    camera.vh = viewWU * (h / w);
+    const mm = document.getElementById('minimap');
+    mm.width = mm.height = CONFIG.MINIMAP_PX;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // 9. RENDERING
+  // ─────────────────────────────────────────────────────────────────
+  const _colorCache = {};
+  function toRgba(hex, a) {
+    const k = hex + a;
+    if (!_colorCache[k]) {
+      const r = parseInt(hex.slice(1,3),16);
+      const g = parseInt(hex.slice(3,5),16);
+      const b = parseInt(hex.slice(5,7),16);
+      _colorCache[k] = `rgba(${r},${g},${b},${a})`;
+    }
+    return _colorCache[k];
+  }
+
+  function render() {
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+
+    ctx.fillStyle = '#1b2030';
+    ctx.fillRect(0, 0, W, H);
+
+    const scale = camera.screenW / camera.vw;
+    const cellPx = CONFIG.CELL_SIZE * scale;
+
+    // ── Territory fills (visible cells only) ───────────────────────
+    const N = CONFIG.MAP_CELLS;
+    const vMinCx = Math.max(0, Math.floor(camera.wx / CONFIG.CELL_SIZE) - 1);
+    const vMaxCx = Math.min(N - 1, Math.ceil((camera.wx + camera.vw) / CONFIG.CELL_SIZE) + 1);
+    const vMinCy = Math.max(0, Math.floor(camera.wy / CONFIG.CELL_SIZE) - 1);
+    const vMaxCy = Math.min(N - 1, Math.ceil((camera.wy + camera.vh) / CONFIG.CELL_SIZE) + 1);
+
+    for (let cy = vMinCy; cy <= vMaxCy; cy++) {
+      for (let cx = vMinCx; cx <= vMaxCx; cx++) {
+        const owner = G.ownershipGrid[cellIdx(cx, cy)];
+        if (owner < 0) continue;
+        const { sx, sy } = worldToScreen(cx * CONFIG.CELL_SIZE, cy * CONFIG.CELL_SIZE);
+        ctx.fillStyle = toRgba(CONFIG.PALETTE[owner].base, 0.35);
+        ctx.fillRect(sx, sy, cellPx + 0.5, cellPx + 0.5);
+      }
+    }
+
+    // ── Tails ──────────────────────────────────────────────────────
+    const tailPx = CONFIG.TAIL_WIDTH * scale;
+    for (const p of G.players) {
+      if (!p.alive || !p.tailActive || p.tailPath.length < 2) continue;
+      ctx.save();
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth   = tailPx;
+      ctx.lineCap     = 'round';
+      ctx.lineJoin    = 'round';
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      const f = worldToScreen(p.tailPath[0].wx, p.tailPath[0].wy);
+      ctx.moveTo(f.sx, f.sy);
+      for (let i = 1; i < p.tailPath.length; i++) {
+        const pt = worldToScreen(p.tailPath[i].wx, p.tailPath[i].wy);
+        ctx.lineTo(pt.sx, pt.sy);
+      }
+      const cur = worldToScreen(p.wx, p.wy);
+      ctx.lineTo(cur.sx, cur.sy);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // ── Player arrows ──────────────────────────────────────────────
+    const arrowR = CONFIG.PLAYER_RADIUS * scale;
+    for (const p of G.players) {
+      if (!p.alive) continue;
+      const { sx, sy } = worldToScreen(p.wx, p.wy);
+      drawArrow(ctx, sx, sy, p.headingIndex * (2 * Math.PI / 16),
+                arrowR, p.color, p.type === 'user' ? CONFIG.USER_ACCENT : null);
+    }
+
+    // ── HUD text ───────────────────────────────────────────────────
+    const total = CONFIG.MAP_CELLS * CONFIG.MAP_CELLS;
+    const user  = G.players[0];
+    document.getElementById('hud-territory').textContent =
+      Math.round(user.capturedArea / total * 100) + '%';
+    document.getElementById('hud-players').textContent =
+      G.players.filter(p => p.alive).length + '/4';
+    document.getElementById('hud-tick').textContent = G.tick;
+
+    renderMinimap();
+  }
+
+  /** Arrow chevron pointing in direction `angle` (radians, screen space). */
+  function drawArrow(ctx, sx, sy, angle, r, fill, accent) {
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(angle);
+
+    const tip   =  r;
+    const rear  = -r * 0.7;
+    const wing  =  r * 0.55;
+    const notch = -r * 0.2;
+
+    ctx.beginPath();
+    ctx.moveTo(tip, 0);
+    ctx.lineTo(rear, -wing);
+    ctx.lineTo(notch, 0);
+    ctx.lineTo(rear,  wing);
+    ctx.closePath();
+
+    if (accent) {
+      ctx.save();
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = Math.max(2, r * 0.32);
+      ctx.lineJoin  = 'round';
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function renderMinimap() {
+    const mm   = document.getElementById('minimap');
+    const mctx = mm.getContext('2d');
+    const mpx  = CONFIG.MINIMAP_PX;
+    const N    = CONFIG.MAP_CELLS;
+    const sc   = mpx / N;
+
+    mctx.fillStyle = '#111826';
+    mctx.fillRect(0, 0, mpx, mpx);
+
+    for (let cy = 0; cy < N; cy++) {
+      for (let cx = 0; cx < N; cx++) {
+        const owner = G.ownershipGrid[cellIdx(cx, cy)];
+        if (owner < 0) continue;
+        mctx.fillStyle = toRgba(CONFIG.PALETTE[owner].base, 0.75);
+        mctx.fillRect(cx * sc, cy * sc, sc + 0.5, sc + 0.5);
+      }
+    }
+
+    for (const p of G.players) {
+      if (!p.alive) continue;
+      const mx = p.wx / WORLD_SIZE * mpx;
+      const my = p.wy / WORLD_SIZE * mpx;
+      mctx.beginPath();
+      mctx.arc(mx, my, p.type === 'user' ? 3 : 2, 0, Math.PI * 2);
+      mctx.fillStyle = p.type === 'user' ? CONFIG.USER_ACCENT : p.color;
+      mctx.fill();
+    }
+
+    const vx = camera.wx / WORLD_SIZE * mpx;
+    const vy = camera.wy / WORLD_SIZE * mpx;
+    const vw = camera.vw / WORLD_SIZE * mpx;
+    const vh = camera.vh / WORLD_SIZE * mpx;
+    mctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    mctx.lineWidth = 1;
+    mctx.strokeRect(vx, vy, vw, vh);
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // 10. CPU LOGIC
+  // ─────────────────────────────────────────────────────────────────
+  function cpuTick(cpu) {
+    if (!cpu.alive) return;
+    const diff = currentDifficulty();
+
+    const N    = CONFIG.MAP_CELLS;
+    const step = Math.max(1, Math.floor(N / 20));
+
+    let sx = 0, sy = 0, cnt = 0;
+    let bestDist = Infinity, nearWx = cpu.wx, nearWy = cpu.wy;
+
+    for (let cy = 0; cy < N; cy += step) {
+      for (let cx = 0; cx < N; cx += step) {
+        if (G.ownershipGrid[cellIdx(cx, cy)] !== cpu.id) continue;
+        const w = cellToWorld(cx, cy);
+        sx += w.wx; sy += w.wy; cnt++;
+        const d = Math.hypot(w.wx - cpu.wx, w.wy - cpu.wy);
+        if (d < bestDist) { bestDist = d; nearWx = w.wx; nearWy = w.wy; }
+      }
+    }
+
+    let targetWx, targetWy;
+    if (!cpu.tailActive) {
+      // Expand: move away from centroid
+      if (cnt > 0) {
+        const cx0 = sx / cnt, cy0 = sy / cnt;
+        targetWx = cpu.wx + (cpu.wx - cx0) * diff.expandScale;
+        targetWy = cpu.wy + (cpu.wy - cy0) * diff.expandScale;
+      } else {
+        targetWx = WORLD_SIZE / 2; targetWy = WORLD_SIZE / 2;
+      }
+
+      // Occasionally chase an active enemy tail to make stronger levels feel more threatening.
+      if (Math.random() < diff.interceptChance) {
+        let targetEnemy = null;
+        let bestEnemyDist = Infinity;
+        for (const other of G.players) {
+          if (!other.alive || other.id === cpu.id || !other.tailActive) continue;
+          const d = Math.hypot(other.wx - cpu.wx, other.wy - cpu.wy);
+          if (d < bestEnemyDist) { bestEnemyDist = d; targetEnemy = other; }
+        }
+        if (targetEnemy) {
+          targetWx = targetEnemy.wx;
+          targetWy = targetEnemy.wy;
+        }
+      }
+    } else {
+      // Return: head toward nearest own cell
+      targetWx = nearWx; targetWy = nearWy;
+    }
+
+    if (G.tick >= cpu.aiNextThinkTick || cpu.aiTargetHeading === null) {
+      const angle = Math.atan2(targetWy - cpu.wy, targetWx - cpu.wx);
+      let desired = angleToHeadingIndex(angle);
+
+      if (Math.random() < diff.jitterChance) {
+        desired = (desired + randInt(-diff.jitterSteps, diff.jitterSteps) + 16) % 16;
+      }
+
+      cpu.aiTargetHeading = desired;
+      cpu.aiNextThinkTick = G.tick + randInt(diff.thinkMin, diff.thinkMax);
+    }
+
+    if (cpu.aiTargetHeading !== null && !isOppositeHeading(cpu.headingIndex, cpu.aiTargetHeading)) {
+      cpu.headingIndex = stepHeadingToward(cpu.headingIndex, cpu.aiTargetHeading, diff.turnStep);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // 11. GAME LOOP
+  // ─────────────────────────────────────────────────────────────────
+  let loopId = null, lastTs = 0, accumulator = 0;
+
+  function simTick() {
+    G.tick++;
+
+    const user = G.players[0];
+    if (user.alive && input.targetHeading !== null) {
+      user.headingIndex = stepHeadingToward(user.headingIndex, input.targetHeading, CONFIG.USER_TURN_STEP);
+      if (user.headingIndex === input.targetHeading) input.targetHeading = null;
+    }
+
+    for (const p of G.players) if (p.type === 'cpu') cpuTick(p);
+    for (const p of G.players) if (p.alive) movePlayer(p);
+    for (const p of G.players) if (p.alive) updateTail(p);
+    for (const p of G.players) {
+      if (p.alive && p.tailActive && p.tailPath.length > 1) captureLoop(p);
+    }
+    checkEliminations();
+    checkMatchEnd();
+  }
+
+  function gameLoop(ts) {
+    if (!G || G.phase !== 'running') return;
+    const delta = ts - lastTs; lastTs = ts;
+    accumulator += delta;
+    while (accumulator >= CONFIG.TICK_MS && G.phase === 'running') {
+      simTick(); accumulator -= CONFIG.TICK_MS;
+    }
+    cameraUpdate();
+    render();
+    if (G.phase === 'running') {
+      loopId = requestAnimationFrame(gameLoop);
+    } else if (G.phase === 'ended') {
+      render();
+      showEndScreen();
+    }
+  }
+
+  function startLoop() {
+    if (loopId) cancelAnimationFrame(loopId);
+    accumulator = 0;
+    loopId = requestAnimationFrame(ts => { lastTs = ts; loopId = requestAnimationFrame(gameLoop); });
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // 12. BOOTSTRAP
+  // ─────────────────────────────────────────────────────────────────
+  function syncShellHeights() {
+    const root = document.documentElement;
+    const hdr = document.getElementById('site-header');
+    const ftr = document.getElementById('site-footer');
+    const hh = hdr && hdr.style.display !== 'none' ? hdr.offsetHeight : 0;
+    const fh = ftr && ftr.style.display !== 'none' ? ftr.offsetHeight : 0;
+    root.style.setProperty('--header-height', hh + 'px');
+    root.style.setProperty('--footer-height', fh + 'px');
+  }
+
+  function observeShellHeights() {
+    const opts = { childList: true, subtree: true };
+    let rafId = 0;
+    const onMutate = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        syncShellHeights();
+        if (G) { resizeCamera(); initCamera(); render(); }
+      });
+    };
+    const hdr = document.getElementById('site-header');
+    const ftr = document.getElementById('site-footer');
+    if (hdr) new MutationObserver(onMutate).observe(hdr, opts);
+    if (ftr) new MutationObserver(onMutate).observe(ftr, opts);
+    window.addEventListener('load', onMutate);
+  }
+
+  function showStartScreen() {
+    document.getElementById('overlay-title').textContent = 'Loopfront';
+    document.getElementById('overlay-msg').textContent =
+      'Arrow keys to steer  \u2022  Loop back to your territory to capture land  \u2022  Cut enemy tails to eliminate them';
+    document.getElementById('overlay-stats').style.display = 'none';
+    document.getElementById('overlay-btn').textContent = 'Start';
+    document.getElementById('overlay').classList.remove('hidden');
+  }
+
+  function showEndScreen() {
+    const winner = G.players.find(p => p.id === G.winnerId);
+    const userWon = G.winnerId === 0;
+    document.getElementById('overlay-title').textContent =
+      userWon ? '\ud83c\udfc6 You Win!' : 'Game Over';
+    document.getElementById('overlay-msg').textContent = userWon
+      ? 'You claimed the most territory!'
+      : `${winner ? winner.name : 'CPU'} claimed the most territory.`;
+
+    const statsDiv = document.getElementById('overlay-stats');
+    const total = CONFIG.MAP_CELLS * CONFIG.MAP_CELLS;
+    statsDiv.style.display = 'grid';
+    statsDiv.innerHTML = G.players.map(p =>
+      `<span class="lbl" style="color:${p.color}">${p.name}</span>` +
+      `<span>${Math.round(p.capturedArea / total * 100)}%${p.alive ? '' : ' \u2620'}</span>`
+    ).join('');
+
+    document.getElementById('overlay-btn').textContent = 'Restart';
+    document.getElementById('overlay').classList.remove('hidden');
+  }
+
+  function initCamera() {
+    const user = G.players[0];
+    camera.wx = clamp(user.wx - camera.vw / 2, 0, WORLD_SIZE - camera.vw);
+    camera.wy = clamp(user.wy - camera.vh / 2, 0, WORLD_SIZE - camera.vh);
+  }
+
+  function startGame() {
+    if (loopId) cancelAnimationFrame(loopId);
+    G = initState();
+    G.phase = 'running';
+    initCamera();
+    document.getElementById('overlay').classList.add('hidden');
+    startLoop();
+  }
+
+  document.getElementById('btn-restart').addEventListener('click', () => {
+    if (loopId) cancelAnimationFrame(loopId);
+    G = initState(); resizeCamera(); initCamera(); render(); showStartScreen();
+  });
+  document.getElementById('btn-difficulty').addEventListener('click', cycleDifficulty);
+  document.getElementById('overlay-btn').addEventListener('click', startGame);
+  document.getElementById('btn-expand').addEventListener('click', () => {
+    const hdr = document.getElementById('site-header');
+    const ftr = document.getElementById('site-footer');
+    const btn = document.getElementById('btn-expand');
+    const hidden = hdr.style.display === 'none';
+    hdr.style.display = hidden ? '' : 'none';
+    ftr.style.display = hidden ? '' : 'none';
+    btn.textContent   = hidden ? '\u26f6' : '\u2715';
+    resizeCamera();
+    if (G && G.phase === 'running') render();
+  });
+
+  window.addEventListener('resize', () => {
+    syncShellHeights();
+    resizeCamera();
+    if (G) { initCamera(); render(); }
+  });
+
+  // Initial render
+  G = initState();
+  updateDifficultyUI();
+  syncShellHeights();
+  observeShellHeights();
+  resizeCamera();
+  initCamera();
+  render();
+  showStartScreen();
+  </script>
+</body>
+</html>
