@@ -39,6 +39,7 @@
       padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;
     }
     .hud-btn:hover { background: #3a5278; }
+    .hud-btn:disabled { opacity: .55; cursor: default; }
 
     /* ── Canvas area ──────────────────────────────────────────────────── */
     #canvas-wrap {
@@ -98,6 +99,9 @@
         <span class="hud-value" id="hud-tick">0</span>
       </div>
       <div id="hud-buttons">
+        <button class="hud-btn" id="btn-debug">Debug: Off</button>
+        <button class="hud-btn" id="btn-export-log">Export Log</button>
+        <button class="hud-btn" id="btn-stop">Pause</button>
         <button class="hud-btn" id="btn-difficulty">Diff: Normal</button>
         <button class="hud-btn" id="btn-restart">Restart</button>
         <button class="hud-btn" id="btn-expand">&#x26f6;</button>
@@ -142,13 +146,14 @@
   // 1. CONFIG
   // ─────────────────────────────────────────────────────────────────
   const CONFIG = Object.freeze({
-    MAP_CELLS:          400,   // logical grid: MAP_CELLS × MAP_CELLS
-    CELL_SIZE:          4,     // world units per cell
+    MAP_CELLS:          800,   // logical grid: MAP_CELLS × MAP_CELLS
+    CELL_SIZE:          2,     // world units per cell
     PLAYER_SPEED:       1.6,   // world units per tick
-    PLAYER_RADIUS:      6,     // visual arrow bounding radius (world units)
-    TAIL_WIDTH:         4,     // visual tail width (world units)
-    TAIL_SAMPLE_DIST:   2,     // min world units between tail path samples
-    SEED_HALF:          20,    // half-size of corner seed territory (cells)
+    PLAYER_RADIUS:      9,     // visual arrow bounding radius (world units)
+    TAIL_WIDTH:         6,     // visual tail width (world units)
+    TAIL_SAMPLE_DIST:   1.5,   // min world units between tail path samples
+    TAIL_CAPTURE_RADIUS_CELLS: 1, // logical tail thickness for collisions/capture walls
+    SEED_HALF:          40,    // half-size of corner seed territory (cells)
     CPU_COUNT:          3,
     TICK_MS:            30,    // simulation target tick interval (ms)
     allowSelfTailDeath: false,
@@ -170,6 +175,9 @@
       { base: '#a87ab4', name: 'Plum'  },  // 3 — cpu 3
     ],
     USER_ACCENT: '#ffffff',
+    DEBUG_MAX_LOG_LINES: 120000,
+    DEBUG_TICK_SNAPSHOT_INTERVAL: 10,
+    DEBUG_SCALE_STEP_CELLS: 20,
   });
 
   const WORLD_SIZE = CONFIG.MAP_CELLS * CONFIG.CELL_SIZE;
@@ -199,6 +207,107 @@
 
   function randInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Debug / Logging
+  // ─────────────────────────────────────────────────────────────────
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function formatSessionTimestamp(d) {
+    return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+  }
+  function nowIso() { return new Date().toISOString(); }
+
+  const debugState = {
+    enabled: false,
+    sessionId: null,
+    startedAtIso: null,
+    logs: [],
+    seq: 0,
+  };
+
+  function safeJson(value) {
+    try { return JSON.stringify(value); }
+    catch (_) { return '"[unserializable]"'; }
+  }
+
+  function debugLog(type, message, data) {
+    if (!debugState.enabled) return;
+    const tick = G ? G.tick : -1;
+    const line = `${nowIso()} | seq=${debugState.seq++} | tick=${tick} | ${type} | ${message}` +
+      (data === undefined ? '' : ` | data=${safeJson(data)}`);
+    const hadNoLogs = debugState.logs.length === 0;
+    debugState.logs.push(line);
+    if (debugState.logs.length > CONFIG.DEBUG_MAX_LOG_LINES) {
+      debugState.logs.splice(0, debugState.logs.length - CONFIG.DEBUG_MAX_LOG_LINES);
+    }
+    if (hadNoLogs) updateDebugUI();
+  }
+
+  function readInitialDebugEnabled() {
+    const p = new URLSearchParams(window.location.search);
+    if (p.has('debug')) return p.get('debug') === '1';
+    const s = localStorage.getItem('loopfront.debug.enabled');
+    return s === '1';
+  }
+
+  function updateDebugUI() {
+    const dbgBtn = document.getElementById('btn-debug');
+    const expBtn = document.getElementById('btn-export-log');
+    if (dbgBtn) dbgBtn.textContent = `Debug: ${debugState.enabled ? 'On' : 'Off'}`;
+    if (expBtn) expBtn.disabled = !debugState.enabled || debugState.logs.length === 0;
+  }
+
+  function setDebugEnabled(enabled) {
+    debugState.enabled = !!enabled;
+    localStorage.setItem('loopfront.debug.enabled', debugState.enabled ? '1' : '0');
+    updateDebugUI();
+    if (debugState.enabled) debugLog('DEBUG', 'debug mode enabled');
+    if (G) render();
+  }
+
+  function beginDebugSession() {
+    if (!debugState.enabled) return;
+    const d = new Date();
+    debugState.sessionId = formatSessionTimestamp(d);
+    debugState.startedAtIso = d.toISOString();
+    debugState.logs = [];
+    debugState.seq = 0;
+    debugLog('SESSION', 'game started', {
+      sessionId: debugState.sessionId,
+      difficulty: currentDifficultyKey(),
+      worldSize: WORLD_SIZE,
+      mapCells: CONFIG.MAP_CELLS,
+      cellSize: CONFIG.CELL_SIZE,
+      tailWidth: CONFIG.TAIL_WIDTH,
+      tailCaptureRadiusCells: CONFIG.TAIL_CAPTURE_RADIUS_CELLS,
+      playerRadius: CONFIG.PLAYER_RADIUS,
+    });
+    updateDebugUI();
+  }
+
+  function exportDebugLog() {
+    if (!debugState.enabled || debugState.logs.length === 0) return;
+    const sid = debugState.sessionId || formatSessionTimestamp(new Date());
+    const fileName = `loopfront-debug-${sid}.log`;
+    const header = [
+      `session_id=${sid}`,
+      `started_at=${debugState.startedAtIso || 'unknown'}`,
+      `exported_at=${new Date().toISOString()}`,
+      `difficulty=${currentDifficultyKey()}`,
+      `map_cells=${CONFIG.MAP_CELLS}`,
+      `cell_size=${CONFIG.CELL_SIZE}`,
+      '',
+    ].join('\n');
+    const blob = new Blob([header, debugState.logs.join('\n'), '\n'], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -245,6 +354,51 @@
     return cy * CONFIG.MAP_CELLS + cx;
   }
 
+  function forEachTailDiskCell(centerCx, centerCy, fn) {
+    const r = CONFIG.TAIL_CAPTURE_RADIUS_CELLS;
+    const r2 = r * r;
+    for (let oy = -r; oy <= r; oy++) {
+      for (let ox = -r; ox <= r; ox++) {
+        if (ox * ox + oy * oy > r2) continue;
+        const cx = centerCx + ox;
+        const cy = centerCy + oy;
+        if (cx < 0 || cx >= CONFIG.MAP_CELLS || cy < 0 || cy >= CONFIG.MAP_CELLS) continue;
+        fn(cx, cy);
+      }
+    }
+  }
+
+  function rasterizeCellLine(fromPt, toPt, fn) {
+    const a = cellXY(fromPt.wx, fromPt.wy);
+    const b = cellXY(toPt.wx, toPt.wy);
+    let x0 = a.cx, y0 = a.cy;
+    const x1 = b.cx, y1 = b.cy;
+    const dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    const dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    let err = dx + dy;
+    while (true) {
+      fn(x0, y0);
+      if (x0 === x1 && y0 === y1) break;
+      const e2 = 2 * err;
+      if (e2 >= dy) { err += dy; x0 += sx; }
+      if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+  }
+
+  function forEachTailCoveredCell(path, fn) {
+    if (!path || path.length === 0) return;
+    if (path.length === 1) {
+      const { cx, cy } = cellXY(path[0].wx, path[0].wy);
+      forEachTailDiskCell(cx, cy, fn);
+      return;
+    }
+    for (let i = 1; i < path.length; i++) {
+      rasterizeCellLine(path[i - 1], path[i], (cx, cy) => {
+        forEachTailDiskCell(cx, cy, fn);
+      });
+    }
+  }
+
   function seedCorner(grid, playerId, cx0, cy0) {
     const h = CONFIG.SEED_HALF;
     const lx = Math.max(0, cx0 - h),  hx = Math.min(CONFIG.MAP_CELLS - 1, cx0 + h);
@@ -266,9 +420,9 @@
 
     const margin = CONFIG.SEED_HALF * CONFIG.CELL_SIZE + CONFIG.PLAYER_RADIUS * 2;
     const corners = [
-      { wx: margin,              wy: margin              },  // top-left  (user)
-      { wx: WORLD_SIZE - margin, wy: margin              },  // top-right (cpu1)
-      { wx: margin,              wy: WORLD_SIZE - margin },  // bot-left  (cpu2)
+      { wx: margin,              wy: WORLD_SIZE - margin },  // bot-left  (user)
+      { wx: margin,              wy: margin              },  // top-left  (cpu1)
+      { wx: WORLD_SIZE - margin, wy: margin              },  // top-right (cpu2)
       { wx: WORLD_SIZE - margin, wy: WORLD_SIZE - margin },  // bot-right (cpu3)
     ];
 
@@ -324,6 +478,7 @@
     if (!user.alive) return;
     if (isOppositeHeading(user.headingIndex, newIdx)) return;
     input.targetHeading = newIdx;
+    debugLog('INPUT', 'heading requested', { playerId: 0, targetHeading: newIdx });
   }
 
   window.addEventListener('keydown', e => {
@@ -376,9 +531,22 @@
   }
 
   function stampTailCell(player) {
-    const { cx, cy } = cellXY(player.wx, player.wy);
-    if (cx < 0 || cx >= CONFIG.MAP_CELLS || cy < 0 || cy >= CONFIG.MAP_CELLS) return;
-    G.tailGrid[cellIdx(cx, cy)] |= (1 << player.id);
+    const path = player.tailPath;
+    const n = path.length;
+    if (n === 0) return;
+    const bit = 1 << player.id;
+    if (n === 1) {
+      const { cx, cy } = cellXY(path[0].wx, path[0].wy);
+      forEachTailDiskCell(cx, cy, (tx, ty) => {
+        G.tailGrid[cellIdx(tx, ty)] |= bit;
+      });
+      return;
+    }
+    rasterizeCellLine(path[n - 2], path[n - 1], (cx, cy) => {
+      forEachTailDiskCell(cx, cy, (tx, ty) => {
+        G.tailGrid[cellIdx(tx, ty)] |= bit;
+      });
+    });
   }
 
   function movePlayer(player) {
@@ -396,6 +564,11 @@
     if (!player.tailActive) {
       player.tailActive = true;
       player.tailPath = [];
+      debugLog('TAIL', 'tail started', {
+        playerId: player.id,
+        wx: Number(player.wx.toFixed(2)),
+        wy: Number(player.wy.toFixed(2)),
+      });
     }
     const last = player.tailPath[player.tailPath.length - 1];
     const dist = last ? Math.hypot(player.wx - last.wx, player.wy - last.wy) : Infinity;
@@ -409,17 +582,22 @@
   // 6. CAPTURE SYSTEM
   // ─────────────────────────────────────────────────────────────────
   function captureLoop(player) {
-    if (player.tailPath.length < 2) return;  // guard: need a real path
+    if (player.tailPath.length < 2) {
+      debugLog('CAPTURE', 'capture skipped: short tail', { playerId: player.id, tailPoints: player.tailPath.length });
+      return;
+    }
     if (!isInsideOwnTerritory(player)) return;
 
     const N = CONFIG.MAP_CELLS;
     const tempBoundary = new Uint8Array(N * N);
+    const tailBoundary = new Uint8Array(N * N);
 
     // Mark tail path cells as boundary
-    for (const pt of player.tailPath) {
-      const { cx, cy } = cellXY(pt.wx, pt.wy);
-      if (cx >= 0 && cx < N && cy >= 0 && cy < N) tempBoundary[cellIdx(cx, cy)] = 1;
-    }
+    forEachTailCoveredCell(player.tailPath, (cx, cy) => {
+      const i = cellIdx(cx, cy);
+      tempBoundary[i] = 1;
+      tailBoundary[i] = 1;
+    });
     // Mark own territory as boundary (so fill stays enclosed)
     for (let i = 0; i < G.ownershipGrid.length; i++) {
       if (G.ownershipGrid[i] === player.id) tempBoundary[i] = 1;
@@ -432,65 +610,87 @@
       if (cx < minCx) minCx = cx; if (cx > maxCx) maxCx = cx;
       if (cy < minCy) minCy = cy; if (cy > maxCy) maxCy = cy;
     }
-    minCx = Math.max(0, minCx - 1); minCy = Math.max(0, minCy - 1);
-    maxCx = Math.min(N - 1, maxCx + 1); maxCy = Math.min(N - 1, maxCy + 1);
+    const boundaryPad = CONFIG.TAIL_CAPTURE_RADIUS_CELLS + 2;
+    minCx = Math.max(0, minCx - boundaryPad); minCy = Math.max(0, minCy - boundaryPad);
+    maxCx = Math.min(N - 1, maxCx + boundaryPad); maxCy = Math.min(N - 1, maxCy + boundaryPad);
 
-    const bw = maxCx - minCx + 1;
-    const bh = maxCy - minCy + 1;
-    if (bw <= 0 || bh <= 0) return;
+    if (maxCx < minCx || maxCy < minCy) return;
 
-    const outside = new Uint8Array(bw * bh);
-    const bIdx = (cx, cy) => (cy - minCy) * bw + (cx - minCx);
-    const inBox = (cx, cy) => cx >= minCx && cx <= maxCx && cy >= minCy && cy <= maxCy;
-
-    // Flood from bbox edges → mark "outside"
-    const queue = [];
-    for (let cx = minCx; cx <= maxCx; cx++) {
-      for (let cy = minCy; cy <= maxCy; cy++) {
-        if (cx !== minCx && cx !== maxCx && cy !== minCy && cy !== maxCy) continue;
-        const gi = cellIdx(cx, cy);
-        const bi = bIdx(cx, cy);
-        if (!tempBoundary[gi] && G.ownershipGrid[gi] !== player.id && !outside[bi]) {
-          outside[bi] = 1; queue.push(cx, cy);
+    // Seal corner-only diagonal contacts so flood-fill does not leak through
+    // tiny checkerboard gaps in slanted or U-turn boundaries.
+    let sealedCornerCells = 0;
+    for (let cy = minCy; cy < maxCy; cy++) {
+      for (let cx = minCx; cx < maxCx; cx++) {
+        const a = cellIdx(cx, cy);
+        const b = cellIdx(cx + 1, cy + 1);
+        const c = cellIdx(cx + 1, cy);
+        const d = cellIdx(cx, cy + 1);
+        // Only seal if the diagonal touch involves tail cells.
+        if (tempBoundary[a] && tempBoundary[b] && (tailBoundary[a] || tailBoundary[b])) {
+          if (!tempBoundary[c]) { tempBoundary[c] = 1; sealedCornerCells++; }
+          if (!tempBoundary[d]) { tempBoundary[d] = 1; sealedCornerCells++; }
+        }
+        const e = cellIdx(cx + 1, cy);
+        const f = cellIdx(cx, cy + 1);
+        const g = cellIdx(cx, cy);
+        const h = cellIdx(cx + 1, cy + 1);
+        if (tempBoundary[e] && tempBoundary[f] && (tailBoundary[e] || tailBoundary[f])) {
+          if (!tempBoundary[g]) { tempBoundary[g] = 1; sealedCornerCells++; }
+          if (!tempBoundary[h]) { tempBoundary[h] = 1; sealedCornerCells++; }
         }
       }
     }
+
+    // Global flood-fill from map edges so that pockets enclosed by multiple
+    // separate previous captures are also detected and filled. This prevents
+    // thin strips between adjacent loops from remaining uncaptured.
+    const outside = new Uint8Array(N * N);
+    const queue = [];
+    const tryAdd = (cx, cy) => {
+      if (cx < 0 || cx >= N || cy < 0 || cy >= N) return;
+      const gi = cellIdx(cx, cy);
+      if (outside[gi] || tempBoundary[gi]) return;
+      outside[gi] = 1;
+      queue.push(cx, cy);
+    };
+
+    // Seed from all 4 map edges
+    for (let cx = 0; cx < N; cx++) { tryAdd(cx, 0); tryAdd(cx, N - 1); }
+    for (let cy = 1; cy < N - 1; cy++) { tryAdd(0, cy); tryAdd(N - 1, cy); }
 
     const dx4 = [1,-1,0,0], dy4 = [0,0,1,-1];
     let qi = 0;
     while (qi < queue.length) {
       const cx = queue[qi++], cy = queue[qi++];
       for (let d = 0; d < 4; d++) {
-        const nx = cx + dx4[d], ny = cy + dy4[d];
-        if (!inBox(nx, ny)) continue;
-        const bi = bIdx(nx, ny);
-        const gi = cellIdx(nx, ny);
-        if (outside[bi] || tempBoundary[gi] || G.ownershipGrid[gi] === player.id) continue;
-        outside[bi] = 1; queue.push(nx, ny);
+        tryAdd(cx + dx4[d], cy + dy4[d]);
       }
     }
 
-    // Capture cells inside bbox not marked outside and not already owned by player
+    // Capture all cells globally not reachable from map edges and not already owned.
+    // This correctly fills pockets enclosed by multiple prior captures.
     let newCells = 0;
-    for (let cx = minCx; cx <= maxCx; cx++) {
-      for (let cy = minCy; cy <= maxCy; cy++) {
-        const bi = bIdx(cx, cy);
-        const gi = cellIdx(cx, cy);
-        if (!outside[bi] && G.ownershipGrid[gi] !== player.id) {
-          G.ownershipGrid[gi] = player.id;
-          newCells++;
-        }
+    for (let gi = 0; gi < N * N; gi++) {
+      if (!outside[gi] && G.ownershipGrid[gi] !== player.id) {
+        G.ownershipGrid[gi] = player.id;
+        newCells++;
       }
     }
     player.capturedArea += newCells;
+    debugLog('CAPTURE', 'capture resolved', {
+      playerId: player.id,
+      tailPoints: player.tailPath.length,
+      bbox: { minCx, minCy, maxCx, maxCy },
+      sealedCornerCells,
+      newCells,
+      totalArea: player.capturedArea,
+    });
 
     // Clear tail
-    for (const pt of player.tailPath) {
-      const { cx, cy } = cellXY(pt.wx, pt.wy);
-      if (cx >= 0 && cx < N && cy >= 0 && cy < N) {
-        G.tailGrid[cellIdx(cx, cy)] &= ~(1 << player.id);
-      }
-    }
+    const clearBit = ~(1 << player.id);
+    forEachTailCoveredCell(player.tailPath, (cx, cy) => {
+      G.tailGrid[cellIdx(cx, cy)] &= clearBit;
+    });
     player.tailPath = [];
     player.tailActive = false;
   }
@@ -513,12 +713,16 @@
 
         victim.alive = false;
         victim.tailActive = false;
-        for (const pt of victim.tailPath) {
-          const { cx: tx, cy: ty } = cellXY(pt.wx, pt.wy);
-          if (tx >= 0 && tx < CONFIG.MAP_CELLS && ty >= 0 && ty < CONFIG.MAP_CELLS) {
-            G.tailGrid[cellIdx(tx, ty)] &= ~(1 << victim.id);
-          }
-        }
+        debugLog('ELIM', 'player eliminated', {
+          moverId: mover.id,
+          victimId: victim.id,
+          wx: Number(mover.wx.toFixed(2)),
+          wy: Number(mover.wy.toFixed(2)),
+        });
+        const clearBit = ~(1 << victim.id);
+        forEachTailCoveredCell(victim.tailPath, (tx, ty) => {
+          G.tailGrid[cellIdx(tx, ty)] &= clearBit;
+        });
         victim.tailPath = [];
       }
     }
@@ -662,7 +866,42 @@
       G.players.filter(p => p.alive).length + '/4';
     document.getElementById('hud-tick').textContent = G.tick;
 
+    if (debugState.enabled) renderDebugScale(ctx, W, H, scale);
+
     renderMinimap();
+  }
+
+  function renderDebugScale(ctx, W, H, scale) {
+    const stepCells = CONFIG.DEBUG_SCALE_STEP_CELLS;
+    const minCx = Math.max(0, Math.floor(camera.wx / CONFIG.CELL_SIZE));
+    const maxCx = Math.min(CONFIG.MAP_CELLS - 1, Math.ceil((camera.wx + camera.vw) / CONFIG.CELL_SIZE));
+    const minCy = Math.max(0, Math.floor(camera.wy / CONFIG.CELL_SIZE));
+    const maxCy = Math.min(CONFIG.MAP_CELLS - 1, Math.ceil((camera.wy + camera.vh) / CONFIG.CELL_SIZE));
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.fillStyle = 'rgba(230,240,255,0.9)';
+    ctx.font = '10px ui-monospace, Menlo, monospace';
+    ctx.lineWidth = 1;
+
+    for (let cx = Math.floor(minCx / stepCells) * stepCells; cx <= maxCx; cx += stepCells) {
+      const sx = (cx * CONFIG.CELL_SIZE - camera.wx) * scale;
+      if (sx < 0 || sx > W) continue;
+      ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, 7); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sx, H - 7); ctx.lineTo(sx, H); ctx.stroke();
+      ctx.fillText(String(cx), sx + 2, 11);
+      ctx.fillText(String(cx), sx + 2, H - 10);
+    }
+    for (let cy = Math.floor(minCy / stepCells) * stepCells; cy <= maxCy; cy += stepCells) {
+      const sy = (cy * CONFIG.CELL_SIZE - camera.wy) * scale;
+      if (sy < 0 || sy > H) continue;
+      ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(7, sy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(W - 7, sy); ctx.lineTo(W, sy); ctx.stroke();
+      ctx.fillText(String(cy), 9, sy - 2);
+      const t = String(cy);
+      ctx.fillText(t, W - 8 - ctx.measureText(t).width, sy - 2);
+    }
+    ctx.restore();
   }
 
   /** Arrow chevron pointing in direction `angle` (radians, screen space). */
@@ -797,6 +1036,12 @@
 
       cpu.aiTargetHeading = desired;
       cpu.aiNextThinkTick = G.tick + randInt(diff.thinkMin, diff.thinkMax);
+      debugLog('CPU', 'cpu think', {
+        cpuId: cpu.id,
+        targetHeading: cpu.aiTargetHeading,
+        nextThinkTick: cpu.aiNextThinkTick,
+        tailActive: cpu.tailActive,
+      });
     }
 
     if (cpu.aiTargetHeading !== null && !isOppositeHeading(cpu.headingIndex, cpu.aiTargetHeading)) {
@@ -811,6 +1056,20 @@
 
   function simTick() {
     G.tick++;
+
+    if (debugState.enabled && (G.tick % CONFIG.DEBUG_TICK_SNAPSHOT_INTERVAL === 0)) {
+      debugLog('TICK', 'snapshot', {
+        players: G.players.map(p => ({
+          id: p.id,
+          alive: p.alive,
+          wx: Number(p.wx.toFixed(1)),
+          wy: Number(p.wy.toFixed(1)),
+          h: p.headingIndex,
+          tail: p.tailPath.length,
+          area: p.capturedArea,
+        })),
+      });
+    }
 
     const user = G.players[0];
     if (user.alive && input.targetHeading !== null) {
@@ -890,6 +1149,15 @@
     document.getElementById('overlay').classList.remove('hidden');
   }
 
+  function showPauseScreen() {
+    document.getElementById('overlay-title').textContent = 'Paused';
+    document.getElementById('overlay-msg').textContent =
+      'Game is paused. Resume when ready. In debug mode, use Export Log to save diagnostics.';
+    document.getElementById('overlay-stats').style.display = 'none';
+    document.getElementById('overlay-btn').textContent = 'Resume';
+    document.getElementById('overlay').classList.remove('hidden');
+  }
+
   function showEndScreen() {
     const winner = G.players.find(p => p.id === G.winnerId);
     const userWon = G.winnerId === 0;
@@ -921,17 +1189,51 @@
     if (loopId) cancelAnimationFrame(loopId);
     G = initState();
     G.phase = 'running';
+    beginDebugSession();
     initCamera();
     document.getElementById('overlay').classList.add('hidden');
+    document.getElementById('btn-stop').textContent = 'Pause';
     startLoop();
+  }
+
+  function togglePauseResume() {
+    if (!G) return;
+    if (G.phase === 'running') {
+      G.phase = 'paused';
+      if (loopId) cancelAnimationFrame(loopId);
+      loopId = null;
+      document.getElementById('btn-stop').textContent = 'Resume';
+      showPauseScreen();
+      debugLog('GAME', 'paused by user');
+      return;
+    }
+    if (G.phase === 'paused') {
+      G.phase = 'running';
+      document.getElementById('overlay').classList.add('hidden');
+      document.getElementById('btn-stop').textContent = 'Pause';
+      debugLog('GAME', 'resumed by user');
+      startLoop();
+    }
   }
 
   document.getElementById('btn-restart').addEventListener('click', () => {
     if (loopId) cancelAnimationFrame(loopId);
     G = initState(); resizeCamera(); initCamera(); render(); showStartScreen();
+    document.getElementById('btn-stop').textContent = 'Pause';
   });
+  document.getElementById('btn-debug').addEventListener('click', () => {
+    setDebugEnabled(!debugState.enabled);
+  });
+  document.getElementById('btn-export-log').addEventListener('click', exportDebugLog);
+  document.getElementById('btn-stop').addEventListener('click', togglePauseResume);
   document.getElementById('btn-difficulty').addEventListener('click', cycleDifficulty);
-  document.getElementById('overlay-btn').addEventListener('click', startGame);
+  document.getElementById('overlay-btn').addEventListener('click', () => {
+    if (G && G.phase === 'paused') {
+      togglePauseResume();
+    } else {
+      startGame();
+    }
+  });
   document.getElementById('btn-expand').addEventListener('click', () => {
     const hdr = document.getElementById('site-header');
     const ftr = document.getElementById('site-footer');
@@ -951,6 +1253,7 @@
   });
 
   // Initial render
+  setDebugEnabled(readInitialDebugEnabled());
   G = initState();
   updateDifficultyUI();
   syncShellHeights();

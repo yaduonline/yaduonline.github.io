@@ -11,7 +11,7 @@
     .fail { color:#c0856a; font-weight:600; }
     .row  { font-size:13px; margin:3px 0; padding:2px 6px; border-radius:3px; }
     .row.fail { background:rgba(192,133,106,0.12); }
-    #summary { margin-top:24px; font-size:16px; font-weight:600; }
+    #summary { margin:0 0 16px 0; font-size:16px; font-weight:600; }
     #summary.allpass { color:#74b87e; }
     #summary.hasfail { color:#c0856a; }
   </style>
@@ -506,6 +506,56 @@ function approx(a, b, eps = 1e-9) { return Math.abs(a - b) < eps; }
     if (s7.ownershipGrid[gi] !== 0) { ownedAfterUnchanged = false; break; }
   }
   assert('E4: previously owned cells not overwritten during failed capture', ownedAfterUnchanged);
+
+  // E5: Loop with a U-shaped turn still captures enclosed area
+  const s8 = initState();
+  const u8 = s8.players[0];
+  const { cx: sx0 } = cellXY(u8.wx, u8.wy);
+  const startUx = (sx0 + CONFIG.SEED_HALF + 4) * C; // outside own seed
+  const startUy = u8.wy;
+
+  const uPath = [];
+  const pushH = (x0, x1, y) => {
+    const step = x1 >= x0 ? 1 : -1;
+    for (let i = x0; i !== x1 + step; i += step) uPath.push({ wx: i * C, wy: y * C });
+  };
+  const pushV = (x, y0, y1) => {
+    const step = y1 >= y0 ? 1 : -1;
+    for (let i = y0; i !== y1 + step; i += step) uPath.push({ wx: x * C, wy: i * C });
+  };
+
+  const ux = Math.floor(startUx / C);
+  const uy = Math.floor(startUy / C);
+  // Outer rectangle with an inward U-turn notch on the left wall.
+  pushH(ux, ux + 28, uy);          // top
+  pushV(ux + 28, uy + 1, uy + 20); // right
+  pushH(ux + 27, ux, uy + 20);     // bottom
+  pushV(ux, uy + 19, uy + 8);      // up left wall
+  pushH(ux + 1, ux + 6, uy + 8);   // notch inward
+  pushV(ux + 6, uy + 9, uy + 13);  // notch down
+  pushH(ux + 5, ux, uy + 13);      // notch back left
+  pushV(ux, uy + 12, uy);          // close back to start
+
+  u8.tailActive = true;
+  u8.tailPath = uPath;
+  for (const pt of uPath) {
+    const { cx, cy } = cellXY(pt.wx, pt.wy);
+    if (cx >= 0 && cx < CONFIG.MAP_CELLS && cy >= 0 && cy < CONFIG.MAP_CELLS)
+      s8.tailGrid[cellIdx(cx, cy)] |= (1 << u8.id);
+  }
+
+  // Re-enter own territory to trigger capture resolution.
+  u8.wx = u8.wy = CONFIG.SEED_HALF * C;
+  captureLoop(u8, s8.ownershipGrid, s8.tailGrid);
+
+  const interiorCx = ux + 14;
+  const interiorCy = uy + 10;
+  assert('E5: interior cell of U-turn loop captured', s8.ownershipGrid[cellIdx(interiorCx, interiorCy)] === u8.id);
+
+  // E6: Tight diagonal-adjacent notch does not leak fill to outside
+  const notchNearCx = ux + 2;
+  const notchNearCy = uy + 11;
+  assert('E6: cells near tight U-notch are still captured', s8.ownershipGrid[cellIdx(notchNearCx, notchNearCy)] === u8.id);
 })();
 
 /* ===================================================================
@@ -731,6 +781,10 @@ let currentSection = '';
 document.addEventListener('DOMContentLoaded', () => {
   document.body.innerHTML += '<div id="run-output"></div>';
   const out = [];
+  const summaryClass = failCount === 0 ? 'allpass' : 'hasfail';
+  out.push(`<div id="summary" class="${summaryClass}">
+    ${passCount} passed, ${failCount} failed — ${failCount === 0 ? 'All tests pass ✓' : 'Some tests FAILED ✗'}
+  </div>`);
   for (const r of results) {
     const section = r.label.split(':')[0];
     if (section !== currentSection) {
@@ -742,10 +796,6 @@ document.addEventListener('DOMContentLoaded', () => {
       ${r.label}
     </div>`);
   }
-  const summaryClass = failCount === 0 ? 'allpass' : 'hasfail';
-  out.push(`<div id="summary" class="${summaryClass}">
-    ${passCount} passed, ${failCount} failed — ${failCount === 0 ? 'All tests pass ✓' : 'Some tests FAILED ✗'}
-  </div>`);
   document.getElementById('run-output').innerHTML = out.join('');
 });
 </script>
@@ -756,6 +806,11 @@ document.addEventListener('DOMContentLoaded', () => {
 // Also write results if DOM already ready (module-style in same file)
 if (document.readyState !== 'loading') {
   const out = [];
+  const sc = failCount === 0 ? 'allpass' : 'hasfail';
+  out.push(`<div id="summary" class="${sc}">
+    ${passCount} passed &nbsp;&bull;&nbsp; ${failCount} failed &nbsp;&mdash;&nbsp;
+    ${failCount === 0 ? 'All tests pass &#10003;' : 'Tests FAILED &#10007;'}
+  </div>`);
   let curSec = '';
   for (const r of results) {
     const section = r.label.split(':')[0];
@@ -765,11 +820,6 @@ if (document.readyState !== 'loading') {
       &nbsp;${r.label}
     </div>`);
   }
-  const sc = failCount === 0 ? 'allpass' : 'hasfail';
-  out.push(`<div id="summary" class="${sc}">
-    ${passCount} passed &nbsp;&bull;&nbsp; ${failCount} failed &nbsp;&mdash;&nbsp;
-    ${failCount === 0 ? 'All tests pass &#10003;' : 'Tests FAILED &#10007;'}
-  </div>`);
   document.getElementById('run-output').innerHTML = out.join('');
 }
 </script>
