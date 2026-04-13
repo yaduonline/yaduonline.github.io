@@ -182,7 +182,13 @@
   <script src="/inc/include.js"></script>
   <script>
     const SIZE_PACKS = [5, 6, 7, 8, 9, 10];
-    const PALETTE = ['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--c7)','var(--c8)','var(--c9)','var(--c10)'];
+    const PALETTE = ['#9db8d6','#e3b8a7','#b8d5b6','#d1bddf','#e2cf9b','#a9d4cf','#d7b8c7','#b9c7a0','#9fc8b8','#d4c0a8'];
+    const COLORS = {
+      gridBg: '#d8d8cf',
+      gridLine: '#c7c8be',
+      focus: '#5d7f78',
+      endpoint: 'rgba(255,255,255,0.7)',
+    };
     const STORAGE_KEY = 'linkgrid-progress-v1';
 
     const PUZZLES = {
@@ -535,7 +541,7 @@
       const cs = W / n;
       ctx.clearRect(0, 0, W, H);
 
-      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid-bg');
+      ctx.fillStyle = COLORS.gridBg;
       ctx.fillRect(0, 0, W, H);
 
       for (let r = 0; r < n; r++) {
@@ -548,7 +554,7 @@
         }
       }
 
-      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid-line');
+      ctx.strokeStyle = COLORS.gridLine;
       ctx.lineWidth = 1;
       for (let i = 0; i <= n; i++) {
         const k = i * cs;
@@ -563,7 +569,7 @@
           ctx.beginPath();
           ctx.arc(cx, cy, Math.max(4, cs * 0.26), 0, Math.PI * 2);
           ctx.fill();
-          ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+          ctx.strokeStyle = COLORS.endpoint;
           ctx.lineWidth = Math.max(1, cs * 0.04);
           ctx.stroke();
         }
@@ -571,7 +577,7 @@
 
       const cur = app.cursor;
       if (cur && app.screen === 'puzzle') {
-        ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--focus');
+        ctx.strokeStyle = COLORS.focus;
         ctx.lineWidth = Math.max(2, cs * 0.06);
         ctx.strokeRect(cur.c * cs + 2, cur.r * cs + 2, cs - 4, cs - 4);
       }
