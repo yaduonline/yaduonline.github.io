@@ -741,25 +741,38 @@
   // ─────────────────────────────────────────────────────────────────
   // 8. CAMERA
   // ─────────────────────────────────────────────────────────────────
-  const camera = { wx: 0, wy: 0, vw: 1, vh: 1, screenW: 1, screenH: 1 };
+  const camera = { wx: 0, wy: 0, vw: 1, vh: 1, screenW: 1, screenH: 1, lookX: 0, lookY: 0 };
 
   function cameraUpdate() {
     const user = G.players[0];
     if (!user.alive) return;
+    const dir = DIRECTIONS[user.headingIndex];
+    const lookLerp = 0.18;
+    camera.lookX += (dir.dx * CONFIG.LOOK_AHEAD - camera.lookX) * lookLerp;
+    camera.lookY += (dir.dy * CONFIG.LOOK_AHEAD - camera.lookY) * lookLerp;
+
     const dw = camera.vw * CONFIG.DEAD_ZONE_FRAC;
     const dh = camera.vh * CONFIG.DEAD_ZONE_FRAC;
+    const marginX = (camera.vw - dw) / 2;
+    const marginY = (camera.vh - dh) / 2;
     const dzL = camera.wx + (camera.vw - dw) / 2;
     const dzR = dzL + dw;
     const dzT = camera.wy + (camera.vh - dh) / 2;
     const dzB = dzT + dh;
 
-    if (user.wx < dzL || user.wx > dzR || user.wy < dzT || user.wy > dzB) {
-      const dir = DIRECTIONS[user.headingIndex];
-      const tWx = user.wx + dir.dx * CONFIG.LOOK_AHEAD - camera.vw / 2;
-      const tWy = user.wy + dir.dy * CONFIG.LOOK_AHEAD - camera.vh / 2;
-      camera.wx += (tWx - camera.wx) * CONFIG.PAN_LERP;
-      camera.wy += (tWy - camera.wy) * CONFIG.PAN_LERP;
-    }
+    const focusX = user.wx + camera.lookX;
+    const focusY = user.wy + camera.lookY;
+    let tWx = camera.wx;
+    let tWy = camera.wy;
+
+    if (focusX < dzL) tWx = focusX - marginX;
+    else if (focusX > dzR) tWx = focusX - marginX - dw;
+
+    if (focusY < dzT) tWy = focusY - marginY;
+    else if (focusY > dzB) tWy = focusY - marginY - dh;
+
+    camera.wx += (tWx - camera.wx) * CONFIG.PAN_LERP;
+    camera.wy += (tWy - camera.wy) * CONFIG.PAN_LERP;
     camera.wx = clamp(camera.wx, 0, WORLD_SIZE - camera.vw);
     camera.wy = clamp(camera.wy, 0, WORLD_SIZE - camera.vh);
   }
@@ -778,6 +791,8 @@
     const viewWU = WORLD_SIZE * 0.38;
     camera.vw = viewWU;
     camera.vh = viewWU * (h / w);
+    camera.lookX = 0;
+    camera.lookY = 0;
     const mm = document.getElementById('minimap');
     mm.width = mm.height = CONFIG.MINIMAP_PX;
   }
