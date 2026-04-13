@@ -433,20 +433,11 @@
       const W = el.board.width;
       const H = el.board.height;
       const cs = W / n;
+      const pipeWidth = cs * 0.3;
       ctx.clearRect(0, 0, W, H);
 
       ctx.fillStyle = COLORS.gridBg;
       ctx.fillRect(0, 0, W, H);
-
-      for (let r = 0; r < n; r++) {
-        for (let c = 0; c < n; c++) {
-          const owner = p.owner[r][c];
-          if (owner >= 0) {
-            ctx.fillStyle = PALETTE[owner % PALETTE.length];
-            ctx.fillRect(c * cs + 1, r * cs + 1, cs - 2, cs - 2);
-          }
-        }
-      }
 
       ctx.strokeStyle = COLORS.gridLine;
       ctx.lineWidth = 1;
@@ -456,12 +447,26 @@
         ctx.beginPath(); ctx.moveTo(k, 0); ctx.lineTo(k, H); ctx.stroke();
       }
 
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      for (const [color, path] of p.paths.entries()) {
+        if (!path || path.length < 2) continue;
+        ctx.strokeStyle = PALETTE[color % PALETTE.length];
+        ctx.lineWidth = pipeWidth;
+        ctx.beginPath();
+        ctx.moveTo(path[0][1] * cs + cs / 2, path[0][0] * cs + cs / 2);
+        for (let i = 1; i < path.length; i++) {
+          ctx.lineTo(path[i][1] * cs + cs / 2, path[i][0] * cs + cs / 2);
+        }
+        ctx.stroke();
+      }
+
       for (const [color, pair] of p.endpoints.entries()) {
         ctx.fillStyle = PALETTE[color % PALETTE.length];
         for (const [r, c] of pair) {
           const cx = c * cs + cs / 2, cy = r * cs + cs / 2;
           ctx.beginPath();
-          ctx.arc(cx, cy, Math.max(4, cs * 0.26), 0, Math.PI * 2);
+          ctx.arc(cx, cy, Math.max(4, cs * 0.22), 0, Math.PI * 2);
           ctx.fill();
           ctx.strokeStyle = COLORS.endpoint;
           ctx.lineWidth = Math.max(1, cs * 0.04);
