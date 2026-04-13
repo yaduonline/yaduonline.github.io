@@ -183,11 +183,51 @@
   const WORLD_SIZE = CONFIG.MAP_CELLS * CONFIG.CELL_SIZE;
 
   const DIFFICULTY_PRESETS = Object.freeze({
-    rookie:    Object.freeze({ label: 'Rookie',    thinkMin: 14, thinkMax: 28, turnStep: 1, jitterChance: 0.40, jitterSteps: 2, expandScale: 1.6, flankBias: 0.35, interceptChance: 0.05, commitMin: 20, commitMax: 36, edgeBuffer: 44, threatReturnDist: 90 }),
-    easy:      Object.freeze({ label: 'Easy',      thinkMin: 10, thinkMax: 20, turnStep: 1, jitterChance: 0.30, jitterSteps: 2, expandScale: 1.9, flankBias: 0.45, interceptChance: 0.10, commitMin: 28, commitMax: 48, edgeBuffer: 40, threatReturnDist: 80 }),
-    normal:    Object.freeze({ label: 'Normal',    thinkMin: 7,  thinkMax: 14, turnStep: 1, jitterChance: 0.20, jitterSteps: 1, expandScale: 2.2, flankBias: 0.60, interceptChance: 0.22, commitMin: 38, commitMax: 62, edgeBuffer: 34, threatReturnDist: 70 }),
-    hard:      Object.freeze({ label: 'Hard',      thinkMin: 4,  thinkMax: 9,  turnStep: 2, jitterChance: 0.10, jitterSteps: 1, expandScale: 2.6, flankBias: 0.80, interceptChance: 0.40, commitMin: 52, commitMax: 84, edgeBuffer: 28, threatReturnDist: 60 }),
-    nightmare: Object.freeze({ label: 'Nightmare', thinkMin: 2,  thinkMax: 6,  turnStep: 2, jitterChance: 0.04, jitterSteps: 1, expandScale: 3.0, flankBias: 1.00, interceptChance: 0.62, commitMin: 68, commitMax: 104, edgeBuffer: 22, threatReturnDist: 52 }),
+    rookie: Object.freeze({
+      label: 'Rookie', thinkMin: 14, thinkMax: 28, turnStep: 1,
+      jitterChance: 0.40, jitterSteps: 2,
+      expandScale: 1.6, flankBias: 0.35, contestBias: 0.10,
+      interceptChance: 0.05, interceptLeadTicks: 6,
+      commitMin: 20, commitMax: 36, segmentMin: 8, segmentMax: 13,
+      edgeBuffer: 44, threatReturnDist: 90,
+      behindAggro: 1.08, aheadSafety: 0.94,
+    }),
+    easy: Object.freeze({
+      label: 'Easy', thinkMin: 10, thinkMax: 20, turnStep: 1,
+      jitterChance: 0.30, jitterSteps: 2,
+      expandScale: 1.9, flankBias: 0.45, contestBias: 0.18,
+      interceptChance: 0.10, interceptLeadTicks: 8,
+      commitMin: 28, commitMax: 48, segmentMin: 8, segmentMax: 14,
+      edgeBuffer: 40, threatReturnDist: 80,
+      behindAggro: 1.14, aheadSafety: 0.90,
+    }),
+    normal: Object.freeze({
+      label: 'Normal', thinkMin: 7, thinkMax: 14, turnStep: 1,
+      jitterChance: 0.20, jitterSteps: 1,
+      expandScale: 2.2, flankBias: 0.60, contestBias: 0.30,
+      interceptChance: 0.22, interceptLeadTicks: 10,
+      commitMin: 38, commitMax: 62, segmentMin: 9, segmentMax: 15,
+      edgeBuffer: 34, threatReturnDist: 70,
+      behindAggro: 1.22, aheadSafety: 0.85,
+    }),
+    hard: Object.freeze({
+      label: 'Hard', thinkMin: 4, thinkMax: 9, turnStep: 2,
+      jitterChance: 0.10, jitterSteps: 1,
+      expandScale: 2.6, flankBias: 0.80, contestBias: 0.48,
+      interceptChance: 0.40, interceptLeadTicks: 12,
+      commitMin: 52, commitMax: 84, segmentMin: 10, segmentMax: 16,
+      edgeBuffer: 28, threatReturnDist: 60,
+      behindAggro: 1.34, aheadSafety: 0.78,
+    }),
+    nightmare: Object.freeze({
+      label: 'Nightmare', thinkMin: 2, thinkMax: 6, turnStep: 2,
+      jitterChance: 0.04, jitterSteps: 1,
+      expandScale: 3.0, flankBias: 1.00, contestBias: 0.66,
+      interceptChance: 0.62, interceptLeadTicks: 14,
+      commitMin: 68, commitMax: 104, segmentMin: 10, segmentMax: 18,
+      edgeBuffer: 22, threatReturnDist: 52,
+      behindAggro: 1.48, aheadSafety: 0.72,
+    }),
   });
   const DIFFICULTY_KEYS = Object.keys(DIFFICULTY_PRESETS);
   let difficultyIndex = DIFFICULTY_KEYS.indexOf('normal');
@@ -452,6 +492,8 @@
         aiCommitUntilTick: 0,
         aiTailStartTick: -1,
         aiLoopSign: Math.random() < 0.5 ? -1 : 1,
+        aiSegment: 0,
+        aiSegmentEndTick: 0,
       };
     });
 
@@ -1113,9 +1155,110 @@
   // ─────────────────────────────────────────────────────────────────
   // 10. CPU LOGIC
   // ─────────────────────────────────────────────────────────────────
+  function normalize2(x, y) {
+    const m = Math.hypot(x, y) || 1;
+    return { x: x / m, y: y / m };
+  }
+
+  function clamp01(v) {
+    return Math.max(0, Math.min(1, v));
+  }
+
+  function cpuRoleProfile(cpu, diff) {
+    const totalCells = CONFIG.MAP_CELLS * CONFIG.MAP_CELLS;
+    const areas = G.players.map(p => p.currentArea || p.capturedArea || 0);
+    const myArea = areas[cpu.id] || 0;
+    const leaderArea = Math.max(...areas);
+    let bestOther = 0;
+    for (const p of G.players) {
+      if (p.id === cpu.id) continue;
+      const a = areas[p.id] || 0;
+      if (a > bestOther) bestOther = a;
+    }
+
+    const trailingGap = leaderArea - myArea;
+    const leadingGap = myArea - bestOther;
+    const behind = trailingGap > totalCells * 0.08;
+    const ahead = leadingGap > totalCells * 0.05;
+
+    if (behind) {
+      return {
+        mode: 'behind',
+        aggro: diff.behindAggro,
+        safety: 0.88,
+      };
+    }
+    if (ahead) {
+      return {
+        mode: 'ahead',
+        aggro: diff.aheadSafety,
+        safety: 1.24,
+      };
+    }
+    return {
+      mode: 'neutral',
+      aggro: 1,
+      safety: 1,
+    };
+  }
+
+  function findPredictedTailIntercept(cpu, leadTicks) {
+    let best = null;
+    let bestScore = Infinity;
+    for (const other of G.players) {
+      if (!other.alive || other.id === cpu.id || !other.tailActive) continue;
+      const od = DIRECTIONS[other.headingIndex];
+      const predWx = clamp(other.wx + od.dx * other.speed * leadTicks, 0, WORLD_SIZE);
+      const predWy = clamp(other.wy + od.dy * other.speed * leadTicks, 0, WORLD_SIZE);
+      const dist = Math.hypot(predWx - cpu.wx, predWy - cpu.wy);
+      const tailBonus = Math.min(140, other.tailPath.length * 0.8);
+      const score = dist - tailBonus;
+      if (score < bestScore) {
+        bestScore = score;
+        best = { wx: predWx, wy: predWy, enemyId: other.id };
+      }
+    }
+    return best;
+  }
+
+  function chooseContestTarget(cpu, sampleStep) {
+    const N = CONFIG.MAP_CELLS;
+    const step = Math.max(4, sampleStep * 2);
+    let best = null;
+    let bestScore = -Infinity;
+
+    for (let cy = 0; cy < N; cy += step) {
+      for (let cx = 0; cx < N; cx += step) {
+        if (G.ownershipGrid[cellIdx(cx, cy)] !== -1) continue;
+        const w = cellToWorld(cx, cy);
+        const dSelf = Math.hypot(w.wx - cpu.wx, w.wy - cpu.wy);
+
+        let dOpp = Infinity;
+        for (const other of G.players) {
+          if (!other.alive || other.id === cpu.id) continue;
+          const d = Math.hypot(w.wx - other.wx, w.wy - other.wy);
+          if (d < dOpp) dOpp = d;
+        }
+        if (!isFinite(dOpp)) continue;
+
+        const parity = -Math.abs(dSelf - dOpp);
+        const nearby = -dSelf * 0.25;
+        const contest = dOpp < 260 ? 55 : 0;
+        const centerPull = -Math.hypot(w.wx - WORLD_SIZE / 2, w.wy - WORLD_SIZE / 2) * 0.02;
+        const score = parity + nearby + contest + centerPull;
+        if (score > bestScore) {
+          bestScore = score;
+          best = { wx: w.wx, wy: w.wy };
+        }
+      }
+    }
+    return best;
+  }
+
   function cpuTick(cpu) {
     if (!cpu.alive) return;
     const diff = currentDifficulty();
+    const role = cpuRoleProfile(cpu, diff);
 
     const N    = CONFIG.MAP_CELLS;
     const step = Math.max(1, Math.floor(N / 20));
@@ -1133,46 +1276,50 @@
       }
     }
 
+    const centroidWx = cnt > 0 ? sx / cnt : cpu.wx;
+    const centroidWy = cnt > 0 ? sy / cnt : cpu.wy;
+    const outward = normalize2(cpu.wx - centroidWx, cpu.wy - centroidWy);
+
     let targetWx, targetWy;
     if (!cpu.tailActive) {
       cpu.aiTailStartTick = -1;
       cpu.aiCommitUntilTick = 0;
+      cpu.aiSegment = 0;
+      cpu.aiSegmentEndTick = 0;
 
       // Expand: move away from centroid
-      if (cnt > 0) {
-        const cx0 = sx / cnt, cy0 = sy / cnt;
-        const outwardX = cpu.wx - cx0;
-        const outwardY = cpu.wy - cy0;
-        const outwardMag = Math.hypot(outwardX, outwardY) || 1;
-        const ox = outwardX / outwardMag;
-        const oy = outwardY / outwardMag;
-        const tx = -oy * cpu.aiLoopSign;
-        const ty = ox * cpu.aiLoopSign;
-        targetWx = cpu.wx + (ox + tx * diff.flankBias) * 120 * diff.expandScale;
-        targetWy = cpu.wy + (oy + ty * diff.flankBias) * 120 * diff.expandScale;
-      } else {
-        targetWx = WORLD_SIZE / 2; targetWy = WORLD_SIZE / 2;
+      const tx = -outward.y * cpu.aiLoopSign;
+      const ty = outward.x * cpu.aiLoopSign;
+      targetWx = cpu.wx + (outward.x + tx * diff.flankBias) * 120 * diff.expandScale;
+      targetWy = cpu.wy + (outward.y + ty * diff.flankBias) * 120 * diff.expandScale;
+
+      // Contest-aware expansion: stronger levels push toward neutral contested zones.
+      const contestTarget = chooseContestTarget(cpu, step);
+      if (contestTarget) {
+        const bias = clamp01(diff.contestBias * role.aggro);
+        targetWx = targetWx * (1 - bias) + contestTarget.wx * bias;
+        targetWy = targetWy * (1 - bias) + contestTarget.wy * bias;
       }
 
-      // Occasionally chase an active enemy tail to make stronger levels feel more threatening.
-      if (Math.random() < diff.interceptChance) {
-        let targetEnemy = null;
-        let bestEnemyDist = Infinity;
-        for (const other of G.players) {
-          if (!other.alive || other.id === cpu.id || !other.tailActive) continue;
-          const d = Math.hypot(other.wx - cpu.wx, other.wy - cpu.wy);
-          if (d < bestEnemyDist) { bestEnemyDist = d; targetEnemy = other; }
-        }
-        if (targetEnemy) {
-          targetWx = targetEnemy.wx;
-          targetWy = targetEnemy.wy;
+      // Opportunistic predictive interception of vulnerable tails.
+      const interceptChance = clamp01(diff.interceptChance * role.aggro);
+      if (Math.random() < interceptChance) {
+        const intercept = findPredictedTailIntercept(cpu, diff.interceptLeadTicks);
+        if (intercept) {
+          targetWx = intercept.wx;
+          targetWy = intercept.wy;
         }
       }
     } else {
       if (cpu.aiTailStartTick < 0) {
         cpu.aiTailStartTick = G.tick;
-        cpu.aiCommitUntilTick = G.tick + randInt(diff.commitMin, diff.commitMax);
+        cpu.aiCommitUntilTick = G.tick + randInt(
+          Math.max(8, Math.floor(diff.commitMin * role.aggro)),
+          Math.max(12, Math.floor(diff.commitMax * role.aggro))
+        );
         cpu.aiLoopSign = Math.random() < 0.5 ? -1 : 1;
+        cpu.aiSegment = 0;
+        cpu.aiSegmentEndTick = G.tick + randInt(diff.segmentMin, diff.segmentMax);
       }
 
       const edgeDist = Math.min(cpu.wx, cpu.wy, WORLD_SIZE - cpu.wx, WORLD_SIZE - cpu.wy);
@@ -1183,19 +1330,42 @@
         if (d < nearestThreat) nearestThreat = d;
       }
 
+      const edgeBuffer = diff.edgeBuffer * role.safety;
+      const threatReturnDist = diff.threatReturnDist * role.safety;
       const shouldReturn = (G.tick >= cpu.aiCommitUntilTick) ||
-        (edgeDist < diff.edgeBuffer) ||
-        (nearestThreat < diff.threatReturnDist);
+        (edgeDist < edgeBuffer) ||
+        (nearestThreat < threatReturnDist) ||
+        (cpu.tailPath.length > 220);
 
       if (shouldReturn) {
         targetWx = nearWx;
         targetWy = nearWy;
       } else {
+        if (G.tick >= cpu.aiSegmentEndTick) {
+          cpu.aiSegment = (cpu.aiSegment + 1) % 3;
+          cpu.aiSegmentEndTick = G.tick + randInt(diff.segmentMin, diff.segmentMax);
+        }
+
         const dir = DIRECTIONS[cpu.headingIndex];
         const perpX = -dir.dy * cpu.aiLoopSign;
         const perpY = dir.dx * cpu.aiLoopSign;
-        targetWx = cpu.wx + (dir.dx + perpX * diff.flankBias) * 160;
-        targetWy = cpu.wy + (dir.dy + perpY * diff.flankBias) * 160;
+        const toHome = normalize2(nearWx - cpu.wx, nearWy - cpu.wy);
+
+        let vx = dir.dx;
+        let vy = dir.dy;
+        if (cpu.aiSegment === 0) {
+          vx = dir.dx + perpX * diff.flankBias * 0.8;
+          vy = dir.dy + perpY * diff.flankBias * 0.8;
+        } else if (cpu.aiSegment === 1) {
+          vx = perpX * (1.15 + diff.flankBias * 0.35) + outward.x * 0.25;
+          vy = perpY * (1.15 + diff.flankBias * 0.35) + outward.y * 0.25;
+        } else {
+          vx = toHome.x * 0.75 + dir.dx * 0.45 - perpX * 0.2;
+          vy = toHome.y * 0.75 + dir.dy * 0.45 - perpY * 0.2;
+        }
+        const v = normalize2(vx, vy);
+        targetWx = cpu.wx + v.x * 170;
+        targetWy = cpu.wy + v.y * 170;
       }
     }
 
@@ -1215,6 +1385,8 @@
         nextThinkTick: cpu.aiNextThinkTick,
         tailActive: cpu.tailActive,
         commitUntilTick: cpu.aiCommitUntilTick,
+        mode: role.mode,
+        segment: cpu.aiSegment,
       });
     }
 
