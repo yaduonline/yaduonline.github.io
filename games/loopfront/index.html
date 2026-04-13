@@ -809,11 +809,25 @@
     const unreachableLead = leader.currentArea > (bestAliveChallenger + unowned);
     const majorityControl = leader.currentArea > (totalCells / 2);
 
-    if (!user.alive || allCpuDead || unreachableLead || majorityControl) {
+    if (!user.alive) {
+      G.phase = 'ended';
+      if (user.currentArea > (totalCells / 2)) {
+        G.winnerId = user.id;
+        G.endReason = 'user-eliminated-majority';
+      } else {
+        const bestCpu = G.players
+          .filter(p => p.type === 'cpu')
+          .reduce((a, b) => (b.currentArea > a.currentArea ? b : a));
+        G.winnerId = bestCpu.id;
+        G.endReason = 'user-eliminated';
+      }
+      return;
+    }
+
+    if (allCpuDead || unreachableLead || majorityControl) {
       G.phase = 'ended';
       G.winnerId = leader.id;
-      if (!user.alive) G.endReason = 'user-eliminated';
-      else if (allCpuDead) G.endReason = 'all-cpu-eliminated';
+      if (allCpuDead) G.endReason = 'all-cpu-eliminated';
       else if (majorityControl) G.endReason = 'majority-control';
       else G.endReason = 'unreachable-lead';
     }
@@ -1555,6 +1569,12 @@
     } else if (G.endReason === 'unreachable-lead') {
       document.getElementById('overlay-msg').textContent =
         `${winner ? winner.name : 'CPU'} built an unreachable lead.`;
+    } else if (G.endReason === 'user-eliminated-majority') {
+      document.getElementById('overlay-msg').textContent =
+        'You were eliminated, but you already controlled more than 50% of the map.';
+    } else if (G.endReason === 'user-eliminated') {
+      document.getElementById('overlay-msg').textContent =
+        `${winner ? winner.name : 'CPU'} wins because you were eliminated before reaching 50% control.`;
     }
 
     const statsDiv = document.getElementById('overlay-stats');
