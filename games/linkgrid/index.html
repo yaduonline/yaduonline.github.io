@@ -186,11 +186,12 @@
     const PALETTE = ['#9db8d6','#e3b8a7','#b8d5b6','#d1bddf','#e2cf9b','#a9d4cf','#d7b8c7','#b9c7a0','#9fc8b8','#d4c0a8'];
     const COLORS = {
       gridBg: '#d8d8cf',
+      cellInset: '#d1d2c8',
       gridLine: '#c7c8be',
       focus: '#5d7f78',
-      endpoint: 'rgba(255,255,255,0.7)',
     };
     const STORAGE_KEY = 'linkgrid-progress-v1';
+    const CONNECT_PULSE_MS = 220;
 
     const PUZZLES = globalThis.LINKGRID_PUZZLES;
 
@@ -294,7 +295,16 @@
         owner[e.b[0]][e.b[1]] = e.color;
         paths.set(e.color, [e.a.slice()]);
       }
-      return { n, level, owner, endpoints, paths, solved: false };
+      return {
+        n,
+        level,
+        owner,
+        endpoints,
+        paths,
+        solved: false,
+        connectedState: new Map(),
+        connectedAnimations: new Map(),
+      };
     }
 
     function startLevel(level) {
@@ -335,6 +345,27 @@
       return (pair[0][0] === r && pair[0][1] === c) || (pair[1][0] === r && pair[1][1] === c);
     }
 
+    function isColorConnected(color) {
+      const pair = app.puzzle.endpoints.get(color);
+      const path = app.puzzle.paths.get(color) || [];
+      if (!pair || path.length < 2) return false;
+      const [ar, ac] = pair[0], [br, bc] = pair[1];
+      const first = path[0], last = path[path.length - 1];
+      return (first[0] === ar && first[1] === ac && last[0] === br && last[1] === bc) ||
+             (first[0] === br && first[1] === bc && last[0] === ar && last[1] === ac);
+    }
+
+    function syncConnectionAnimations() {
+      const now = performance.now();
+      for (const color of app.puzzle.endpoints.keys()) {
+        const connected = isColorConnected(color);
+        const wasConnected = app.puzzle.connectedState.get(color) === true;
+        if (connected && !wasConnected) app.puzzle.connectedAnimations.set(color, now);
+        if (!connected) app.puzzle.connectedAnimations.delete(color);
+        app.puzzle.connectedState.set(color, connected);
+      }
+    }
+
     function resetColorPath(color, keepHead) {
       const p = app.puzzle.paths.get(color) || [];
       for (const [r, c] of p) {
@@ -343,6 +374,7 @@
       const next = keepHead ? [keepHead.slice()] : [];
       if (keepHead) app.puzzle.owner[keepHead[0]][keepHead[1]] = color;
       app.puzzle.paths.set(color, next);
+      syncConnectionAnimations();
     }
 
     function tryStep(color, r, c) {
@@ -359,6 +391,7 @@
           if (!isEndpoint(color, rr, cc)) app.puzzle.owner[rr][cc] = -1;
           path.pop();
         }
+        syncConnectionAnimations();
         return true;
       }
 
@@ -371,6 +404,7 @@
 
       path.push([r, c]);
       app.puzzle.owner[r][c] = color;
+      syncConnectionAnimations();
       return true;
     }
 
@@ -434,10 +468,20 @@
       const H = el.board.height;
       const cs = W / n;
       const pipeWidth = cs * 0.3;
+      const inset = Math.max(2, cs * 0.08);
+      const now = performance.now();
+      let needsAnimationFrame = false;
       ctx.clearRect(0, 0, W, H);
 
       ctx.fillStyle = COLORS.gridBg;
       ctx.fillRect(0, 0, W, H);
+
+      ctx.fillStyle = COLORS.cellInset;
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+          ctx.fillRect(c * cs + inset, r * cs + inset, cs - inset * 2, cs - inset * 2);
+        }
+      }
 
       ctx.strokeStyle = COLORS.gridLine;
       ctx.lineWidth = 1;
@@ -463,14 +507,23 @@
 
       for (const [color, pair] of p.endpoints.entries()) {
         ctx.fillStyle = PALETTE[color % PALETTE.length];
+        const startedAt = p.connectedAnimations.get(color);
+        let radiusScale = 1;
+        if (startedAt !== undefined) {
+          const elapsed = now - startedAt;
+          if (elapsed < CONNECT_PULSE_MS) {
+            const progress = elapsed / CONNECT_PULSE_MS;
+            radiusScale = 1 + 0.18 * Math.sin(progress * Math.PI);
+            needsAnimationFrame = true;
+          } else {
+            p.connectedAnimations.delete(color);
+          }
+        }
         for (const [r, c] of pair) {
           const cx = c * cs + cs / 2, cy = r * cs + cs / 2;
           ctx.beginPath();
-          ctx.arc(cx, cy, Math.max(4, cs * 0.22), 0, Math.PI * 2);
+          ctx.arc(cx, cy, Math.max(4, cs * 0.22) * radiusScale, 0, Math.PI * 2);
           ctx.fill();
-          ctx.strokeStyle = COLORS.endpoint;
-          ctx.lineWidth = Math.max(1, cs * 0.04);
-          ctx.stroke();
         }
       }
 
@@ -480,6 +533,8 @@
         ctx.lineWidth = Math.max(2, cs * 0.06);
         ctx.strokeRect(cur.c * cs + 2, cur.r * cs + 2, cs - 4, cs - 4);
       }
+
+      if (needsAnimationFrame) requestAnimationFrame(draw);
     }
 
     let pointerDown = false;
