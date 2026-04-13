@@ -41,9 +41,35 @@ LEVEL_TWO_SPECS = [
     {"tier": 5, "style": "column-snake", "weights": [6, 5, 3, 8, 4, 7], "variant": 2, "flipRows": True, "flipCols": True, "reversePath": True},
 ]
 
+SIX_BY_SIX_COMPLEX_PATH = [
+    (2, 3), (3, 3), (3, 2), (2, 2), (2, 1), (3, 1), (3, 0), (2, 0), (1, 0),
+    (0, 0), (0, 1), (1, 1), (1, 2), (0, 2), (0, 3), (1, 3), (1, 4), (0, 4),
+    (0, 5), (1, 5), (2, 5), (2, 4), (3, 4), (3, 5), (4, 5), (5, 5), (5, 4),
+    (4, 4), (4, 3), (5, 3), (5, 2), (4, 2), (4, 1), (5, 1), (5, 0), (4, 0),
+]
+
+SIX_BY_SIX_STAGE_TWO_CUTS = [
+    [5, 13, 19, 25, 31],
+    [7, 13, 19, 25, 31],
+    [8, 13, 19, 25, 31],
+    [5, 12, 18, 25, 31],
+    [5, 12, 19, 25, 31],
+    [7, 15, 20, 25, 31],
+    [9, 15, 20, 25, 31],
+    [8, 15, 20, 25, 31],
+    [5, 12, 17, 23, 30],
+    [5, 12, 17, 25, 31],
+    [5, 12, 19, 24, 31],
+    [5, 12, 20, 25, 31],
+    [8, 15, 20, 26, 31],
+    [5, 12, 17, 23, 31],
+    [5, 12, 20, 26, 31],
+    [6, 14, 20, 24, 30],
+]
+
 TEMPLATE_SPECS = [
-    *(dict(spec, stage=1) for spec in LEVEL_ONE_SPECS),
-    *(dict(spec, stage=2) for spec in LEVEL_TWO_SPECS),
+    *(dict(spec, stage=1, stageSlot=index + 1) for index, spec in enumerate(LEVEL_ONE_SPECS)),
+    *(dict(spec, stage=2, stageSlot=index + 1) for index, spec in enumerate(LEVEL_TWO_SPECS)),
 ]
 
 
@@ -116,6 +142,16 @@ def split_traversal(path: list[tuple[int, int]], lengths: list[int]) -> list[lis
     return segments
 
 
+def split_by_cuts(path: list[tuple[int, int]], cuts: list[int]) -> list[list[tuple[int, int]]]:
+    segments: list[list[tuple[int, int]]] = []
+    cursor = 0
+    for cut in cuts:
+        segments.append(path[cursor:cut])
+        cursor = cut
+    segments.append(path[cursor:])
+    return segments
+
+
 def weights_for_size(spec: dict, size: int) -> list[int]:
     weights = list(spec["weights"])
     if size <= 5 and len(weights) > 4:
@@ -147,11 +183,18 @@ def transform_path(path: list[tuple[int, int]], size: int, spec: dict) -> list[t
 
 
 def build_puzzle(size: int, level_number: int, spec: dict) -> Puzzle:
-    traversal = transform_path(build_traversal(size, spec["style"]), size, spec)
-    lengths = make_segment_lengths(size * size, weights_for_size(spec, size), spec.get("variant", 0))
+    if size == 6 and spec.get("stage") == 2:
+        traversal = transform_path(SIX_BY_SIX_COMPLEX_PATH, size, spec)
+        cuts = SIX_BY_SIX_STAGE_TWO_CUTS[(spec.get("stageSlot", 1) - 1) % len(SIX_BY_SIX_STAGE_TWO_CUTS)]
+        pieces = split_by_cuts(traversal, cuts)
+    else:
+        traversal = transform_path(build_traversal(size, spec["style"]), size, spec)
+        lengths = make_segment_lengths(size * size, weights_for_size(spec, size), spec.get("variant", 0))
+        pieces = split_traversal(traversal, lengths)
+
     solution = [
         {"color": color, "path": path}
-        for color, path in enumerate(split_traversal(traversal, lengths))
+        for color, path in enumerate(pieces)
     ]
 
     endpoints = [

@@ -39,9 +39,35 @@
     { tier: 5, style: 'column-snake', weights: [6, 5, 3, 8, 4, 7], variant: 2, flipRows: true, flipCols: true, reversePath: true },
   ];
 
+  const SIX_BY_SIX_COMPLEX_PATH = [
+    [2, 3], [3, 3], [3, 2], [2, 2], [2, 1], [3, 1], [3, 0], [2, 0], [1, 0],
+    [0, 0], [0, 1], [1, 1], [1, 2], [0, 2], [0, 3], [1, 3], [1, 4], [0, 4],
+    [0, 5], [1, 5], [2, 5], [2, 4], [3, 4], [3, 5], [4, 5], [5, 5], [5, 4],
+    [4, 4], [4, 3], [5, 3], [5, 2], [4, 2], [4, 1], [5, 1], [5, 0], [4, 0],
+  ];
+
+  const SIX_BY_SIX_STAGE_TWO_CUTS = [
+    [5, 13, 19, 25, 31],
+    [7, 13, 19, 25, 31],
+    [8, 13, 19, 25, 31],
+    [5, 12, 18, 25, 31],
+    [5, 12, 19, 25, 31],
+    [7, 15, 20, 25, 31],
+    [9, 15, 20, 25, 31],
+    [8, 15, 20, 25, 31],
+    [5, 12, 17, 23, 30],
+    [5, 12, 17, 25, 31],
+    [5, 12, 19, 24, 31],
+    [5, 12, 20, 25, 31],
+    [8, 15, 20, 26, 31],
+    [5, 12, 17, 23, 31],
+    [5, 12, 20, 26, 31],
+    [6, 14, 20, 24, 30],
+  ];
+
   const TEMPLATE_SPECS = [
-    ...LEVEL_ONE_SPECS.map((spec) => ({ ...spec, stage: 1 })),
-    ...LEVEL_TWO_SPECS.map((spec) => ({ ...spec, stage: 2 })),
+    ...LEVEL_ONE_SPECS.map((spec, index) => ({ ...spec, stage: 1, stageSlot: index + 1 })),
+    ...LEVEL_TWO_SPECS.map((spec, index) => ({ ...spec, stage: 2, stageSlot: index + 1 })),
   ];
 
   function range(length) {
@@ -116,6 +142,17 @@
     return segments;
   }
 
+  function splitByCuts(path, cuts) {
+    const segments = [];
+    let cursor = 0;
+    for (const cut of cuts) {
+      segments.push(path.slice(cursor, cut));
+      cursor = cut;
+    }
+    segments.push(path.slice(cursor));
+    return segments;
+  }
+
   function weightsForSize(spec, size) {
     const weights = spec.weights.slice();
     if (size <= 5 && weights.length > 4) {
@@ -148,9 +185,17 @@
   }
 
   function buildPuzzle(size, levelNumber, spec) {
-    const traversal = transformPath(buildTraversal(size, spec.style), size, spec);
-    const lengths = makeSegmentLengths(size * size, weightsForSize(spec, size), spec.variant || 0);
-    const solution = splitTraversal(traversal, lengths).map((path, color) => ({ color, path }));
+    let solution;
+
+    if (size === 6 && spec.stage === 2) {
+      const traversal = transformPath(SIX_BY_SIX_COMPLEX_PATH, size, spec);
+      const cuts = SIX_BY_SIX_STAGE_TWO_CUTS[(spec.stageSlot - 1) % SIX_BY_SIX_STAGE_TWO_CUTS.length];
+      solution = splitByCuts(traversal, cuts).map((path, color) => ({ color, path }));
+    } else {
+      const traversal = transformPath(buildTraversal(size, spec.style), size, spec);
+      const lengths = makeSegmentLengths(size * size, weightsForSize(spec, size), spec.variant || 0);
+      solution = splitTraversal(traversal, lengths).map((path, color) => ({ color, path }));
+    }
 
     return {
       id: size + '-' + levelNumber,
