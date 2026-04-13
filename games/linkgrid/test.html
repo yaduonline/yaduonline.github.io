@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Linkgrid Test Runner</title>
+  <style>
+    body { margin: 0; padding: 18px; background: #202730; color: #dce4ec; font-family: system-ui, sans-serif; }
+    h1 { margin: 0 0 12px 0; font-size: 1.1rem; }
+    .ok { color: #86c89d; }
+    .bad { color: #e09f90; }
+    .row { font-size: 13px; margin: 2px 0; }
+  </style>
+</head>
+<body>
+  <h1>Linkgrid Test Runner</h1>
+  <div id="out"></div>
+  <script>
+    const results = [];
+    function assert(label, cond) { results.push({ label, ok: !!cond }); }
+
+    function neighbors(a, b) { return Math.abs(a.r - b.r) + Math.abs(a.c - b.c) === 1; }
+
+    function isEndpoint(p, color, r, c) {
+      const pair = p.endpoints.get(color);
+      if (!pair) return false;
+      return (pair[0][0] === r && pair[0][1] === c) || (pair[1][0] === r && pair[1][1] === c);
+    }
+
+    function tryStep(p, color, r, c) {
+      const path = p.paths.get(color) || [];
+      const last = path[path.length - 1];
+      if (!last) return false;
+      if (!neighbors({ r: last[0], c: last[1] }, { r, c })) return false;
+
+      const idx = path.findIndex(([pr, pc]) => pr === r && pc === c);
+      if (idx >= 0) {
+        for (let i = path.length - 1; i > idx; i--) {
+          const [rr, cc] = path[i];
+          if (!isEndpoint(p, color, rr, cc)) p.owner[rr][cc] = -1;
+          path.pop();
+        }
+        return true;
+      }
+
+      if (isEndpoint(p, color, last[0], last[1]) && path.length > 1) return false;
+
+      const occ = p.owner[r][c];
+      if (occ !== -1 && occ !== color) return false;
+
+      path.push([r, c]);
+      p.owner[r][c] = color;
+      return true;
+    }
+
+    function checkSolved(puzzle) {
+      const p = puzzle;
+      for (const [color, pair] of p.endpoints.entries()) {
+        const path = p.paths.get(color) || [];
+        if (path.length < 2) return false;
+        const [ar, ac] = pair[0], [br, bc] = pair[1];
+        const first = path[0], last = path[path.length - 1];
+        const match = (first[0] === ar && first[1] === ac && last[0] === br && last[1] === bc) ||
+                      (first[0] === br && first[1] === bc && last[0] === ar && last[1] === ac);
+        if (!match) return false;
+      }
+      for (let r = 0; r < p.n; r++) for (let c = 0; c < p.n; c++) if (p.owner[r][c] < 0) return false;
+      return true;
+    }
+
+    (function testA() {
+      assert('A1 neighbors orthogonal true', neighbors({r:1,c:1}, {r:1,c:2}));
+      assert('A2 neighbors diagonal false', !neighbors({r:1,c:1}, {r:2,c:2}));
+    })();
+
+    (function testB() {
+      const puzzle = {
+        n: 2,
+        owner: [[0,0],[0,0]],
+        endpoints: new Map([[0, [[0,0],[1,1]]]]),
+        paths: new Map([[0, [[0,0],[0,1],[1,1]]]])
+      };
+      assert('B1 solved true for connected full board', checkSolved(puzzle));
+      puzzle.owner[1][0] = -1;
+      assert('B2 solved false if any cell unfilled', !checkSolved(puzzle));
+    })();
+
+    (function testC() {
+      const p = {
+        n: 4,
+        owner: [
+          [0, -1, 1, -1],
+          [-1, -1, -1, -1],
+          [-1, -1, -1, -1],
+          [-1, -1, 1, 0],
+        ],
+        endpoints: new Map([
+          [0, [[0, 0], [3, 3]]],
+          [1, [[0, 2], [3, 2]]],
+        ]),
+        paths: new Map([
+          [0, [[0, 0]]],
+          [1, [[0, 2]]],
+        ]),
+      };
+
+      assert('C1 cannot step diagonally', !tryStep(p, 0, 1, 1));
+      assert('C2 can step orthogonally to empty cell', tryStep(p, 0, 0, 1));
+      assert('C3 cannot step into other color cell', !tryStep(p, 0, 0, 2));
+      assert('C4 can continue toward endpoint', tryStep(p, 0, 1, 1));
+      assert('C5 can complete by reaching endpoint', tryStep(p, 0, 2, 1));
+      assert('C6 backtracking trims path', tryStep(p, 0, 1, 1) && p.paths.get(0).length === 3);
+
+      // Reach endpoint and ensure path cannot extend beyond endpoint.
+      p.paths.set(0, [[0, 0], [1, 0], [2, 0], [3, 0], [3, 1], [3, 2], [3, 3]]);
+      p.owner[1][0] = 0; p.owner[2][0] = 0; p.owner[3][0] = 0; p.owner[3][1] = 0;
+      assert('C7 cannot extend past endpoint once closed', !tryStep(p, 0, 2, 3));
+      assert('C8 can backtrack from endpoint', tryStep(p, 0, 3, 2));
+    })();
+
+    const pass = results.filter(r => r.ok).length;
+    const fail = results.length - pass;
+    const out = document.getElementById('out');
+    out.innerHTML = `<div class="${fail ? 'bad' : 'ok'}">${pass} passed, ${fail} failed</div>` +
+      results.map(r => `<div class="row ${r.ok ? 'ok' : 'bad'}">${r.ok ? '✓' : '✗'} ${r.label}</div>`).join('');
+  </script>
+</body>
+</html>

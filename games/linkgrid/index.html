@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Linkgrid</title>
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    :root {
+      --bg: #ece8e0;
+      --panel: #f7f3ea;
+      --ink: #3f4a4d;
+      --muted: #738186;
+      --accent: #8aa5a0;
+      --grid-bg: #d8d8cf;
+      --grid-line: #c7c8be;
+      --focus: #5d7f78;
+      --btn: #d8e3df;
+      --btn-ink: #334046;
+      --ok: #6f9a82;
+      --c1: #9db8d6;
+      --c2: #e3b8a7;
+      --c3: #b8d5b6;
+      --c4: #d1bddf;
+      --c5: #e2cf9b;
+      --c6: #a9d4cf;
+      --c7: #d7b8c7;
+      --c8: #b9c7a0;
+      --c9: #9fc8b8;
+      --c10: #d4c0a8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(1200px 600px at 10% 5%, #f4f1ea, #e6e1d7 45%, #ddd6c9 100%);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    #app {
+      width: min(980px, calc(100vw - 20px));
+      margin: 12px auto;
+      background: color-mix(in oklab, var(--panel) 95%, #fff);
+      border: 1px solid #d5d1c7;
+      border-radius: 16px;
+      box-shadow: 0 8px 28px rgba(79, 74, 62, 0.12);
+      padding: 14px;
+    }
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.15rem;
+      letter-spacing: 0.02em;
+    }
+    .sub { color: var(--muted); font-size: 0.9rem; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; }
+    button {
+      border: 1px solid #bfd0cb;
+      border-radius: 10px;
+      background: var(--btn);
+      color: var(--btn-ink);
+      padding: 8px 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    .packs, .levels {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .card {
+      background: #f4efe5;
+      border: 1px solid #d8d2c5;
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .card h3 { margin: 0 0 4px 0; font-size: 1rem; }
+    .card p { margin: 0; font-size: 0.82rem; color: var(--muted); }
+
+    .level-btn {
+      text-align: left;
+      padding: 10px;
+      border: 1px solid #cfd6cf;
+      background: #f9f6ef;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .level-btn.solved {
+      border-color: #a8c5b3;
+      background: #eef6f0;
+    }
+
+    #board-wrap {
+      margin-top: 10px;
+      display: grid;
+      place-items: center;
+    }
+    #board {
+      touch-action: none;
+      background: var(--grid-bg);
+      border: 1px solid #c5beb1;
+      border-radius: 12px;
+      max-width: min(88vw, 560px);
+      max-height: min(66vh, 560px);
+      width: min(88vw, 560px);
+      height: min(88vw, 560px);
+      display: block;
+    }
+    #board:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    .status {
+      margin-top: 10px;
+      color: var(--muted);
+      min-height: 1.5em;
+      font-size: 0.92rem;
+    }
+    .status.solved { color: var(--ok); font-weight: 700; }
+
+    .kbd-help {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    @media (max-width: 640px) {
+      #app { margin: 8px auto; border-radius: 12px; padding: 10px; }
+      .top { align-items: flex-start; flex-direction: column; }
+      h1 { font-size: 1.05rem; }
+    }
+  </style>
+</head>
+<body>
+  <div id="site-header"></div>
+  <main id="app" aria-live="polite">
+    <div class="top">
+      <div>
+        <h1>Linkgrid</h1>
+        <div class="sub" id="crumb">Select a pack</div>
+      </div>
+      <div class="row">
+        <button id="btn-back" aria-label="Go back" hidden>Back</button>
+        <button id="btn-restart" aria-label="Restart current puzzle" hidden>Restart</button>
+      </div>
+    </div>
+
+    <section id="screen-packs" class="screen active" aria-label="Pack selection">
+      <p class="sub">Choose a grid size pack.</p>
+      <div id="packs" class="packs"></div>
+    </section>
+
+    <section id="screen-levels" class="screen" aria-label="Level selection">
+      <p class="sub">Pick a puzzle in this pack.</p>
+      <div id="levels" class="levels"></div>
+    </section>
+
+    <section id="screen-puzzle" class="screen" aria-label="Puzzle board">
+      <div id="board-wrap">
+        <canvas id="board" width="560" height="560" tabindex="0" role="application" aria-label="Linkgrid puzzle board"></canvas>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+      <div class="kbd-help">Keyboard: Arrow keys move cursor, Space/Enter draw, Esc cancel.</div>
+    </section>
+  </main>
+  <div id="site-footer"></div>
+  <script src="/inc/include.js"></script>
+  <script>
+    const SIZE_PACKS = [5, 6, 7, 8, 9, 10];
+    const PALETTE = ['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--c7)','var(--c8)','var(--c9)','var(--c10)'];
+    const STORAGE_KEY = 'linkgrid-progress-v1';
+
+    const PUZZLES = {
+      5: [
+        { id: '5-1', size: 5, tier: 1, endpoints: [
+          { color: 0, a: [0,0], b: [4,4] },
+          { color: 1, a: [0,4], b: [4,0] },
+          { color: 2, a: [2,0], b: [2,4] },
+        ] },
+      ],
+      6: [{ id:'6-1', size:6, tier:1, endpoints:[{color:0,a:[0,0],b:[5,5]},{color:1,a:[0,5],b:[5,0]},{color:2,a:[2,1],b:[3,4]}]}],
+      7: [{ id:'7-1', size:7, tier:2, endpoints:[{color:0,a:[0,0],b:[6,6]},{color:1,a:[0,6],b:[6,0]},{color:2,a:[1,3],b:[5,3]},{color:3,a:[3,1],b:[3,5]}]}],
+      8: [{ id:'8-1', size:8, tier:2, endpoints:[{color:0,a:[0,0],b:[7,7]},{color:1,a:[0,7],b:[7,0]},{color:2,a:[1,2],b:[6,5]},{color:3,a:[1,5],b:[6,2]}]}],
+      9: [{ id:'9-1', size:9, tier:3, endpoints:[{color:0,a:[0,1],b:[8,7]},{color:1,a:[0,7],b:[8,1]},{color:2,a:[2,0],b:[6,8]},{color:3,a:[2,8],b:[6,0]},{color:4,a:[4,2],b:[4,6]}]}],
+      10:[{ id:'10-1',size:10,tier:3,endpoints:[{color:0,a:[0,0],b:[9,9]},{color:1,a:[0,9],b:[9,0]},{color:2,a:[1,4],b:[8,5]},{color:3,a:[1,5],b:[8,4]},{color:4,a:[3,1],b:[6,8]}]}],
+    };
+
+    const app = {
+      screen: 'packs',
+      selectedSize: null,
+      selectedLevelId: null,
+      progress: loadProgress(),
+      puzzle: null,
+      activeColor: null,
+      cursor: { r: 0, c: 0 },
+    };
+
+    const el = {
+      crumb: document.getElementById('crumb'),
+      btnBack: document.getElementById('btn-back'),
+      btnRestart: document.getElementById('btn-restart'),
+      screenPacks: document.getElementById('screen-packs'),
+      screenLevels: document.getElementById('screen-levels'),
+      screenPuzzle: document.getElementById('screen-puzzle'),
+      packs: document.getElementById('packs'),
+      levels: document.getElementById('levels'),
+      board: document.getElementById('board'),
+      status: document.getElementById('status'),
+    };
+    const ctx = el.board.getContext('2d');
+
+    function loadProgress() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+      catch (_) { return {}; }
+    }
+    function saveProgress() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(app.progress));
+    }
+
+    function setScreen(screen) {
+      app.screen = screen;
+      el.screenPacks.classList.toggle('active', screen === 'packs');
+      el.screenLevels.classList.toggle('active', screen === 'levels');
+      el.screenPuzzle.classList.toggle('active', screen === 'puzzle');
+      el.btnBack.hidden = screen === 'packs';
+      el.btnRestart.hidden = screen !== 'puzzle';
+      if (screen === 'packs') el.crumb.textContent = 'Select a pack';
+      if (screen === 'levels') el.crumb.textContent = `${app.selectedSize}x${app.selectedSize} pack`;
+      if (screen === 'puzzle') el.crumb.textContent = `${app.selectedSize}x${app.selectedSize} / ${app.selectedLevelId}`;
+
+      requestAnimationFrame(() => {
+        if (screen === 'packs') {
+          const firstPack = el.packs.querySelector('button');
+          if (firstPack) firstPack.focus();
+        } else if (screen === 'levels') {
+          const firstLevel = el.levels.querySelector('button');
+          if (firstLevel) firstLevel.focus();
+        } else if (screen === 'puzzle') {
+          el.board.focus();
+        }
+      });
+    }
+
+    function renderPacks() {
+      el.packs.innerHTML = '';
+      for (const s of SIZE_PACKS) {
+        const solved = (app.progress[s] || []).length;
+        const total = (PUZZLES[s] || []).length;
+        const card = document.createElement('button');
+        card.className = 'card';
+        card.setAttribute('aria-label', `Open ${s} by ${s} pack with ${solved} solved out of ${total}`);
+        card.innerHTML = `<h3>${s}x${s}</h3><p>${solved}/${total} solved</p>`;
+        card.addEventListener('click', () => {
+          app.selectedSize = s;
+          renderLevels();
+          setScreen('levels');
+        });
+        el.packs.appendChild(card);
+      }
+    }
+
+    function renderLevels() {
+      const s = app.selectedSize;
+      const levels = PUZZLES[s] || [];
+      const solvedSet = new Set(app.progress[s] || []);
+      el.levels.innerHTML = '';
+      levels.forEach((lvl, i) => {
+        const b = document.createElement('button');
+        b.className = 'level-btn' + (solvedSet.has(lvl.id) ? ' solved' : '');
+        b.setAttribute('aria-label', `Open level ${i + 1}${solvedSet.has(lvl.id) ? ', solved' : ''}`);
+        b.textContent = `Level ${i + 1}${solvedSet.has(lvl.id) ? ' ✓' : ''}`;
+        b.addEventListener('click', () => startLevel(lvl));
+        el.levels.appendChild(b);
+      });
+    }
+
+    function makePuzzle(level) {
+      const n = level.size;
+      const owner = Array.from({ length: n }, () => Array(n).fill(-1));
+      const endpoints = new Map();
+      const paths = new Map();
+      for (const e of level.endpoints) {
+        endpoints.set(e.color, [e.a, e.b]);
+        owner[e.a[0]][e.a[1]] = e.color;
+        owner[e.b[0]][e.b[1]] = e.color;
+        paths.set(e.color, [e.a.slice()]);
+      }
+      return { n, level, owner, endpoints, paths, solved: false };
+    }
+
+    function startLevel(level) {
+      app.selectedLevelId = level.id;
+      app.puzzle = makePuzzle(level);
+      app.activeColor = null;
+      app.cursor = { r: 0, c: 0 };
+      setScreen('puzzle');
+      setStatus('');
+      draw();
+      el.board.focus();
+    }
+
+    function setStatus(msg, solved = false) {
+      el.status.textContent = msg;
+      el.status.classList.toggle('solved', solved);
+    }
+
+    function cellAtPoint(clientX, clientY) {
+      const rect = el.board.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      const n = app.puzzle.n;
+      const cell = rect.width / n;
+      const c = Math.floor(x / cell);
+      const r = Math.floor(y / cell);
+      if (r < 0 || c < 0 || r >= n || c >= n) return null;
+      return { r, c };
+    }
+
+    function neighbors(a, b) {
+      return Math.abs(a.r - b.r) + Math.abs(a.c - b.c) === 1;
+    }
+
+    function isEndpoint(color, r, c) {
+      const pair = app.puzzle.endpoints.get(color);
+      if (!pair) return false;
+      return (pair[0][0] === r && pair[0][1] === c) || (pair[1][0] === r && pair[1][1] === c);
+    }
+
+    function resetColorPath(color, keepHead) {
+      const p = app.puzzle.paths.get(color) || [];
+      for (const [r, c] of p) {
+        if (!isEndpoint(color, r, c)) app.puzzle.owner[r][c] = -1;
+      }
+      const next = keepHead ? [keepHead.slice()] : [];
+      if (keepHead) app.puzzle.owner[keepHead[0]][keepHead[1]] = color;
+      app.puzzle.paths.set(color, next);
+    }
+
+    function tryStep(color, r, c) {
+      const path = app.puzzle.paths.get(color) || [];
+      const last = path[path.length - 1];
+      if (!last) return false;
+      const next = { r, c };
+      if (!neighbors({ r: last[0], c: last[1] }, next)) return false;
+
+      const idx = path.findIndex(([pr, pc]) => pr === r && pc === c);
+      if (idx >= 0) {
+        for (let i = path.length - 1; i > idx; i--) {
+          const [rr, cc] = path[i];
+          if (!isEndpoint(color, rr, cc)) app.puzzle.owner[rr][cc] = -1;
+          path.pop();
+        }
+        return true;
+      }
+
+      // Once a path reaches either endpoint with length > 1, it is closed
+      // and can only be modified by backtracking from existing cells.
+      if (isEndpoint(color, last[0], last[1]) && path.length > 1) return false;
+
+      const occ = app.puzzle.owner[r][c];
+      if (occ !== -1 && occ !== color) return false;
+
+      path.push([r, c]);
+      app.puzzle.owner[r][c] = color;
+      return true;
+    }
+
+    function beginFromCell(r, c) {
+      const color = app.puzzle.owner[r][c];
+      if (color < 0) return false;
+      const endpoint = isEndpoint(color, r, c);
+      if (!endpoint) {
+        const path = app.puzzle.paths.get(color) || [];
+        const idx = path.findIndex(([pr, pc]) => pr === r && pc === c);
+        if (idx <= 0) return false;
+        const keep = path[idx];
+        resetColorPath(color, keep);
+        app.activeColor = color;
+        return true;
+      }
+      resetColorPath(color, [r, c]);
+      app.activeColor = color;
+      return true;
+    }
+
+    function checkSolved() {
+      const p = app.puzzle;
+      for (const [color, pair] of p.endpoints.entries()) {
+        const path = p.paths.get(color) || [];
+        if (path.length < 2) return false;
+        const [ar, ac] = pair[0], [br, bc] = pair[1];
+        const first = path[0], last = path[path.length - 1];
+        const match = (first[0] === ar && first[1] === ac && last[0] === br && last[1] === bc) ||
+                      (first[0] === br && first[1] === bc && last[0] === ar && last[1] === ac);
+        if (!match) return false;
+      }
+      for (let r = 0; r < p.n; r++) for (let c = 0; c < p.n; c++) if (p.owner[r][c] < 0) return false;
+      return true;
+    }
+
+    function finalizeMove() {
+      const solved = checkSolved();
+      app.puzzle.solved = solved;
+      if (solved) {
+        const s = app.selectedSize;
+        const arr = new Set(app.progress[s] || []);
+        arr.add(app.selectedLevelId);
+        app.progress[s] = [...arr];
+        saveProgress();
+        setStatus('Solved ✓', true);
+      } else {
+        setStatus('');
+      }
+      draw();
+    }
+
+    function draw() {
+      if (!app.puzzle) return;
+      const p = app.puzzle;
+      const n = p.n;
+      const W = el.board.width;
+      const H = el.board.height;
+      const cs = W / n;
+      ctx.clearRect(0, 0, W, H);
+
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid-bg');
+      ctx.fillRect(0, 0, W, H);
+
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+          const owner = p.owner[r][c];
+          if (owner >= 0) {
+            ctx.fillStyle = PALETTE[owner % PALETTE.length];
+            ctx.fillRect(c * cs + 1, r * cs + 1, cs - 2, cs - 2);
+          }
+        }
+      }
+
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid-line');
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= n; i++) {
+        const k = i * cs;
+        ctx.beginPath(); ctx.moveTo(0, k); ctx.lineTo(W, k); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(k, 0); ctx.lineTo(k, H); ctx.stroke();
+      }
+
+      for (const [color, pair] of p.endpoints.entries()) {
+        ctx.fillStyle = PALETTE[color % PALETTE.length];
+        for (const [r, c] of pair) {
+          const cx = c * cs + cs / 2, cy = r * cs + cs / 2;
+          ctx.beginPath();
+          ctx.arc(cx, cy, Math.max(4, cs * 0.26), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+          ctx.lineWidth = Math.max(1, cs * 0.04);
+          ctx.stroke();
+        }
+      }
+
+      const cur = app.cursor;
+      if (cur && app.screen === 'puzzle') {
+        ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--focus');
+        ctx.lineWidth = Math.max(2, cs * 0.06);
+        ctx.strokeRect(cur.c * cs + 2, cur.r * cs + 2, cs - 4, cs - 4);
+      }
+    }
+
+    let pointerDown = false;
+    function handlePointerMove(e) {
+      if (!pointerDown || !app.puzzle || app.activeColor === null) return;
+      const cell = cellAtPoint(e.clientX, e.clientY);
+      if (!cell) return;
+      if (tryStep(app.activeColor, cell.r, cell.c)) {
+        app.cursor = { r: cell.r, c: cell.c };
+        draw();
+      }
+    }
+
+    el.board.addEventListener('pointerdown', (e) => {
+      if (!app.puzzle) return;
+      pointerDown = true;
+      const cell = cellAtPoint(e.clientX, e.clientY);
+      if (!cell) return;
+      app.cursor = { r: cell.r, c: cell.c };
+      beginFromCell(cell.r, cell.c);
+      draw();
+      e.preventDefault();
+    });
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', () => {
+      if (!pointerDown) return;
+      pointerDown = false;
+      app.activeColor = null;
+      if (app.puzzle) finalizeMove();
+    });
+
+    el.board.addEventListener('keydown', (e) => {
+      if (!app.puzzle) return;
+      const n = app.puzzle.n;
+      if (e.key === 'Escape') {
+        app.activeColor = null;
+        draw();
+        return;
+      }
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        if (app.activeColor !== null) {
+          app.activeColor = null;
+          draw();
+          e.preventDefault();
+        }
+        return;
+      }
+      let moved = false;
+      if (e.key === 'ArrowUp') { app.cursor.r = Math.max(0, app.cursor.r - 1); moved = true; }
+      if (e.key === 'ArrowDown') { app.cursor.r = Math.min(n - 1, app.cursor.r + 1); moved = true; }
+      if (e.key === 'ArrowLeft') { app.cursor.c = Math.max(0, app.cursor.c - 1); moved = true; }
+      if (e.key === 'ArrowRight') { app.cursor.c = Math.min(n - 1, app.cursor.c + 1); moved = true; }
+
+      if (e.key === ' ' || e.key === 'Enter') {
+        const { r, c } = app.cursor;
+        if (app.activeColor === null) {
+          beginFromCell(r, c);
+        } else {
+          tryStep(app.activeColor, r, c);
+        }
+        draw();
+        e.preventDefault();
+        return;
+      }
+
+      if (moved) {
+        if (app.activeColor !== null) tryStep(app.activeColor, app.cursor.r, app.cursor.c);
+        draw();
+        e.preventDefault();
+      }
+    });
+
+    el.btnBack.addEventListener('click', () => {
+      if (app.screen === 'puzzle') {
+        renderLevels();
+        setScreen('levels');
+      } else if (app.screen === 'levels') {
+        renderPacks();
+        setScreen('packs');
+      }
+    });
+
+    el.btnRestart.addEventListener('click', () => {
+      if (!app.puzzle) return;
+      const level = (PUZZLES[app.selectedSize] || []).find(l => l.id === app.selectedLevelId);
+      if (level) startLevel(level);
+    });
+
+    function boot() {
+      renderPacks();
+      setScreen('packs');
+      draw();
+    }
+
+    boot();
+  </script>
+</body>
+</html>
