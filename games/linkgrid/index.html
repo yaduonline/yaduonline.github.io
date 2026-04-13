@@ -417,6 +417,8 @@
         app.progress[s] = [...arr];
         saveProgress();
         setStatus('Solved ✓', true);
+        renderLevels();
+        renderPacks();
         setTimeout(() => setScreen('levels'), 1500);
       } else {
         setStatus('');
