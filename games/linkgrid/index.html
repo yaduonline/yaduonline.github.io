@@ -186,7 +186,6 @@
     const PALETTE = ['#9db8d6','#e3b8a7','#b8d5b6','#d1bddf','#e2cf9b','#a9d4cf','#d7b8c7','#b9c7a0','#9fc8b8','#d4c0a8'];
     const COLORS = {
       gridBg: '#d8d8cf',
-      cellInset: '#d1d2c8',
       gridLine: '#c7c8be',
       focus: '#5d7f78',
     };
@@ -468,20 +467,12 @@
       const H = el.board.height;
       const cs = W / n;
       const pipeWidth = cs * 0.3;
-      const inset = Math.max(2, cs * 0.08);
       const now = performance.now();
       let needsAnimationFrame = false;
       ctx.clearRect(0, 0, W, H);
 
       ctx.fillStyle = COLORS.gridBg;
       ctx.fillRect(0, 0, W, H);
-
-      ctx.fillStyle = COLORS.cellInset;
-      for (let r = 0; r < n; r++) {
-        for (let c = 0; c < n; c++) {
-          ctx.fillRect(c * cs + inset, r * cs + inset, cs - inset * 2, cs - inset * 2);
-        }
-      }
 
       ctx.strokeStyle = COLORS.gridLine;
       ctx.lineWidth = 1;
