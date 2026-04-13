@@ -183,9 +183,11 @@
   const WORLD_SIZE = CONFIG.MAP_CELLS * CONFIG.CELL_SIZE;
 
   const DIFFICULTY_PRESETS = Object.freeze({
-    easy:   Object.freeze({ label: 'Easy',   thinkMin: 12, thinkMax: 24, turnStep: 1, jitterChance: 0.36, jitterSteps: 2, expandScale: 1.5, interceptChance: 0.08 }),
-    normal: Object.freeze({ label: 'Normal', thinkMin: 7,  thinkMax: 14, turnStep: 1, jitterChance: 0.20, jitterSteps: 1, expandScale: 2.0, interceptChance: 0.20 }),
-    hard:   Object.freeze({ label: 'Hard',   thinkMin: 3,  thinkMax: 7,  turnStep: 2, jitterChance: 0.08, jitterSteps: 1, expandScale: 2.5, interceptChance: 0.38 }),
+    rookie:    Object.freeze({ label: 'Rookie',    thinkMin: 14, thinkMax: 28, turnStep: 1, jitterChance: 0.40, jitterSteps: 2, expandScale: 1.6, flankBias: 0.35, interceptChance: 0.05, commitMin: 20, commitMax: 36, edgeBuffer: 44, threatReturnDist: 90 }),
+    easy:      Object.freeze({ label: 'Easy',      thinkMin: 10, thinkMax: 20, turnStep: 1, jitterChance: 0.30, jitterSteps: 2, expandScale: 1.9, flankBias: 0.45, interceptChance: 0.10, commitMin: 28, commitMax: 48, edgeBuffer: 40, threatReturnDist: 80 }),
+    normal:    Object.freeze({ label: 'Normal',    thinkMin: 7,  thinkMax: 14, turnStep: 1, jitterChance: 0.20, jitterSteps: 1, expandScale: 2.2, flankBias: 0.60, interceptChance: 0.22, commitMin: 38, commitMax: 62, edgeBuffer: 34, threatReturnDist: 70 }),
+    hard:      Object.freeze({ label: 'Hard',      thinkMin: 4,  thinkMax: 9,  turnStep: 2, jitterChance: 0.10, jitterSteps: 1, expandScale: 2.6, flankBias: 0.80, interceptChance: 0.40, commitMin: 52, commitMax: 84, edgeBuffer: 28, threatReturnDist: 60 }),
+    nightmare: Object.freeze({ label: 'Nightmare', thinkMin: 2,  thinkMax: 6,  turnStep: 2, jitterChance: 0.04, jitterSteps: 1, expandScale: 3.0, flankBias: 1.00, interceptChance: 0.62, commitMin: 68, commitMax: 104, edgeBuffer: 22, threatReturnDist: 52 }),
   });
   const DIFFICULTY_KEYS = Object.keys(DIFFICULTY_PRESETS);
   let difficultyIndex = DIFFICULTY_KEYS.indexOf('normal');
@@ -444,8 +446,12 @@
         tailActive:   false,
         tailPath:     [],
         capturedArea: seedArea,
+        currentArea:  seedArea,
         aiTargetHeading: headingTowardCenter(pos.wx, pos.wy),
         aiNextThinkTick: 0,
+        aiCommitUntilTick: 0,
+        aiTailStartTick: -1,
+        aiLoopSign: Math.random() < 0.5 ? -1 : 1,
       };
     });
 
@@ -453,6 +459,7 @@
       phase:    'start',   // 'start' | 'running' | 'ended'
       tick:     0,
       winnerId: null,
+      endReason: null,
       players,
       ownershipGrid,
       tailGrid,
@@ -729,12 +736,34 @@
   }
 
   function checkMatchEnd() {
+    const totalCells = CONFIG.MAP_CELLS * CONFIG.MAP_CELLS;
+    const counts = new Array(G.players.length).fill(0);
+    let unowned = 0;
+    for (let i = 0; i < G.ownershipGrid.length; i++) {
+      const owner = G.ownershipGrid[i];
+      if (owner >= 0 && owner < counts.length) counts[owner]++;
+      else unowned++;
+    }
+    for (const p of G.players) p.currentArea = counts[p.id];
+
     const user = G.players[0];
     const allCpuDead = G.players.filter(p => p.type === 'cpu').every(p => !p.alive);
-    if (!user.alive || allCpuDead) {
+    const leader = G.players.reduce((a, b) => (b.currentArea > a.currentArea ? b : a));
+    let bestAliveChallenger = -1;
+    for (const p of G.players) {
+      if (!p.alive || p.id === leader.id) continue;
+      if (p.currentArea > bestAliveChallenger) bestAliveChallenger = p.currentArea;
+    }
+    const unreachableLead = leader.currentArea > (bestAliveChallenger + unowned);
+    const majorityControl = leader.currentArea > (totalCells / 2);
+
+    if (!user.alive || allCpuDead || unreachableLead || majorityControl) {
       G.phase = 'ended';
-      let best = G.players.reduce((a, b) => b.capturedArea > a.capturedArea ? b : a);
-      G.winnerId = best.id;
+      G.winnerId = leader.id;
+      if (!user.alive) G.endReason = 'user-eliminated';
+      else if (allCpuDead) G.endReason = 'all-cpu-eliminated';
+      else if (majorityControl) G.endReason = 'majority-control';
+      else G.endReason = 'unreachable-lead';
     }
   }
 
@@ -894,7 +923,7 @@
     const total = CONFIG.MAP_CELLS * CONFIG.MAP_CELLS;
     const user  = G.players[0];
     document.getElementById('hud-territory').textContent =
-      Math.round(user.capturedArea / total * 100) + '%';
+      Math.round((user.currentArea || user.capturedArea) / total * 100) + '%';
     document.getElementById('hud-players').textContent =
       G.players.filter(p => p.alive).length + '/4';
     document.getElementById('hud-tick').textContent = G.tick;
@@ -1106,11 +1135,21 @@
 
     let targetWx, targetWy;
     if (!cpu.tailActive) {
+      cpu.aiTailStartTick = -1;
+      cpu.aiCommitUntilTick = 0;
+
       // Expand: move away from centroid
       if (cnt > 0) {
         const cx0 = sx / cnt, cy0 = sy / cnt;
-        targetWx = cpu.wx + (cpu.wx - cx0) * diff.expandScale;
-        targetWy = cpu.wy + (cpu.wy - cy0) * diff.expandScale;
+        const outwardX = cpu.wx - cx0;
+        const outwardY = cpu.wy - cy0;
+        const outwardMag = Math.hypot(outwardX, outwardY) || 1;
+        const ox = outwardX / outwardMag;
+        const oy = outwardY / outwardMag;
+        const tx = -oy * cpu.aiLoopSign;
+        const ty = ox * cpu.aiLoopSign;
+        targetWx = cpu.wx + (ox + tx * diff.flankBias) * 120 * diff.expandScale;
+        targetWy = cpu.wy + (oy + ty * diff.flankBias) * 120 * diff.expandScale;
       } else {
         targetWx = WORLD_SIZE / 2; targetWy = WORLD_SIZE / 2;
       }
@@ -1130,8 +1169,34 @@
         }
       }
     } else {
-      // Return: head toward nearest own cell
-      targetWx = nearWx; targetWy = nearWy;
+      if (cpu.aiTailStartTick < 0) {
+        cpu.aiTailStartTick = G.tick;
+        cpu.aiCommitUntilTick = G.tick + randInt(diff.commitMin, diff.commitMax);
+        cpu.aiLoopSign = Math.random() < 0.5 ? -1 : 1;
+      }
+
+      const edgeDist = Math.min(cpu.wx, cpu.wy, WORLD_SIZE - cpu.wx, WORLD_SIZE - cpu.wy);
+      let nearestThreat = Infinity;
+      for (const other of G.players) {
+        if (!other.alive || other.id === cpu.id) continue;
+        const d = Math.hypot(other.wx - cpu.wx, other.wy - cpu.wy);
+        if (d < nearestThreat) nearestThreat = d;
+      }
+
+      const shouldReturn = (G.tick >= cpu.aiCommitUntilTick) ||
+        (edgeDist < diff.edgeBuffer) ||
+        (nearestThreat < diff.threatReturnDist);
+
+      if (shouldReturn) {
+        targetWx = nearWx;
+        targetWy = nearWy;
+      } else {
+        const dir = DIRECTIONS[cpu.headingIndex];
+        const perpX = -dir.dy * cpu.aiLoopSign;
+        const perpY = dir.dx * cpu.aiLoopSign;
+        targetWx = cpu.wx + (dir.dx + perpX * diff.flankBias) * 160;
+        targetWy = cpu.wy + (dir.dy + perpY * diff.flankBias) * 160;
+      }
     }
 
     if (G.tick >= cpu.aiNextThinkTick || cpu.aiTargetHeading === null) {
@@ -1149,6 +1214,7 @@
         targetHeading: cpu.aiTargetHeading,
         nextThinkTick: cpu.aiNextThinkTick,
         tailActive: cpu.tailActive,
+        commitUntilTick: cpu.aiCommitUntilTick,
       });
     }
 
@@ -1275,12 +1341,20 @@
       ? 'You claimed the most territory!'
       : `${winner ? winner.name : 'CPU'} claimed the most territory.`;
 
+    if (G.endReason === 'majority-control') {
+      document.getElementById('overlay-msg').textContent =
+        `${winner ? winner.name : 'CPU'} secured majority control.`;
+    } else if (G.endReason === 'unreachable-lead') {
+      document.getElementById('overlay-msg').textContent =
+        `${winner ? winner.name : 'CPU'} built an unreachable lead.`;
+    }
+
     const statsDiv = document.getElementById('overlay-stats');
     const total = CONFIG.MAP_CELLS * CONFIG.MAP_CELLS;
     statsDiv.style.display = 'grid';
     statsDiv.innerHTML = G.players.map(p =>
       `<span class="lbl" style="color:${p.color}">${p.name}</span>` +
-      `<span>${Math.round(p.capturedArea / total * 100)}%${p.alive ? '' : ' \u2620'}</span>`
+      `<span>${Math.round(((p.currentArea || 0) / total) * 100)}%${p.alive ? '' : ' \u2620'}</span>`
     ).join('');
 
     document.getElementById('overlay-btn').textContent = 'Restart';
