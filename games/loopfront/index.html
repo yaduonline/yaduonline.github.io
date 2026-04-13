@@ -191,6 +191,8 @@
       commitMin: 20, commitMax: 36, segmentMin: 8, segmentMax: 13,
       edgeBuffer: 44, threatReturnDist: 90,
       behindAggro: 1.08, aheadSafety: 0.94,
+      segmentCount: 2, loopFlipChance: 0.02,
+      denyUserChance: 0.00, denyUserRadius: 120,
     }),
     easy: Object.freeze({
       label: 'Easy', thinkMin: 10, thinkMax: 20, turnStep: 1,
@@ -200,6 +202,8 @@
       commitMin: 28, commitMax: 48, segmentMin: 8, segmentMax: 14,
       edgeBuffer: 40, threatReturnDist: 80,
       behindAggro: 1.14, aheadSafety: 0.90,
+      segmentCount: 2, loopFlipChance: 0.05,
+      denyUserChance: 0.03, denyUserRadius: 170,
     }),
     normal: Object.freeze({
       label: 'Normal', thinkMin: 7, thinkMax: 14, turnStep: 1,
@@ -209,6 +213,8 @@
       commitMin: 38, commitMax: 62, segmentMin: 9, segmentMax: 15,
       edgeBuffer: 34, threatReturnDist: 70,
       behindAggro: 1.22, aheadSafety: 0.85,
+      segmentCount: 3, loopFlipChance: 0.10,
+      denyUserChance: 0.10, denyUserRadius: 220,
     }),
     hard: Object.freeze({
       label: 'Hard', thinkMin: 4, thinkMax: 9, turnStep: 2,
@@ -218,6 +224,8 @@
       commitMin: 52, commitMax: 84, segmentMin: 10, segmentMax: 16,
       edgeBuffer: 28, threatReturnDist: 60,
       behindAggro: 1.34, aheadSafety: 0.78,
+      segmentCount: 4, loopFlipChance: 0.18,
+      denyUserChance: 0.24, denyUserRadius: 280,
     }),
     nightmare: Object.freeze({
       label: 'Nightmare', thinkMin: 2, thinkMax: 6, turnStep: 2,
@@ -227,6 +235,8 @@
       commitMin: 68, commitMax: 104, segmentMin: 10, segmentMax: 18,
       edgeBuffer: 22, threatReturnDist: 52,
       behindAggro: 1.48, aheadSafety: 0.72,
+      segmentCount: 4, loopFlipChance: 0.28,
+      denyUserChance: 0.42, denyUserRadius: 340,
     }),
   });
   const DIFFICULTY_KEYS = Object.keys(DIFFICULTY_PRESETS);
@@ -1257,8 +1267,10 @@
 
   function cpuTick(cpu) {
     if (!cpu.alive) return;
+    const diffKey = currentDifficultyKey();
     const diff = currentDifficulty();
     const role = cpuRoleProfile(cpu, diff);
+    const user = G.players[0];
 
     const N    = CONFIG.MAP_CELLS;
     const step = Math.max(1, Math.floor(N / 20));
@@ -1301,6 +1313,13 @@
         targetWy = targetWy * (1 - bias) + contestTarget.wy * bias;
       }
 
+      // Rookie/Easy stay more centered and conservative to feel distinctly safer.
+      if (diffKey === 'rookie' || diffKey === 'easy') {
+        const centerBlend = diffKey === 'rookie' ? 0.28 : 0.16;
+        targetWx = targetWx * (1 - centerBlend) + (WORLD_SIZE / 2) * centerBlend;
+        targetWy = targetWy * (1 - centerBlend) + (WORLD_SIZE / 2) * centerBlend;
+      }
+
       // Opportunistic predictive interception of vulnerable tails.
       const interceptChance = clamp01(diff.interceptChance * role.aggro);
       if (Math.random() < interceptChance) {
@@ -1308,6 +1327,17 @@
         if (intercept) {
           targetWx = intercept.wx;
           targetWy = intercept.wy;
+        }
+      }
+
+      // Higher levels actively deny the user when the user is vulnerable.
+      if (user.alive && user.tailActive) {
+        const userDist = Math.hypot(user.wx - cpu.wx, user.wy - cpu.wy);
+        const denyChance = clamp01(diff.denyUserChance * role.aggro);
+        if (userDist < diff.denyUserRadius && Math.random() < denyChance) {
+          const ud = DIRECTIONS[user.headingIndex];
+          targetWx = clamp(user.wx + ud.dx * user.speed * (diff.interceptLeadTicks + 4), 0, WORLD_SIZE);
+          targetWy = clamp(user.wy + ud.dy * user.speed * (diff.interceptLeadTicks + 4), 0, WORLD_SIZE);
         }
       }
     } else {
@@ -1342,7 +1372,8 @@
         targetWy = nearWy;
       } else {
         if (G.tick >= cpu.aiSegmentEndTick) {
-          cpu.aiSegment = (cpu.aiSegment + 1) % 3;
+          cpu.aiSegment = (cpu.aiSegment + 1) % diff.segmentCount;
+          if (Math.random() < diff.loopFlipChance) cpu.aiLoopSign *= -1;
           cpu.aiSegmentEndTick = G.tick + randInt(diff.segmentMin, diff.segmentMax);
         }
 
@@ -1359,9 +1390,13 @@
         } else if (cpu.aiSegment === 1) {
           vx = perpX * (1.15 + diff.flankBias * 0.35) + outward.x * 0.25;
           vy = perpY * (1.15 + diff.flankBias * 0.35) + outward.y * 0.25;
-        } else {
+        } else if (cpu.aiSegment === 2) {
           vx = toHome.x * 0.75 + dir.dx * 0.45 - perpX * 0.2;
           vy = toHome.y * 0.75 + dir.dy * 0.45 - perpY * 0.2;
+        } else {
+          const userVec = normalize2(user.wx - cpu.wx, user.wy - cpu.wy);
+          vx = userVec.x * 0.95 + perpX * 0.5;
+          vy = userVec.y * 0.95 + perpY * 0.5;
         }
         const v = normalize2(vx, vy);
         targetWx = cpu.wx + v.x * 170;
@@ -1387,6 +1422,7 @@
         commitUntilTick: cpu.aiCommitUntilTick,
         mode: role.mode,
         segment: cpu.aiSegment,
+        diff: diffKey,
       });
     }
 
