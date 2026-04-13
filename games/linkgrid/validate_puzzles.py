@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-TEMPLATE_SPECS = [
+LEVEL_ONE_SPECS = [
     {"tier": 1, "style": "row-snake", "weights": [4, 6, 5, 4, 6], "variant": 0},
     {"tier": 1, "style": "column-snake", "weights": [5, 4, 6, 5, 5], "variant": 1, "flipRows": True},
     {"tier": 1, "style": "row-snake", "weights": [3, 5, 4, 6, 7], "variant": 2, "flipCols": True},
@@ -22,11 +22,36 @@ TEMPLATE_SPECS = [
     {"tier": 5, "style": "column-snake", "weights": [5, 6, 4, 3, 7], "variant": 1, "flipCols": True, "reversePath": True},
 ]
 
+LEVEL_TWO_SPECS = [
+    {"tier": 3, "style": "row-snake", "weights": [5, 4, 7, 3, 6, 8], "variant": 0, "reversePath": True},
+    {"tier": 3, "style": "column-snake", "weights": [6, 3, 7, 4, 8, 5], "variant": 1, "flipRows": True},
+    {"tier": 3, "style": "row-snake", "weights": [4, 8, 3, 7, 5, 6], "variant": 2, "flipCols": True},
+    {"tier": 3, "style": "column-snake", "weights": [7, 5, 3, 8, 4, 6], "variant": 3, "flipRows": True, "reversePath": True},
+    {"tier": 4, "style": "row-snake", "weights": [6, 4, 8, 3, 7, 5], "variant": 4, "flipCols": True},
+    {"tier": 4, "style": "column-snake", "weights": [5, 7, 4, 8, 3, 6], "variant": 0, "flipRows": True, "flipCols": True},
+    {"tier": 4, "style": "row-snake", "weights": [8, 3, 6, 4, 7, 5], "variant": 1, "reversePath": True},
+    {"tier": 4, "style": "column-snake", "weights": [4, 6, 8, 3, 7, 5], "variant": 2, "flipCols": True, "reversePath": True},
+    {"tier": 4, "style": "row-snake", "weights": [7, 5, 4, 8, 3, 6], "variant": 3, "flipRows": True},
+    {"tier": 4, "style": "column-snake", "weights": [3, 8, 5, 6, 4, 7], "variant": 4, "flipRows": True, "reversePath": True},
+    {"tier": 5, "style": "row-snake", "weights": [6, 8, 3, 7, 4, 5], "variant": 0, "flipRows": True, "flipCols": True},
+    {"tier": 5, "style": "column-snake", "weights": [5, 4, 8, 3, 7, 6], "variant": 1, "reversePath": True},
+    {"tier": 5, "style": "row-snake", "weights": [8, 4, 5, 7, 3, 6], "variant": 2, "flipCols": True, "reversePath": True},
+    {"tier": 5, "style": "column-snake", "weights": [7, 3, 6, 8, 4, 5], "variant": 3, "flipRows": True},
+    {"tier": 5, "style": "row-snake", "weights": [4, 7, 8, 3, 6, 5], "variant": 4, "flipRows": True, "reversePath": True},
+    {"tier": 5, "style": "column-snake", "weights": [6, 5, 3, 8, 4, 7], "variant": 2, "flipRows": True, "flipCols": True, "reversePath": True},
+]
+
+TEMPLATE_SPECS = [
+    *(dict(spec, stage=1) for spec in LEVEL_ONE_SPECS),
+    *(dict(spec, stage=2) for spec in LEVEL_TWO_SPECS),
+]
+
 
 @dataclass
 class Puzzle:
     id: str
     size: int
+    stage: int
     tier: int
     endpoints: list[dict]
     solution: list[dict]
@@ -137,6 +162,7 @@ def build_puzzle(size: int, level_number: int, spec: dict) -> Puzzle:
     return Puzzle(
         id=f"{size}-{level_number}",
         size=size,
+        stage=spec.get("stage", 1),
         tier=spec["tier"],
         endpoints=endpoints,
         solution=solution,
@@ -225,15 +251,19 @@ def validate_puzzle(puzzle: Puzzle) -> list[str]:
     )
     total_turns = sum(turn_counts)
 
+    if puzzle.size <= 6:
+        return errors
+
     minimum_turning_paths = max(2, int(len(puzzle.solution) * 0.4)) if puzzle.size <= 5 else max(3, int(len(puzzle.solution) * 0.6))
     minimum_interior_endpoints = 1 if puzzle.size <= 5 else 2
     minimum_turns = max(2, len(puzzle.solution) - 2) if puzzle.size <= 5 else len(puzzle.solution)
+    stage_boost = 1 if puzzle.stage == 2 and puzzle.size >= 8 else 0
 
-    if turning_paths < minimum_turning_paths:
+    if turning_paths < minimum_turning_paths + stage_boost:
         errors.append("puzzle is too straight-lined")
-    if interior_endpoints < minimum_interior_endpoints:
+    if interior_endpoints < minimum_interior_endpoints + stage_boost:
         errors.append("puzzle does not place enough endpoints away from the border")
-    if total_turns < minimum_turns:
+    if total_turns < minimum_turns + stage_boost * 2:
         errors.append("puzzle does not have enough bends")
 
     return errors
@@ -244,8 +274,8 @@ def main() -> int:
     puzzles = build_puzzle_set()
 
     for size, entries in puzzles.items():
-        if len(entries) != 16:
-            failures.append((f"size-{size}", [f"expected 16 puzzles, found {len(entries)}"]))
+        if len(entries) != 32:
+            failures.append((f"size-{size}", [f"expected 32 puzzles, found {len(entries)}"]))
         for puzzle in entries:
             errors = validate_puzzle(puzzle)
             if errors:

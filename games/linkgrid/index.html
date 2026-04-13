@@ -273,11 +273,15 @@
       const levels = PUZZLES[s] || [];
       const solvedSet = new Set(app.progress[s] || []);
       el.levels.innerHTML = '';
+      const stageCounts = new Map();
       levels.forEach((lvl, i) => {
+        const stage = lvl.stage || 1;
+        const stageIndex = (stageCounts.get(stage) || 0) + 1;
+        stageCounts.set(stage, stageIndex);
         const b = document.createElement('button');
         b.className = 'level-btn' + (solvedSet.has(lvl.id) ? ' solved' : '');
-        b.setAttribute('aria-label', `Open level ${i + 1}${solvedSet.has(lvl.id) ? ', solved' : ''}`);
-        b.textContent = `Level ${i + 1}${solvedSet.has(lvl.id) ? ' ✓' : ''}`;
+        b.setAttribute('aria-label', `Open level ${i + 1}, stage ${stage}, tier ${lvl.tier}${solvedSet.has(lvl.id) ? ', solved' : ''}`);
+        b.textContent = `L${stage}-${stageIndex} (T${lvl.tier})${solvedSet.has(lvl.id) ? ' ✓' : ''}`;
         b.addEventListener('click', () => startLevel(lvl));
         el.levels.appendChild(b);
       });

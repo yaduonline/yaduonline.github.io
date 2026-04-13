@@ -1,7 +1,7 @@
 (function (global) {
   'use strict';
 
-  const TEMPLATE_SPECS = [
+  const LEVEL_ONE_SPECS = [
     { tier: 1, style: 'row-snake', weights: [4, 6, 5, 4, 6], variant: 0 },
     { tier: 1, style: 'column-snake', weights: [5, 4, 6, 5, 5], variant: 1, flipRows: true },
     { tier: 1, style: 'row-snake', weights: [3, 5, 4, 6, 7], variant: 2, flipCols: true },
@@ -18,6 +18,30 @@
     { tier: 5, style: 'column-snake', weights: [6, 3, 5, 7, 4], variant: 0, flipRows: true, flipCols: true },
     { tier: 5, style: 'row-snake', weights: [4, 7, 3, 6, 5], variant: 2, flipRows: true, reversePath: true },
     { tier: 5, style: 'column-snake', weights: [5, 6, 4, 3, 7], variant: 1, flipCols: true, reversePath: true },
+  ];
+
+  const LEVEL_TWO_SPECS = [
+    { tier: 3, style: 'row-snake', weights: [5, 4, 7, 3, 6, 8], variant: 0, reversePath: true },
+    { tier: 3, style: 'column-snake', weights: [6, 3, 7, 4, 8, 5], variant: 1, flipRows: true },
+    { tier: 3, style: 'row-snake', weights: [4, 8, 3, 7, 5, 6], variant: 2, flipCols: true },
+    { tier: 3, style: 'column-snake', weights: [7, 5, 3, 8, 4, 6], variant: 3, flipRows: true, reversePath: true },
+    { tier: 4, style: 'row-snake', weights: [6, 4, 8, 3, 7, 5], variant: 4, flipCols: true },
+    { tier: 4, style: 'column-snake', weights: [5, 7, 4, 8, 3, 6], variant: 0, flipRows: true, flipCols: true },
+    { tier: 4, style: 'row-snake', weights: [8, 3, 6, 4, 7, 5], variant: 1, reversePath: true },
+    { tier: 4, style: 'column-snake', weights: [4, 6, 8, 3, 7, 5], variant: 2, flipCols: true, reversePath: true },
+    { tier: 4, style: 'row-snake', weights: [7, 5, 4, 8, 3, 6], variant: 3, flipRows: true },
+    { tier: 4, style: 'column-snake', weights: [3, 8, 5, 6, 4, 7], variant: 4, flipRows: true, reversePath: true },
+    { tier: 5, style: 'row-snake', weights: [6, 8, 3, 7, 4, 5], variant: 0, flipRows: true, flipCols: true },
+    { tier: 5, style: 'column-snake', weights: [5, 4, 8, 3, 7, 6], variant: 1, reversePath: true },
+    { tier: 5, style: 'row-snake', weights: [8, 4, 5, 7, 3, 6], variant: 2, flipCols: true, reversePath: true },
+    { tier: 5, style: 'column-snake', weights: [7, 3, 6, 8, 4, 5], variant: 3, flipRows: true },
+    { tier: 5, style: 'row-snake', weights: [4, 7, 8, 3, 6, 5], variant: 4, flipRows: true, reversePath: true },
+    { tier: 5, style: 'column-snake', weights: [6, 5, 3, 8, 4, 7], variant: 2, flipRows: true, flipCols: true, reversePath: true },
+  ];
+
+  const TEMPLATE_SPECS = [
+    ...LEVEL_ONE_SPECS.map((spec) => ({ ...spec, stage: 1 })),
+    ...LEVEL_TWO_SPECS.map((spec) => ({ ...spec, stage: 2 })),
   ];
 
   function range(length) {
@@ -131,6 +155,7 @@
     return {
       id: size + '-' + levelNumber,
       size,
+      stage: spec.stage || 1,
       tier: spec.tier,
       endpoints: solution.map(({ color, path }) => ({
         color,
@@ -242,6 +267,10 @@
     }, 0);
     const totalTurns = turnCounts.reduce((sum, turns) => sum + turns, 0);
 
+    if (puzzle.size <= 6) {
+      return errors;
+    }
+
     const minimumTurningPaths = puzzle.size <= 5
       ? Math.max(2, Math.floor(puzzle.solution.length * 0.4))
       : Math.max(3, Math.floor(puzzle.solution.length * 0.6));
@@ -250,13 +279,15 @@
       ? Math.max(2, puzzle.solution.length - 2)
       : puzzle.solution.length;
 
-    if (turningPaths < minimumTurningPaths) {
+    const stageBoost = puzzle.stage === 2 && puzzle.size >= 8 ? 1 : 0;
+
+    if (turningPaths < minimumTurningPaths + stageBoost) {
       errors.push('Puzzle is too straight-lined');
     }
-    if (interiorEndpoints < minimumInteriorEndpoints) {
+    if (interiorEndpoints < minimumInteriorEndpoints + stageBoost) {
       errors.push('Puzzle does not place enough endpoints away from the border');
     }
-    if (totalTurns < minimumTurns) {
+    if (totalTurns < minimumTurns + stageBoost * 2) {
       errors.push('Puzzle does not have enough bends');
     }
 
