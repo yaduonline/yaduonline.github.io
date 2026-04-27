@@ -1,2 +1,8 @@
 games/loopfront/logs/
 games/loopfront/*.log
+
+# Ignore editor and Python temporary files
+.DS_Store
+.vscode/
+__pycache__/
+*.pyc
