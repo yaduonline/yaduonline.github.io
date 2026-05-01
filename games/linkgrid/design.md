@@ -49,6 +49,68 @@ Each puzzle entry:
 
 Packs are grouped by size (`5x5` ... `10x10`).
 
+## Puzzle Generation Algorithm (Iteration 2)
+
+### Overview
+Puzzles are generated algorithmically by creating non-overlapping pipes that fill the grid, then extracting the pipe endpoints as the puzzle starting state. This ensures all generated puzzles are solvable by construction.
+
+### Algorithm Steps
+
+#### 1. Initialize Grid
+- Create empty N×N grid
+- Each cell has state: `empty`, `pipe-{colorId}`, or `endpoint-{colorId}`
+- Initialize `pipes = []` (list of completed pipes)
+- Initialize `colorId = 0`
+
+#### 2. Generate Pipes (Iterative Loop)
+Repeat until grid is reasonably filled:
+
+**2a. Place Starting Endpoint**
+- Pick random empty cell, mark as `endpoint-{colorId}`
+- Record pipe start position
+
+**2b. Draw Pipe with Backtracking**
+- Use DFS/backtracking to grow a path from the starting endpoint
+- Move only into `empty` cells (orthogonal: up/down/left/right)
+- Maintain **minimum spacing of 2 cells** between consecutive turns (relaxed at dead ends)
+- Allow `maxTurns = 1 + Math.floor(gridSize / 4)` turns per pipe
+- Use backtracking if stuck; mark final cell as endpoint and end pipe
+
+**2c. Mark Pipe**
+- All cells in the path are marked as `pipe-{colorId}`
+- Final cell is marked as `endpoint-{colorId}` (the ending dot)
+
+**2d. Increment Color**
+- Continue until grid reaches `fillThreshold` or max colors reached
+
+#### 3. Fill Remaining Empty Cells (Optional Optimization)
+- Greedily extend/shorten existing pipes to fill gaps
+- Aim for complete coverage, but acceptable if small pockets remain empty
+
+#### 4. Extract Endpoints and Build Puzzle
+- For each completed pipe, extract start and end endpoints
+- Create puzzle endpoint pairs: `{color: colorId, a: start, b: end}`
+- Remove all pipe markings (return to clean grid)
+- Return puzzle with endpoint pairs as solving starting state
+
+### Configuration Parameters
+- `gridSize` – N for N×N grid
+- `minSpacing` – minimum Manhattan distance between turns (default: 2)
+- `maxTurns` – maximum turns allowed in a single pipe
+- `fillThreshold` – percentage of grid to attempt to fill (default: 80–100%)
+- `maxAttempts` – max backtracking attempts before giving up on a pipe
+
+### Difficulty Calculation
+- Tier 1–2: fewer colors (2–3), shorter pipes
+- Tier 3–4: more colors (3–4), medium pipes with more turns
+- Tier 5: maximum colors (4–5), longest pipes with many turns
+
+### Properties
+- **Solvable**: By construction, each puzzle has exactly one solution (original pipe paths)
+- **Scalable**: Works for any grid size without manual design
+- **Tunable**: Difficulty controlled via parameters (turns, spacing, colors)
+- **Deterministic**: Supports seeded random for reproducibility
+
 ## Input and Path Editing
 
 ### Start
