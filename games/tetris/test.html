@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tetris Logic Tests</title>
+    <style>
+        body { font-family: monospace; background: #1c2030; color: #c8d0e0; padding: 20px; }
+        .pass { color: #6ec6a2; margin-bottom: 5px; }
+        .fail { color: #e0856a; margin-bottom: 5px; font-weight: bold; }
+        h2 { border-bottom: 1px solid #232840; padding-bottom: 10px; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <h1>Tetris Logic Tests</h1>
+    <div id="results"></div>
+
+    <script>
+        // We'll simulate the pieces here for pure logic testing
+        const PIECES = {
+            'I': [[0,1,0],[0,1,0],[0,1,0]],
+            'J': [[0,1,0],[0,1,0],[1,1,1]],
+            'L': [[1,0,0],[1,0,0],[1,1,1]],
+            'T': [[0,1,0],[1,1,1],[0,1,0]],
+            'O': [[1,1],[1,1]]
+        };
+
+        function assert(name, condition) {
+            const div = document.createElement('div');
+            div.className = condition ? 'pass' : 'fail';
+            div.textContent = `${condition ? '✓' : '✗'} ${name}`;
+            document.getElementById('results').appendChild(div);
+        }
+
+        function checkCollision(grid, matrix, pos) {
+            for (let y = 0; y < matrix.length; y++) {
+                for (let x = 0; x < matrix[y].length; x++) {
+                    if (matrix[y][x] !== 0) {
+                        const newX = pos.x + x;
+                        const newY = pos.y + y;
+                        if (newX < 0 || newX >= 10 || newY >= 22) return true;
+                        if (grid[newY] && grid[newY][newX] !== 0) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function rotateMatrix(matrix) {
+            return matrix[0].map((_, i) => matrix.map(row => row[i]).reverse());
+        }
+
+        function clearLines(grid) {
+            let linesCleared = 0;
+            outer: for (let y = grid.length - 1; y >= 0; y--) {
+                for (let x = 0; x < grid[y].length; x++) {
+                    if (grid[y][x] === 0) continue outer;
+                }
+                grid.splice(y, 1);
+                grid.unshift(Array(10).fill(0));
+                linesCleared++;
+                y++;
+            }
+            return linesCleared;
+        }
+
+        function getGhostPosition(grid, piece) {
+            let ghostY = piece.pos.y;
+            while (!checkCollision(grid, piece.matrix, { x: piece.pos.x, y: ghostY + 1 })) {
+                ghostY++;
+            }
+            return ghostY;
+        }
+
+        // Initial Scaffolding Tests
+        assert("Piece I has exactly 3 blocks", PIECES['I'].flat().filter(x => x).length === 3);
+        assert("Piece J has exactly 5 blocks", PIECES['J'].flat().filter(x => x).length === 5);
+        assert("Piece L has exactly 5 blocks", PIECES['L'].flat().filter(x => x).length === 5);
+        assert("Piece T has exactly 5 blocks", PIECES['T'].flat().filter(x => x).length === 5);
+        assert("Piece O has exactly 4 blocks", PIECES['O'].flat().filter(x => x).length === 4);
+
+        // Collision Tests
+        const testGrid = Array(22).fill().map(() => Array(10).fill(0));
+        const tPiece = [[0, 1, 0], [1, 1, 1], [0, 1, 0]];
+
+        assert("Collision: Piece at x=-1 (Left wall)", checkCollision(testGrid, tPiece, {x: -1, y: 0}));
+        assert("Collision: Piece at x=8 (Right wall hits)", checkCollision(testGrid, tPiece, {x: 8, y: 0}));
+        assert("Collision: Piece at bottom y=20 (hits floor)", checkCollision(testGrid, tPiece, {x: 3, y: 20}));
+        assert("Collision: No collision at valid pos", !checkCollision(testGrid, tPiece, {x: 3, y: 10}));
+
+        testGrid[21][3] = '#fff';
+        assert("Collision: Overlapping existing block at bottom", checkCollision(testGrid, tPiece, {x: 2, y: 19}));
+
+        // Rotation Tests
+        const lPiece = [[1, 0, 0], [1, 0, 0], [1, 1, 1]];
+        const rotatedL = rotateMatrix(lPiece);
+        assert("Rotation: L-piece correctly transposed/reversed", 
+            JSON.stringify(rotatedL) === JSON.stringify([[1, 1, 1], [1, 0, 0], [1, 0, 0]]));
+        assert("Rotation: Rotating 4 times returns to original", 
+            JSON.stringify(rotateMatrix(rotateMatrix(rotateMatrix(rotateMatrix(lPiece))))) === JSON.stringify(lPiece));
+
+        // Line Clearing Tests
+        const clearGrid = Array(22).fill().map(() => Array(10).fill(0));
+        clearGrid[21] = Array(10).fill('#fff'); // Bottom row full
+        const linesRemoved = clearLines(clearGrid);
+        assert("Line Clear: Correct number of lines removed", linesRemoved === 1);
+        assert("Line Clear: Bottom row is now empty", clearGrid[21].every(cell => cell === 0));
+
+        // Ghost Piece Tests
+        const ghostPiece = { matrix: PIECES['I'], pos: {x: 3, y: 0} };
+        const emptyGrid = Array(22).fill().map(() => Array(10).fill(0));
+        assert("Ghost: I-piece falls to bottom in empty grid", getGhostPosition(emptyGrid, ghostPiece) === 19);
+
+        emptyGrid[10][3] = '#fff';
+        assert("Ghost: I-piece stops above obstacles", getGhostPosition(emptyGrid, ghostPiece) === 7);
+
+        // Wall Kick Tests (Simplified)
+        function attemptRotationWithKicks(grid, piece) {
+            const matrix = piece.matrix;
+            const newMatrix = rotateMatrix(matrix);
+            const kicks = [{x: 0, y: 0}, {x: -1, y: 0}, {x: 1, y: 0}, {x: 0, y: -1}, {x: -2, y: 0}, {x: 2, y: 0}];
+            for (const kick of kicks) {
+                const nextPos = { x: piece.pos.x + kick.x, y: piece.pos.y + kick.y };
+                if (!checkCollision(grid, newMatrix, nextPos)) {
+                    return nextPos;
+                }
+            }
+            return null;
+        }
+
+        const kickPiece = { matrix: [[1,1,1],[1,1,1],[1,1,1]], pos: {x: 8, y: 10} };
+        const kickedPos = attemptRotationWithKicks(emptyGrid, kickPiece);
+        assert("Wall Kick: Piece kicks left when rotating at right edge", kickedPos && kickedPos.x < 8);
+    </script>
+</body>
+</html>
