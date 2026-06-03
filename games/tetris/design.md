@@ -1,4 +1,4 @@
-# Tetris (Dusk Slate) — Design Document
+# Tetris (Light Theme) — Design Document
 
 ## 1. File Structure
 ```

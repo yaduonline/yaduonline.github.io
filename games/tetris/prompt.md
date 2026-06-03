@@ -57,21 +57,21 @@ Seven distinct shapes (Tetrominoes), each consisting of 4 blocks:
 
 ---
 
-## Color Palette (Dusk Slate)
+## Color Palette (Light Theme)
 
 | Element | Color | Hex |
 |---|---|---|
-| Background | Warm dark slate | `#1c2030` |
-| Grid Lines | Subtle slate | `#232840` |
-| I-Piece | Muted Sage | `#6ec6a2` |
-| J-Piece | Soft Blue | `#6aabbb` |
-| L-Piece | Terracotta | `#e0856a` |
-| O-Piece | Warm Amber | `#d4a855` |
-| S-Piece | Soft Mint | `#9ad4bf` |
-| Z-Piece | Slate Blue | `#7a8fa8` |
-| T-Piece | Rose Mauve | `#c47088` |
-| Ghost Piece | Border only | `rgba(200, 208, 224, 0.2)` |
-| UI Text | Warm off-white | `#c8d0e0` |
+| Background | Light Gray | `#f8f9fa` |
+| Grid Lines | Soft Gray | `#dee2e6` |
+| I-Piece | Sage | `#4da384` |
+| J-Piece | Blue | `#5a8ca0` |
+| L-Piece | Terracotta | `#c26a50` |
+| O-Piece | Amber | `#b88d40` |
+| S-Piece | Mint | `#7abda6` |
+| Z-Piece | Slate Blue | `#5e738c` |
+| T-Piece | Mauve | `#a6566e` |
+| Ghost Piece | Border only | `rgba(0, 0, 0, 0.15)` |
+| UI Text | Dark Gray | `#212529` |
 
 ---
 
