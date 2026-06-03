@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Tetris - Dusk Slate</title>
+    <link rel="stylesheet" href="/style.css">
     <style>
         :root {
             --bg-color: #1c2030;
@@ -19,16 +20,32 @@
             margin: 0;
             display: flex;
             flex-direction: column;
+            height: 100dvh;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        #home-btn {
+            font-size: 1.1rem;
+            padding: 8px 12px;
+            background: #232840;
+            border: 1px solid rgba(200, 208, 224, 0.1);
+            border-radius: 4px;
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
-            overflow: hidden;
+            padding: 5px;
         }
 
         #game-container {
             display: flex;
-            gap: 20px;
-            padding: 20px;
+            gap: 15px;
+            padding: 15px;
             background: rgba(255, 255, 255, 0.02);
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
@@ -122,11 +139,11 @@
         }
 
         #touch-controls {
-            display: none;
+            display: grid;
             width: 100%;
             max-width: 440px;
             grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
+            gap: 8px;
             margin-top: 20px;
             padding: 0 10px;
         }
@@ -154,52 +171,71 @@
             #game-container {
                 flex-direction: column;
                 align-items: center;
-                gap: 10px;
+                gap: 5px;
+            }
+            #sidebar {
+                flex-direction: row;
+                width: 100%;
+                justify-content: center;
+                align-items: center;
+                gap: 20px;
+            }
+            .controls-hint {
+                margin-top: 0;
+                font-size: 0.65rem;
             }
             #touch-controls {
                 display: grid;
+                gap: 4px;
+                margin-top: 5px;
+            }
+            .touch-btn {
+                height: 44px;
             }
         }
     </style>
 </head>
 <body>
-    <div id="meta-bar">
-        <div class="stat-group"><div class="stat-label">Score</div><div id="score" class="stat-value">0</div></div>
-        <div class="stat-group"><div class="stat-label">Level</div><div id="level" class="stat-value">1</div></div>
-        <div class="stat-group"><div class="stat-label">Best</div><div id="high-score" class="stat-value">0</div></div>
-        <button id="sound-btn">🔇</button>
-        <button id="restart-btn">Restart</button>
-    </div>
+    <main>
+        <div id="meta-bar">
+            <button id="home-btn" onclick="location.href='/'" title="Home">🏠</button>
+            <div class="stat-group"><div class="stat-label">Score</div><div id="score" class="stat-value">0</div></div>
+            <div class="stat-group"><div class="stat-label">Level</div><div id="level" class="stat-value">1</div></div>
+            <div class="stat-group"><div class="stat-label">Best</div><div id="high-score" class="stat-value">0</div></div>
+            <button id="sound-btn">🔇</button>
+            <button id="restart-btn">New Game</button>
+        </div>
 
-    <div id="game-container">
-        <div id="game-view">
-            <canvas id="tetris-canvas"></canvas>
-            <div id="overlay">
-                <h2 id="overlay-text">PAUSED</h2>
-                <button id="overlay-btn">Resume</button>
+        <div id="game-container">
+            <div id="game-view">
+                <canvas id="tetris-canvas"></canvas>
+                <div id="overlay">
+                    <h2 id="overlay-text">PAUSED</h2>
+                    <button id="overlay-btn">Resume</button>
+                </div>
+            </div>
+            <div id="sidebar">
+                <div class="stat-group">
+                    <div class="stat-label">Next</div>
+                    <canvas id="next-canvas" width="100" height="100"></canvas>
+                </div>
+                <div class="controls-hint">
+                    <b>ARROWS</b>: Move<br>
+                    <b>UP / X</b>: Rotate<br>
+                    <b>SPACE</b>: Drop<br>
+                    <b>P</b>: Pause
+                </div>
             </div>
         </div>
-        <div id="sidebar">
-            <div class="stat-group">
-                <div class="stat-label">Next</div>
-                <canvas id="next-canvas" width="100" height="100"></canvas>
-            </div>
-            <div class="controls-hint">
-                <b>ARROWS</b>: Move<br>
-                <b>UP / X</b>: Rotate<br>
-                <b>SPACE</b>: Drop<br>
-                <b>P</b>: Pause
-            </div>
-        </div>
-    </div>
 
-    <div id="touch-controls">
-        <button class="touch-btn" id="btn-left">←</button>
-        <button class="touch-btn" id="btn-rotate">↻</button>
-        <button class="touch-btn" id="btn-right">→</button>
-        <button class="touch-btn" id="btn-down">↓</button>
-        <button class="touch-btn" style="grid-column: span 2;" id="btn-drop">DROP</button>
-    </div>
+        <div id="touch-controls">
+            <button class="touch-btn" id="btn-left">←</button>
+            <button class="touch-btn" id="btn-rotate">↻</button>
+            <button class="touch-btn" id="btn-right">→</button>
+            <button class="touch-btn" id="btn-down">↓</button>
+            <button class="touch-btn" style="grid-column: span 2;" id="btn-drop">DROP</button>
+        </div>
+    </main>
 
     <script>
         const CONFIG = {
@@ -215,13 +251,13 @@
         };
 
         const PIECES = {
-            'I': [[0, 1, 0], [0, 1, 0], [0, 1, 0]],
-            'J': [[0, 1, 0], [0, 1, 0], [1, 1, 1]],
-            'L': [[1, 0, 0], [1, 0, 0], [1, 1, 1]],
+            'I': [[0, 0, 0, 0], [1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]],
+            'J': [[1, 0, 0], [1, 1, 1], [0, 0, 0]],
+            'L': [[0, 0, 1], [1, 1, 1], [0, 0, 0]],
             'O': [[1, 1], [1, 1]],
             'S': [[0, 1, 1], [1, 1, 0], [0, 0, 0]],
             'Z': [[1, 1, 0], [0, 1, 1], [0, 0, 0]],
-            'T': [[0, 1, 0], [1, 1, 1], [0, 1, 0]]
+            'T': [[0, 1, 0], [1, 1, 1], [0, 0, 0]]
         };
 
         let state = {
@@ -253,6 +289,34 @@
         let touchStartX = 0;
         let touchStartY = 0;
         let touchStartTime = 0;
+
+        function resizeCanvas() {
+            const isMobile = window.innerWidth <= 600;
+            
+            const metaH = document.getElementById('meta-bar').offsetHeight || 50;
+            const touchControls = document.getElementById('touch-controls');
+            const touchH = touchControls.offsetHeight > 0 ? touchControls.offsetHeight : (isMobile ? 100 : 140);
+            const sidebar = document.getElementById('sidebar');
+            const sideH = isMobile ? (sidebar.offsetHeight > 0 ? sidebar.offsetHeight : 70) : 0;
+            
+            const reservedHeight = metaH + touchH + sideH + 50;
+            const availableHeight = window.innerHeight - reservedHeight;
+            const availableWidth = window.innerWidth - (isMobile ? 32 : 220);
+
+            const sizeByHeight = Math.floor(availableHeight / CONFIG.GRID_HEIGHT);
+            const sizeByWidth = Math.floor(availableWidth / (isMobile ? CONFIG.GRID_WIDTH : CONFIG.GRID_WIDTH + 6));
+            
+            CONFIG.BLOCK_SIZE = Math.min(Math.max(15, Math.min(sizeByHeight, sizeByWidth)), 30);
+
+            canvas.width = CONFIG.GRID_WIDTH * CONFIG.BLOCK_SIZE;
+            canvas.height = CONFIG.GRID_HEIGHT * CONFIG.BLOCK_SIZE;
+            
+            const nextSize = Math.floor(CONFIG.BLOCK_SIZE * 0.7);
+            nextCanvas.width = nextSize * 5;
+            nextCanvas.height = nextSize * 4;
+            
+            render();
+        }
 
         // Audio Synthesis
         function playSound(type) {
@@ -305,8 +369,8 @@
         }
 
         function init() {
-            canvas.width = CONFIG.GRID_WIDTH * CONFIG.BLOCK_SIZE;
-            canvas.height = CONFIG.GRID_HEIGHT * CONFIG.BLOCK_SIZE;
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
             
             state.highScore = parseInt(localStorage.getItem('tetris-high-score')) || 0;
             document.getElementById('high-score').textContent = state.highScore;
@@ -318,17 +382,25 @@
             };
 
             document.addEventListener('keydown', event => {
+                const key = event.key.toLowerCase();
+                const isGameKey = ['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' ', 'x', 'p', 'escape'].includes(key);
+                
+                if (isGameKey) event.preventDefault(); // Stop space bar from triggering focused buttons or scrolling
+
+                if (key === 'p' || key === 'escape') {
+                    togglePause();
+                    return;
+                }
+
                 if (state.status !== 'playing') return;
+
                 if (event.key === 'ArrowLeft') move(-1, 0);
                 if (event.key === 'ArrowRight') move(1, 0);
                 if (event.key === 'ArrowDown') {
                     if (!move(0, 1)) lockPiece();
                 }
-                if (event.key === 'ArrowUp' || event.key.toLowerCase() === 'x') rotate();
+                if (event.key === 'ArrowUp' || key === 'x') rotate();
                 if (event.key === ' ') hardDrop();
-                if (event.key.toLowerCase() === 'p' || event.key === 'Escape') {
-                    togglePause();
-                }
             });
 
             // Touch Gesture Handling
@@ -601,7 +673,7 @@
             nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
             if (!state.nextPiece) return;
 
-            const size = 20;
+            const size = Math.floor(CONFIG.BLOCK_SIZE * 0.7);
             const matrix = state.nextPiece.matrix;
             const offsetX = (nextCanvas.width - matrix[0].length * size) / 2;
             const offsetY = (nextCanvas.height - matrix.length * size) / 2;

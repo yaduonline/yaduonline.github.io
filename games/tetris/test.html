@@ -17,10 +17,10 @@
     <script>
         // We'll simulate the pieces here for pure logic testing
         const PIECES = {
-            'I': [[0,1,0],[0,1,0],[0,1,0]],
-            'J': [[0,1,0],[0,1,0],[1,1,1]],
-            'L': [[1,0,0],[1,0,0],[1,1,1]],
-            'T': [[0,1,0],[1,1,1],[0,1,0]],
+            'I': [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+            'J': [[1,0,0],[1,1,1],[0,0,0]],
+            'L': [[0,0,1],[1,1,1],[0,0,0]],
+            'T': [[0,1,0],[1,1,1],[0,0,0]],
             'O': [[1,1],[1,1]]
         };
 
@@ -72,29 +72,29 @@
         }
 
         // Initial Scaffolding Tests
-        assert("Piece I has exactly 3 blocks", PIECES['I'].flat().filter(x => x).length === 3);
-        assert("Piece J has exactly 5 blocks", PIECES['J'].flat().filter(x => x).length === 5);
-        assert("Piece L has exactly 5 blocks", PIECES['L'].flat().filter(x => x).length === 5);
-        assert("Piece T has exactly 5 blocks", PIECES['T'].flat().filter(x => x).length === 5);
+        assert("Piece I has exactly 4 blocks", PIECES['I'].flat().filter(x => x).length === 4);
+        assert("Piece J has exactly 4 blocks", PIECES['J'].flat().filter(x => x).length === 4);
+        assert("Piece L has exactly 4 blocks", PIECES['L'].flat().filter(x => x).length === 4);
+        assert("Piece T has exactly 4 blocks", PIECES['T'].flat().filter(x => x).length === 4);
         assert("Piece O has exactly 4 blocks", PIECES['O'].flat().filter(x => x).length === 4);
 
         // Collision Tests
         const testGrid = Array(22).fill().map(() => Array(10).fill(0));
-        const tPiece = [[0, 1, 0], [1, 1, 1], [0, 1, 0]];
+        const tPiece = [[0, 1, 0], [1, 1, 1], [0, 0, 0]];
 
         assert("Collision: Piece at x=-1 (Left wall)", checkCollision(testGrid, tPiece, {x: -1, y: 0}));
         assert("Collision: Piece at x=8 (Right wall hits)", checkCollision(testGrid, tPiece, {x: 8, y: 0}));
-        assert("Collision: Piece at bottom y=20 (hits floor)", checkCollision(testGrid, tPiece, {x: 3, y: 20}));
+        assert("Collision: Piece at bottom y=21 (hits floor)", checkCollision(testGrid, tPiece, {x: 3, y: 21}));
         assert("Collision: No collision at valid pos", !checkCollision(testGrid, tPiece, {x: 3, y: 10}));
 
         testGrid[21][3] = '#fff';
-        assert("Collision: Overlapping existing block at bottom", checkCollision(testGrid, tPiece, {x: 2, y: 19}));
+        assert("Collision: Overlapping existing block at bottom", checkCollision(testGrid, tPiece, {x: 2, y: 20}));
 
         // Rotation Tests
-        const lPiece = [[1, 0, 0], [1, 0, 0], [1, 1, 1]];
+        const lPiece = [[0, 0, 1], [1, 1, 1], [0, 0, 0]];
         const rotatedL = rotateMatrix(lPiece);
         assert("Rotation: L-piece correctly transposed/reversed", 
-            JSON.stringify(rotatedL) === JSON.stringify([[1, 1, 1], [1, 0, 0], [1, 0, 0]]));
+            JSON.stringify(rotatedL) === JSON.stringify([[0, 1, 0], [0, 1, 0], [0, 1, 1]]));
         assert("Rotation: Rotating 4 times returns to original", 
             JSON.stringify(rotateMatrix(rotateMatrix(rotateMatrix(rotateMatrix(lPiece))))) === JSON.stringify(lPiece));
 
@@ -108,10 +108,10 @@
         // Ghost Piece Tests
         const ghostPiece = { matrix: PIECES['I'], pos: {x: 3, y: 0} };
         const emptyGrid = Array(22).fill().map(() => Array(10).fill(0));
-        assert("Ghost: I-piece falls to bottom in empty grid", getGhostPosition(emptyGrid, ghostPiece) === 19);
+        assert("Ghost: I-piece falls to bottom in empty grid", getGhostPosition(emptyGrid, ghostPiece) === 20);
 
         emptyGrid[10][3] = '#fff';
-        assert("Ghost: I-piece stops above obstacles", getGhostPosition(emptyGrid, ghostPiece) === 7);
+        assert("Ghost: I-piece stops above obstacles", getGhostPosition(emptyGrid, ghostPiece) === 8);
 
         // Wall Kick Tests (Simplified)
         function attemptRotationWithKicks(grid, piece) {
