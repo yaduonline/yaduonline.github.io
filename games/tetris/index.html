@@ -48,7 +48,6 @@
             padding: 15px;
             background: rgba(255, 255, 255, 0.02);
             border-radius: 8px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         }
 
         #game-view {
@@ -139,13 +138,24 @@
         }
 
         #touch-controls {
-            display: grid;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             width: 100%;
             max-width: 440px;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
             margin-top: 20px;
             padding: 0 10px;
+            box-sizing: border-box;
+        }
+
+        .control-pad {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-pad {
+            display: flex;
+            gap: 12px;
         }
 
         #sound-btn {
@@ -153,18 +163,34 @@
         }
 
         .touch-btn {
-            height: 60px;
-            font-size: 1.2rem;
-            user-select: none;
-            touch-action: manipulation;
-            background: rgba(0, 0, 0, 0.05);
             display: flex;
             align-items: center;
             justify-content: center;
+            width: 56px;
+            height: 56px;
+            font-size: 1.3rem;
+            background: linear-gradient(135deg, #ffffff, #f1f3f5);
+            border: 1px solid rgba(0, 0, 0, 0.12);
+            border-radius: 50%;
+            color: var(--text-color);
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.06);
+            user-select: none;
+            touch-action: manipulation;
+            transition: transform 0.05s ease, background 0.1s ease, box-shadow 0.05s ease;
         }
 
         .touch-btn:active {
-            background: rgba(0, 0, 0, 0.1);
+            transform: scale(0.92);
+            background: linear-gradient(135deg, #e9ecef, #dee2e6);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        #btn-drop {
+            width: 80px;
+            border-radius: 28px;
+            font-size: 0.95rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, #e9ecef, #dee2e6);
         }
 
         @media (max-width: 600px) {
@@ -185,12 +211,17 @@
                 font-size: 0.65rem;
             }
             #touch-controls {
-                display: grid;
-                gap: 4px;
-                margin-top: 5px;
+                display: flex;
+                gap: 8px;
+                margin-top: 10px;
             }
             .touch-btn {
-                height: 44px;
+                width: 50px;
+                height: 50px;
+                font-size: 1.15rem;
+            }
+            #btn-drop {
+                width: 70px;
             }
         }
     </style>
@@ -229,11 +260,15 @@
         </div>
 
         <div id="touch-controls">
-            <button class="touch-btn" id="btn-left">←</button>
-            <button class="touch-btn" id="btn-rotate">↻</button>
-            <button class="touch-btn" id="btn-right">→</button>
-            <button class="touch-btn" id="btn-down">↓</button>
-            <button class="touch-btn" style="grid-column: span 2;" id="btn-drop">DROP</button>
+            <div class="control-pad">
+                <button class="touch-btn" id="btn-left">←</button>
+                <button class="touch-btn" id="btn-down">↓</button>
+                <button class="touch-btn" id="btn-right">→</button>
+            </div>
+            <div class="action-pad">
+                <button class="touch-btn action-btn" id="btn-rotate" title="Rotate">↻</button>
+                <button class="touch-btn action-btn" id="btn-drop" title="Hard Drop">DROP</button>
+            </div>
         </div>
     </main>
 
@@ -275,6 +310,7 @@
             clearingLines: [],
             clearingTimer: 0
         };
+        window.state = state;
 
         let audioCtx = null;
 
@@ -429,16 +465,88 @@
                 e.preventDefault();
             }, { passive: false });
 
-            // Button Controls
-            document.getElementById('btn-left').onclick = () => { if(state.status === 'playing') move(-1, 0); };
-            document.getElementById('btn-right').onclick = () => { if(state.status === 'playing') move(1, 0); };
-            document.getElementById('btn-rotate').onclick = () => { if(state.status === 'playing') rotate(); };
-            document.getElementById('btn-down').onclick = () => { 
-                if(state.status === 'playing') {
-                    if (!move(0, 1)) lockPiece();
-                }
+            // Button Controls with Auto-Repeat (DAS / ARR)
+            let touchInterval = null;
+            let touchTimeout = null;
+
+            function startMove(dirX, dirY) {
+                if (state.status !== 'playing') return;
+                move(dirX, dirY);
+                if (dirY > 0 && !move(0, 1)) lockPiece();
+
+                touchTimeout = setTimeout(() => {
+                    touchInterval = setInterval(() => {
+                        if (state.status !== 'playing') {
+                            stopMove();
+                            return;
+                        }
+                        const moved = move(dirX, dirY);
+                        if (!moved && dirY > 0) {
+                            lockPiece();
+                            stopMove();
+                        }
+                    }, 50);
+                }, 220);
+            }
+
+            function stopMove() {
+                clearTimeout(touchTimeout);
+                clearInterval(touchInterval);
+            }
+
+            const bindTouchButton = (id, dirX, dirY) => {
+                const btn = document.getElementById(id);
+                btn.addEventListener('touchstart', e => {
+                    e.preventDefault();
+                    startMove(dirX, dirY);
+                }, { passive: false });
+                btn.addEventListener('touchend', e => {
+                    e.preventDefault();
+                    stopMove();
+                });
+                btn.addEventListener('touchcancel', e => {
+                    e.preventDefault();
+                    stopMove();
+                });
+                // Fallback for mouse users
+                btn.addEventListener('mousedown', e => {
+                    e.preventDefault();
+                    startMove(dirX, dirY);
+                });
+                btn.addEventListener('mouseup', e => {
+                    e.preventDefault();
+                    stopMove();
+                });
+                btn.addEventListener('mouseleave', e => {
+                    e.preventDefault();
+                    stopMove();
+                });
             };
-            document.getElementById('btn-drop').onclick = () => { if(state.status === 'playing') hardDrop(); };
+
+            bindTouchButton('btn-left', -1, 0);
+            bindTouchButton('btn-right', 1, 0);
+            bindTouchButton('btn-down', 0, 1);
+
+            // Action Buttons
+            const btnRotate = document.getElementById('btn-rotate');
+            btnRotate.addEventListener('touchstart', e => {
+                e.preventDefault();
+                if (state.status === 'playing') rotate();
+            }, { passive: false });
+            btnRotate.addEventListener('mousedown', e => {
+                e.preventDefault();
+                if (state.status === 'playing') rotate();
+            });
+
+            const btnDrop = document.getElementById('btn-drop');
+            btnDrop.addEventListener('touchstart', e => {
+                e.preventDefault();
+                if (state.status === 'playing') hardDrop();
+            }, { passive: false });
+            btnDrop.addEventListener('mousedown', e => {
+                e.preventDefault();
+                if (state.status === 'playing') hardDrop();
+            });
 
             overlayBtn.onclick = () => {
                 if (state.status === 'game-over') {
