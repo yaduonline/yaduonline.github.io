@@ -23,6 +23,7 @@
             height: 100dvh;
             overflow: hidden;
             box-sizing: border-box;
+            padding-bottom: env(safe-area-inset-bottom, 10px);
         }
 
         #home-btn {
@@ -335,7 +336,8 @@
             const sidebar = document.getElementById('sidebar');
             const sideH = isMobile ? (sidebar.offsetHeight > 0 ? sidebar.offsetHeight : 70) : 0;
             
-            const reservedHeight = metaH + touchH + sideH + 50;
+            const safeAreaBottom = parseInt(getComputedStyle(document.body).paddingBottom) || 0;
+            const reservedHeight = metaH + touchH + sideH + 70 + safeAreaBottom;
             const availableHeight = window.innerHeight - reservedHeight;
             const availableWidth = window.innerWidth - (isMobile ? 32 : 220);
 
