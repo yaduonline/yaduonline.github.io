@@ -228,9 +228,10 @@
     </style>
 </head>
 <body>
+    <div id="site-header"></div>
     <main>
         <div id="meta-bar">
-            <button id="home-btn" onclick="location.href='/'" title="Home">🏠</button>
+            <button id="home-btn" onclick="location.href='/games/'" title="Back to Games">🎮</button>
             <div class="stat-group"><div class="stat-label">Score</div><div id="score" class="stat-value">0</div></div>
             <div class="stat-group"><div class="stat-label">Level</div><div id="level" class="stat-value">1</div></div>
             <div class="stat-group"><div class="stat-label">Best</div><div id="high-score" class="stat-value">0</div></div>
@@ -330,6 +331,8 @@
         function resizeCanvas() {
             const isMobile = window.innerWidth <= 600;
             
+            const header = document.getElementById('site-header');
+            const headerH = header ? header.offsetHeight : 0;
             const metaH = document.getElementById('meta-bar').offsetHeight || 50;
             const touchControls = document.getElementById('touch-controls');
             const touchH = touchControls.offsetHeight > 0 ? touchControls.offsetHeight : (isMobile ? 100 : 140);
@@ -337,7 +340,7 @@
             const sideH = isMobile ? (sidebar.offsetHeight > 0 ? sidebar.offsetHeight : 70) : 0;
             
             const safeAreaBottom = parseInt(getComputedStyle(document.body).paddingBottom) || 0;
-            const reservedHeight = metaH + touchH + sideH + 70 + safeAreaBottom;
+            const reservedHeight = headerH + metaH + touchH + sideH + 70 + safeAreaBottom;
             const availableHeight = window.innerHeight - reservedHeight;
             const availableWidth = window.innerWidth - (isMobile ? 32 : 220);
 
@@ -409,6 +412,13 @@
         function init() {
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
+
+            // Observe site-header height changes (e.g. when header loads async)
+            const header = document.getElementById('site-header');
+            if (header && typeof ResizeObserver !== 'undefined') {
+                const observer = new ResizeObserver(() => resizeCanvas());
+                observer.observe(header);
+            }
             
             state.highScore = parseInt(localStorage.getItem('tetris-high-score')) || 0;
             document.getElementById('high-score').textContent = state.highScore;
@@ -821,5 +831,7 @@
 
         init();
     </script>
+    <div id="site-footer"></div>
+    <script src="/inc/include.js"></script>
 </body>
 </html>

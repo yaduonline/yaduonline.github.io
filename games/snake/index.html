@@ -149,6 +149,7 @@
     </style>
 </head>
 <body>
+    <div id="site-header"></div>
     <script>
         // Inline site header (matches /inc/header.html pattern used by other pages)
         fetch('/inc/header.html').then(r => r.text()).then(h => {
@@ -1083,5 +1084,7 @@
     // Load best score into meta bar on init
     updateMetaBar(state);
     </script>
+    <div id="site-footer"></div>
+    <script src="/inc/include.js"></script>
 </body>
 </html>

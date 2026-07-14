@@ -13,6 +13,7 @@
   </style>
 </head>
 <body>
+    <div id="site-header"></div>
   <h1>Linkgrid Test Runner</h1>
   <div id="out"></div>
   <script>
@@ -124,5 +125,7 @@
     out.innerHTML = `<div class="${fail ? 'bad' : 'ok'}">${pass} passed, ${fail} failed</div>` +
       results.map(r => `<div class="row ${r.ok ? 'ok' : 'bad'}">${r.ok ? '✓' : '✗'} ${r.label}</div>`).join('');
   </script>
+    <div id="site-footer"></div>
+    <script src="/inc/include.js"></script>
 </body>
 </html>

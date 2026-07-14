@@ -12,6 +12,7 @@
   </style>
 </head>
 <body>
+    <div id="site-header"></div>
   <h1>Linkgrid Puzzle Validator</h1>
   <div id="log"></div>
   <script>
@@ -163,5 +164,7 @@
       log(`${status} Puzzle with colors ${puzzle.endpoints.map(e => e.color).join(',')}: ${solvable ? 'SOLVABLE' : 'UNSOLVABLE'}`, solvable ? 'ok' : 'bad');
     }
   </script>
+    <div id="site-footer"></div>
+    <script src="/inc/include.js"></script>
 </body>
 </html>

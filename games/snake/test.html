@@ -36,6 +36,7 @@
     </style>
 </head>
 <body>
+    <div id="site-header"></div>
 <h1>Snake — Unit Tests</h1>
 <p style="color:#6aabbb;margin-top:0">Iteration 1 — Core Logic</p>
 <div id="output"></div>
@@ -720,5 +721,7 @@ const summary = document.getElementById('summary');
 summary.textContent = `${passed + failed} tests — ${passed} passed, ${failed} failed`;
 summary.className = 'summary-' + (failed === 0 ? 'pass' : 'fail');
 </script>
+    <div id="site-footer"></div>
+    <script src="/inc/include.js"></script>
 </body>
 </html>

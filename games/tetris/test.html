@@ -11,6 +11,7 @@
     </style>
 </head>
 <body>
+    <div id="site-header"></div>
     <h1>Tetris Logic Tests</h1>
     <div id="results"></div>
 
@@ -131,5 +132,7 @@
         const kickedPos = attemptRotationWithKicks(emptyGrid, kickPiece);
         assert("Wall Kick: Piece kicks left when rotating at right edge", kickedPos && kickedPos.x < 8);
     </script>
+    <div id="site-footer"></div>
+    <script src="/inc/include.js"></script>
 </body>
 </html>
