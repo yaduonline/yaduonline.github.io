@@ -1,0 +1,55 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Family/admin allowlist. Add more emails here as needed and redeploy
+    // with `firebase deploy --only firestore:rules`.
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email in [
+        'yaduonline@gmail.com'
+      ];
+    }
+
+    function isInvited(eventId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/events/$(eventId)/invitees/$(request.auth.token.email.lower()));
+    }
+
+    match /users/{uid} {
+      allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+    }
+
+    // Lightweight public copy of events marked isOpen: true, kept in sync by
+    // admin.js, so regular users can browse them without a full `events` list
+    // query (Firestore rules can't grant `list` on a collection whose
+    // per-document access depends on document content).
+    match /openEvents/{eventId} {
+      allow get, list: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /events/{eventId} {
+      allow get: if isSignedIn() && (resource.data.isOpen == true || isInvited(eventId) || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
+
+      match /invitees/{email} {
+        allow read, write: if isAdmin();
+      }
+
+      match /rsvps/{uid} {
+        allow get: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+        allow list: if isAdmin();
+        allow create, update: if isSignedIn() && request.auth.uid == uid &&
+          request.resource.data.email == request.auth.token.email &&
+          (get(/databases/$(database)/documents/events/$(eventId)).data.isOpen == true || isInvited(eventId));
+        allow delete: if isAdmin();
+      }
+    }
+  }
+}

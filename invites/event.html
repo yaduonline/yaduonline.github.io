@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event - Family Invites</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header>
+    <h1><a href="/">Family Invites</a></h1>
+  </header>
+
+  <main>
+    <div id="auth-widget"></div>
+
+    <p id="signed-out-hint" class="hint">Sign in above to view this event and RSVP.</p>
+    <p id="no-access-hint" class="hint" hidden>You don't have access to this event. Make sure you're signed in with the email address the invite was sent to.</p>
+    <p id="missing-id-hint" class="hint" hidden>No event was specified. Use the link you were sent.</p>
+
+    <section id="event-section" hidden>
+      <div id="event-detail" class="event-detail"></div>
+
+      <form id="rsvp-form" class="rsvp-form">
+        <h3>RSVP</h3>
+        <label>Will you attend?
+          <select name="status" required>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+            <option value="maybe">Maybe</option>
+          </select>
+        </label>
+        <label>Number of guests (including you)
+          <input type="number" name="guestCount" min="1" value="1" required>
+        </label>
+        <label>Comment (optional)
+          <textarea name="comment" rows="2"></textarea>
+        </label>
+        <button type="submit">Save RSVP</button>
+        <p id="rsvp-status" class="status-msg" hidden></p>
+      </form>
+    </section>
+  </main>
+
+  <script type="module" src="/js/event.js"></script>
+</body>
+</html>

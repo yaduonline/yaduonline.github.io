@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invites - Yadnyesh Joshi</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header>
+    <h1><a href="/">Family Invites</a></h1>
+  </header>
+
+  <main>
+    <div id="auth-widget"></div>
+
+    <p id="signed-out-hint" class="hint">Sign in above to view events and RSVP.</p>
+
+    <section id="events-section" hidden>
+      <h2>Open events</h2>
+      <p class="hint">Were you personally invited to something instead? Open the link you were sent to RSVP directly.</p>
+      <ul id="event-list" class="event-list"></ul>
+    </section>
+  </main>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

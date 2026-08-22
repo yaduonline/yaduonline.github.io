@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Family Invites</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header>
+    <h1><a href="/">Family Invites</a></h1>
+  </header>
+
+  <main>
+    <div id="auth-widget"></div>
+
+    <p id="signed-out-hint" class="hint">Sign in above to access the admin dashboard.</p>
+    <p id="not-admin-hint" class="hint" hidden>You're signed in, but this account isn't an admin.</p>
+
+    <section id="admin-section" hidden>
+      <div class="admin-section">
+        <h2>Create event</h2>
+        <form id="create-event-form" class="admin-form">
+          <label>Title <input type="text" name="title" required></label>
+          <label>Date &amp; time <input type="datetime-local" name="date"></label>
+          <label>Location <input type="text" name="location"></label>
+          <label>Host name <input type="text" name="hostName"></label>
+          <label>Description <textarea name="description" rows="3"></textarea></label>
+          <label><input type="checkbox" name="isOpen"> Open event (anyone signed in can RSVP, no invite list needed)</label>
+          <button type="submit">Create event</button>
+        </form>
+      </div>
+
+      <div class="admin-section">
+        <h2>Events</h2>
+        <div id="event-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="/js/admin.js"></script>
+</body>
+</html>
