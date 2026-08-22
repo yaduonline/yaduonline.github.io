@@ -19,6 +19,18 @@ test('index page can toggle to the sign-up form', async ({ page }) => {
   await page.getByRole('button', { name: 'Need an account? Sign up' }).click();
   await expect(page.locator('form[data-mode="signup"]')).toBeVisible();
   await expect(page.locator('form[data-mode="signin"]')).toBeHidden();
+  await expect(page.locator('form[data-mode="signup"] input[name="firstName"]')).toBeVisible();
+  await expect(page.locator('form[data-mode="signup"] input[name="lastName"]')).toBeVisible();
+});
+
+test('index page can toggle to the magic-link form', async ({ page }) => {
+  await page.goto('/index.html');
+  await page.getByRole('button', { name: 'Email me a sign-in link' }).click();
+  await expect(page.locator('form[data-mode="magiclink"]')).toBeVisible();
+  await expect(page.locator('form[data-mode="signin"]')).toBeHidden();
+  await page.getByRole('button', { name: 'Back to sign in' }).click();
+  await expect(page.locator('form[data-mode="signin"]')).toBeVisible();
+  await expect(page.locator('form[data-mode="magiclink"]')).toBeHidden();
 });
 
 test('event page without an id shows the missing-link hint', async ({ page }) => {

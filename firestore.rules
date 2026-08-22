@@ -34,7 +34,11 @@ service cloud.firestore {
     }
 
     match /events/{eventId} {
-      allow get: if isSignedIn() && (resource.data.isOpen == true || isInvited(eventId) || isAdmin());
+      // Event details (title/date/location/description) are readable by
+      // anyone holding the direct link - same model as Evite/Google
+      // Calendar invite links. The guest list and RSVP responses below
+      // remain fully private (owner-or-admin only) regardless.
+      allow get: if true;
       allow list: if isAdmin();
       allow create, update, delete: if isAdmin();
 
