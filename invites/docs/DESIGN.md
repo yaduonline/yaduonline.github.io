@@ -24,9 +24,9 @@ Firebase's free Spark plan.
 ## Data model (Firestore)
 
 - `users/{uid}` — `{ email, displayName, firstName, lastName, createdAt }`
-- `events/{eventId}` — `{ title, description, date, location, hostName, isOpen, createdBy, createdAt }`
+- `events/{eventId}` — `{ title, description, date, location, hostName, isOpen, splitGuestsByAge, childAgeThreshold, createdBy, createdAt }`. `splitGuestsByAge` is a per-event opt-in; `childAgeThreshold` (a plain number, e.g. `13`) only means anything when it's `true`.
 - `events/{eventId}/invitees/{lowercasedEmail}` — `{ name, maxGuests, invitedAt }` (admin-managed guest list for invite-only events)
-- `events/{eventId}/rsvps/{uid}` — `{ email, name, firstName, lastName, status: yes|no|maybe, guestCount, comment, respondedAt }`
+- `events/{eventId}/rsvps/{uid}` — `{ email, name, firstName, lastName, status: yes|no|maybe, guestCount, adultCount, childCount, comment, respondedAt }`. `guestCount` is always populated (as `adultCount + childCount` for events using the split) so every consumer that only cares about a total - CSV export's default header, `userRsvps`, older events predating this feature - keeps working unchanged; `adultCount`/`childCount` are `null` for events not using the split.
 - `openEvents/{eventId}` — denormalized copy of `isOpen: true` events (title/date/location only), kept in sync by `admin.js` whenever an open event is created. Exists purely so signed-in users can browse open events without a `list` query against `events` (Firestore rules can't grant `list` on a collection whose per-document access depends on document content).
 - `userRsvps/{uid}/items/{eventId}` — `{ eventTitle, eventDate, status, guestCount, respondedAt }`, a per-user denormalized index written alongside every RSVP so a signed-in guest can see and revisit everything they've RSVP'd to (the "Your RSVPs" list on the homepage) without needing the original invite link again — same rationale as `openEvents`: Firestore rules can't grant `list` on `events/*/rsvps` scoped to "docs belonging to me" since that's a collection-group concern, but a plain per-uid collection like this one is trivially listable by its own path.
 
@@ -145,9 +145,37 @@ decides what to render, so there's no race between the two async loads).
 `event.js`'s `loadGuestList()` runs whenever the signed-in user has an
 existing RSVP for this event (checked right after loading/saving their own
 response) — a plain `getDocs` over `events/{id}/rsvps`, allowed by the
-`hasRsvpd()` rule above. Renders name + status + guest count only; email
+`hasRsvpd()` rule above. Renders name + status + guest count only (adult/
+child breakdown instead, for events using that split - see below); email
 and comment are deliberately left out of this view (they're for admins,
 via the dashboard's RSVP table/CSV export, not for other guests).
+
+### Splitting guests into adults & children
+Purely a per-event flag (`events/{id}.splitGuestsByAge` +
+`childAgeThreshold`), set on the admin's create-event form
+([admin.html](../admin.html)/[js/admin.js](../js/admin.js)) - no rules
+change needed since it's just more fields on documents already governed by
+the existing admin/owner rules.
+
+`event.js` loads it alongside the rest of the event doc in
+`loadEventDetails()` and calls `applyGuestCountMode()` for both the quick
+and signed-in RSVP forms, which toggles between two mutually-exclusive
+field groups already present in `event.html` (`.guest-count-generic` = the
+original single "Number of guests" input, `.guest-count-split` = separate
+Adults/Children inputs) rather than building either variant dynamically.
+`readGuestCounts(form)` is the single place that turns whichever fields are
+active into the RSVP payload — always including a `guestCount` total (the
+adult+child sum when split), so `writeRsvp()`, the `userRsvps` mirror, and
+anything else that only wants a headcount don't need to know which mode an
+event is in. `describeGuestCount()` is the equivalent for *display* (event-
+closed message, "Who's coming"), picking adult/child wording only when both
+the event is split-mode and the RSVP actually has that data (so older
+RSVPs from before this feature, or non-split events, still render fine).
+
+`admin.js`'s RSVP table and CSV export do the same per-event branch: an
+Adults/Children column pair instead of a single Guests column, and a
+different CSV header list, chosen from `event.splitGuestsByAge` each time a
+card is rendered.
 
 ## File map
 

@@ -8,6 +8,14 @@
       "**/.*",
       "**/node_modules/**",
       "docs/**"
+    ],
+    "headers": [
+      {
+        "source": "**/*.@(js|html|css)",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      }
     ]
   },
   "firestore": {

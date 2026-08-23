@@ -36,9 +36,13 @@
             <option value="maybe">Maybe</option>
           </select>
         </label>
-        <label>Number of guests (including you)
+        <label class="guest-count-generic">Number of guests (including you)
           <input type="number" name="guestCount" min="1" value="1" required>
         </label>
+        <div class="guest-count-split inline-form" hidden>
+          <label>Adults (including you) <input type="number" name="adultCount" min="1" value="1"></label>
+          <label class="child-count-label">Children <input type="number" name="childCount" min="0" value="0"></label>
+        </div>
         <label>Comment (optional)
           <textarea name="comment" rows="2"></textarea>
         </label>
@@ -57,9 +61,13 @@
             <option value="maybe">Maybe</option>
           </select>
         </label>
-        <label>Number of guests (including you)
+        <label class="guest-count-generic">Number of guests (including you)
           <input type="number" name="guestCount" min="1" value="1" required>
         </label>
+        <div class="guest-count-split inline-form" hidden>
+          <label>Adults (including you) <input type="number" name="adultCount" min="1" value="1"></label>
+          <label class="child-count-label">Children <input type="number" name="childCount" min="0" value="0"></label>
+        </div>
         <label>Comment (optional)
           <textarea name="comment" rows="2"></textarea>
         </label>

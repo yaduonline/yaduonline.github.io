@@ -34,6 +34,12 @@ This is a personal site with no intention of harvesting user data.
 - Admin creates an event: title, date/time, location, description, host
   name, and whether it's **open** (anyone signed in may RSVP) or
   **invite-only** (only people the admin explicitly added may RSVP).
+- Admin can optionally turn on **"split guests into adults & children"**
+  for an event, specifying the age below which a guest counts as a child.
+  When on, RSVPing for that event asks for adult and child counts
+  separately instead of one generic guest count; when off (the default),
+  it's just a single guest-count number as before. This is entirely
+  per-event — different events on the same site can use either mode.
 - Event details (title/date/location/description) are visible to **anyone
   holding the direct link**, signed in or not — same model as any
   Evite/Google Calendar/Partiful invite link. The invite list (who was
@@ -96,15 +102,18 @@ design — an unverified email shouldn't be able to write data).
 ### Who's coming
 Once a guest has RSVP'd to an event themselves, they can see everyone
 else's response on that same event page — name, attending/not/maybe, and
-guest count. This only unlocks after responding (an invitee who hasn't
-RSVP'd yet doesn't see it), and deliberately excludes email addresses and
-comments, which stay visible to admins only.
+guest count (adult/child breakdown instead, for events using that split).
+This only unlocks after responding (an invitee who hasn't RSVP'd yet
+doesn't see it), and deliberately excludes email addresses and comments,
+which stay visible to admins only.
 
 ### Admin dashboard
-- Create events (open or invite-only).
+- Create events (open or invite-only; optionally with the adult/child
+  guest split described above).
 - Per event: add/remove invitees (email + name + max guests), copy the
-  direct invite link, view all RSVP responses in a table, export responses
-  to CSV.
+  direct invite link, view all RSVP responses in a table (adult/child
+  columns instead of a single guest count, for events using the split),
+  export responses to CSV.
 
 ## Out of scope (for now)
 - Email notifications beyond the sign-in link itself (e.g. RSVP reminders,

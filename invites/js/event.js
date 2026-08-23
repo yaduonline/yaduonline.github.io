@@ -27,7 +27,37 @@ const eventId = new URLSearchParams(location.search).get("id");
 const pendingKey = eventId ? `pendingRsvp:${eventId}` : null;
 
 let eventHasStarted = false;
+let splitGuestsByAge = false;
+let childAgeThreshold = null;
 let eventDetailsPromise = Promise.resolve();
+
+// Toggles each form between a single "Number of guests" field and separate
+// Adults/Children fields, based on the event's splitGuestsByAge setting.
+function applyGuestCountMode(form) {
+  const generic = form.querySelector(".guest-count-generic");
+  const split = form.querySelector(".guest-count-split");
+  generic.hidden = splitGuestsByAge;
+  generic.querySelector("input").required = !splitGuestsByAge;
+  split.hidden = !splitGuestsByAge;
+  split.querySelector('[name="adultCount"]').required = splitGuestsByAge;
+  if (splitGuestsByAge) {
+    form.querySelector(".child-count-label").firstChild.textContent =
+      `Children (under ${childAgeThreshold}) `;
+  }
+}
+
+// Reads guest-count fields from a submitted form according to the current
+// mode. `guestCount` is always populated (as the adult+child total when
+// split) so every downstream consumer - admin table/CSV, "Your RSVPs",
+// "Who's coming" - keeps working whether or not an event uses the split.
+function readGuestCounts(form) {
+  if (!splitGuestsByAge) {
+    return { guestCount: Number(form.guestCount.value) || 1 };
+  }
+  const adultCount = Number(form.adultCount.value) || 1;
+  const childCount = Number(form.childCount.value) || 0;
+  return { guestCount: adultCount + childCount, adultCount, childCount };
+}
 
 function showTopLevel(el) {
   [notFoundHint, missingIdHint, eventSection].forEach((e) => {
@@ -76,6 +106,10 @@ async function loadEventDetails() {
   const e = eventSnap.data();
   const date = e.date && e.date.toDate ? e.date.toDate() : null;
   eventHasStarted = !!date && date.getTime() < Date.now();
+  splitGuestsByAge = !!e.splitGuestsByAge;
+  childAgeThreshold = e.childAgeThreshold ?? null;
+  applyGuestCountMode(quickRsvpForm);
+  applyGuestCountMode(rsvpForm);
   eventDetail.innerHTML = `
     <h2>${escapeHtml(e.title || "Untitled event")}</h2>
     ${date ? `<time>${escapeHtml(date.toLocaleString())}</time>` : ""}
@@ -96,8 +130,8 @@ quickRsvpForm.addEventListener("submit", async (ev) => {
     lastName: fd.get("lastName").trim(),
     email: fd.get("email").trim(),
     status: fd.get("status"),
-    guestCount: Number(fd.get("guestCount")) || 1,
     comment: fd.get("comment") || "",
+    ...readGuestCounts(quickRsvpForm),
   };
   try {
     localStorage.setItem(pendingKey, JSON.stringify(payload));
@@ -137,6 +171,8 @@ async function writeRsvp(user, payload) {
     lastName: payload.lastName || "",
     status: payload.status,
     guestCount: payload.guestCount,
+    adultCount: payload.adultCount ?? null,
+    childCount: payload.childCount ?? null,
     comment: payload.comment || "",
     respondedAt,
   });
@@ -184,7 +220,7 @@ async function showSignedInForm(user) {
 
   if (eventHasStarted) {
     eventClosedHint.textContent = existingData
-      ? `This event has already happened. Your response: ${existingData.status}${existingData.guestCount ? `, ${existingData.guestCount} guest(s)` : ""}.`
+      ? `This event has already happened. Your response: ${existingData.status}${describeGuestCount(existingData)}.`
       : "This event has already happened. RSVP is closed.";
     showRsvpState(eventClosedHint);
     return;
@@ -195,6 +231,10 @@ async function showSignedInForm(user) {
   if (existingData) {
     rsvpForm.status.value = existingData.status || "yes";
     rsvpForm.guestCount.value = existingData.guestCount || 1;
+    if (splitGuestsByAge) {
+      rsvpForm.adultCount.value = existingData.adultCount || 1;
+      rsvpForm.childCount.value = existingData.childCount || 0;
+    }
     rsvpForm.comment.value = existingData.comment || "";
     rsvpStatus.textContent = "RSVP saved. Thank you!";
     rsvpStatus.className = "status-msg success";
@@ -212,8 +252,8 @@ async function showSignedInForm(user) {
         lastName: rest.join(" "),
         email: user.email,
         status: fd.get("status"),
-        guestCount: Number(fd.get("guestCount")) || 1,
         comment: fd.get("comment") || "",
+        ...readGuestCounts(rsvpForm),
       });
       rsvpStatus.textContent = "RSVP saved. Thank you!";
       rsvpStatus.className = "status-msg success";
@@ -223,6 +263,15 @@ async function showSignedInForm(user) {
       reportRsvpError(err);
     }
   };
+}
+
+// Formats the guest-count portion of a status line, e.g. ", 2 guest(s)" or
+// ", 2 adult(s), 1 child(ren)" when the event splits guests by age.
+function describeGuestCount(r) {
+  if (splitGuestsByAge && (r.adultCount != null || r.childCount != null)) {
+    return `, ${r.adultCount ?? 0} adult(s), ${r.childCount ?? 0} child(ren)`;
+  }
+  return r.guestCount ? `, ${r.guestCount} guest(s)` : "";
 }
 
 // Only visible to guests who've RSVP'd themselves (enforced in
@@ -246,7 +295,7 @@ async function loadGuestList() {
       const li = document.createElement("li");
       li.innerHTML = `
         <strong>${escapeHtml(r.name || "Someone")}</strong>
-        <div class="hint">${escapeHtml(r.status || "")}${r.guestCount ? `, ${r.guestCount} guest(s)` : ""}</div>
+        <div class="hint">${escapeHtml(r.status || "")}${escapeHtml(describeGuestCount(r))}</div>
       `;
       guestList.appendChild(li);
     });

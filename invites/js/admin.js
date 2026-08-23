@@ -20,6 +20,12 @@ const notAdminHint = document.getElementById("not-admin-hint");
 const adminSection = document.getElementById("admin-section");
 const createForm = document.getElementById("create-event-form");
 const eventListEl = document.getElementById("event-list");
+const splitGuestsCheckbox = document.getElementById("split-guests-checkbox");
+const childAgeLabel = document.getElementById("child-age-label");
+
+splitGuestsCheckbox.addEventListener("change", () => {
+  childAgeLabel.hidden = !splitGuestsCheckbox.checked;
+});
 
 function showOnly(el) {
   [signedOutHint, notAdminHint, adminSection].forEach((e) => {
@@ -44,6 +50,7 @@ createForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const fd = new FormData(createForm);
   const isOpen = fd.get("isOpen") === "on";
+  const splitGuestsByAge = fd.get("splitGuestsByAge") === "on";
   const dateVal = fd.get("date");
   const date = dateVal ? Timestamp.fromDate(new Date(dateVal)) : null;
   const data = {
@@ -53,6 +60,8 @@ createForm.addEventListener("submit", async (e) => {
     hostName: (fd.get("hostName") || "").trim(),
     isOpen,
     date,
+    splitGuestsByAge,
+    childAgeThreshold: splitGuestsByAge ? Number(fd.get("childAgeThreshold")) || 13 : null,
     createdBy: auth.currentUser.email,
     createdAt: serverTimestamp(),
   };
@@ -65,6 +74,7 @@ createForm.addEventListener("submit", async (e) => {
     });
   }
   createForm.reset();
+  childAgeLabel.hidden = true;
   await loadEvents();
 });
 
@@ -107,10 +117,11 @@ function renderEventCard(id, e) {
     </table>
 
     <h4>RSVPs</h4>
+    ${e.splitGuestsByAge ? `<p class="hint">Children are guests under age ${escapeHtml(String(e.childAgeThreshold ?? ""))}.</p>` : ""}
     <button type="button" class="small-btn load-rsvps-btn">Load RSVPs</button>
     <button type="button" class="small-btn export-csv-btn" hidden>Export CSV</button>
     <table class="rsvp-table" hidden>
-      <thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Guests</th><th>Comment</th></tr></thead>
+      <thead><tr><th>Name</th><th>Email</th><th>Status</th>${e.splitGuestsByAge ? "<th>Adults</th><th>Children</th>" : "<th>Guests</th>"}<th>Comment</th></tr></thead>
       <tbody></tbody>
     </table>
   `;
@@ -155,11 +166,14 @@ function renderEventCard(id, e) {
       const r = rsvpDoc.data();
       lastRsvps.push(r);
       const tr = document.createElement("tr");
+      const guestCells = e.splitGuestsByAge
+        ? `<td>${escapeHtml(String(r.adultCount ?? ""))}</td><td>${escapeHtml(String(r.childCount ?? ""))}</td>`
+        : `<td>${escapeHtml(String(r.guestCount ?? ""))}</td>`;
       tr.innerHTML = `
         <td>${escapeHtml(r.name || "")}</td>
         <td>${escapeHtml(r.email || "")}</td>
         <td>${escapeHtml(r.status || "")}</td>
-        <td>${escapeHtml(String(r.guestCount ?? ""))}</td>
+        ${guestCells}
         <td>${escapeHtml(r.comment || "")}</td>
       `;
       rsvpBody.appendChild(tr);
@@ -169,7 +183,10 @@ function renderEventCard(id, e) {
   });
 
   exportBtn.addEventListener("click", () => {
-    downloadCsv(`${(e.title || "event").replace(/[^a-z0-9]+/gi, "-")}-rsvps.csv`, lastRsvps);
+    const header = e.splitGuestsByAge
+      ? ["name", "email", "status", "adultCount", "childCount", "comment"]
+      : ["name", "email", "status", "guestCount", "comment"];
+    downloadCsv(`${(e.title || "event").replace(/[^a-z0-9]+/gi, "-")}-rsvps.csv`, lastRsvps, header);
   });
 
   return card;
@@ -195,8 +212,7 @@ async function loadInvitees(eventId, tbody) {
   });
 }
 
-function downloadCsv(filename, rows) {
-  const header = ["name", "email", "status", "guestCount", "comment"];
+function downloadCsv(filename, rows, header = ["name", "email", "status", "guestCount", "comment"]) {
   const lines = [header.join(",")];
   for (const r of rows) {
     lines.push(
