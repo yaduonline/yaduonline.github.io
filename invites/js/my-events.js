@@ -47,17 +47,25 @@ createForm.addEventListener("submit", async (e) => {
   const splitGuestsByAge = fd.get("splitGuestsByAge") === "on";
   const dateVal = fd.get("date");
   const date = dateVal ? Timestamp.fromDate(new Date(dateVal)) : null;
+  const photoFile = fd.get("photo");
   try {
-    await createEvent({
-      title: fd.get("title").trim(),
-      description: (fd.get("description") || "").trim(),
-      location: (fd.get("location") || "").trim(),
-      hostName: (fd.get("hostName") || "").trim(),
-      isOpen,
-      date,
-      splitGuestsByAge,
-      childAgeThreshold: splitGuestsByAge ? Number(fd.get("childAgeThreshold")) || 13 : null,
-    });
+    const { photoError } = await createEvent(
+      {
+        title: fd.get("title").trim(),
+        description: (fd.get("description") || "").trim(),
+        location: (fd.get("location") || "").trim(),
+        hostName: (fd.get("hostName") || "").trim(),
+        isOpen,
+        date,
+        splitGuestsByAge,
+        childAgeThreshold: splitGuestsByAge ? Number(fd.get("childAgeThreshold")) || 13 : null,
+      },
+      photoFile && photoFile.size > 0 ? photoFile : null
+    );
+    if (photoError) {
+      createError.textContent = "Event created, but the photo couldn't be uploaded: " + photoError;
+      createError.hidden = false;
+    }
     createForm.reset();
     childAgeLabel.hidden = true;
     await loadMyEvents();

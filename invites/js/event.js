@@ -123,6 +123,7 @@ async function loadEventDetails() {
   applyGuestCountMode(quickRsvpForm);
   applyGuestCountMode(rsvpForm);
   eventDetail.innerHTML = `
+    ${e.photoUrl ? `<img src="${escapeHtml(e.photoUrl)}" alt="" class="event-photo">` : ""}
     <h2>${escapeHtml(e.title || "Untitled event")}</h2>
     ${date ? `<time>${escapeHtml(date.toLocaleString())}</time>` : ""}
     ${e.location ? `<p>${escapeHtml(e.location)}</p>` : ""}

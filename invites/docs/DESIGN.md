@@ -11,6 +11,7 @@ www.yaduonline.com        → GitHub Pages (unchanged: games, blog, etc.)
 invites.yaduonline.com    → Firebase Hosting, serving invites/ (static HTML/JS/CSS)
                               ↳ Firebase Auth (email/password, Google, email-link)
                               ↳ Firestore (events, invitees, rsvps, users, openEvents)
+                              ↳ Cloud Storage (one photo per event)
 ```
 
 Same repo as the main site. `invites/` is the Firebase Hosting public root —
@@ -24,7 +25,7 @@ Firebase's free Spark plan.
 ## Data model (Firestore)
 
 - `users/{uid}` — `{ email, displayName, firstName, lastName, createdAt }`
-- `events/{eventId}` — `{ title, description, date, location, hostName, isOpen, splitGuestsByAge, childAgeThreshold, createdBy, createdByUid, createdAt }`. `splitGuestsByAge` is a per-event opt-in; `childAgeThreshold` (a plain number, e.g. `13`) only means anything when it's `true`. `createdByUid` is the ownership field rules check; `createdBy` (the creator's email) is kept alongside it purely for display (event cards, "created by").
+- `events/{eventId}` — `{ title, description, date, location, hostName, isOpen, splitGuestsByAge, childAgeThreshold, photoUrl, createdBy, createdByUid, createdAt }`. `splitGuestsByAge` is a per-event opt-in; `childAgeThreshold` (a plain number, e.g. `13`) only means anything when it's `true`. `createdByUid` is the ownership field rules check; `createdBy` (the creator's email) is kept alongside it purely for display (event cards, "created by"). `photoUrl` is only present if a photo was uploaded - see "Event photos" below.
 - `events/{eventId}/invitees/{lowercasedEmail}` — `{ name, maxGuests, invitedAt }` (owner/admin-managed guest list for invite-only events)
 - `events/{eventId}/rsvps/{uid}` — `{ email, name, firstName, lastName, status: yes|no|maybe, guestCount, adultCount, childCount, comment, respondedAt }`. `guestCount` is always populated (as `adultCount + childCount` for events using the split) so every consumer that only cares about a total - CSV export's default header, `userRsvps`, older events predating this feature - keeps working unchanged; `adultCount`/`childCount` are `null` for events not using the split.
 - `openEvents/{eventId}` — denormalized copy of **admin-created** `isOpen: true` events (title/date/location only), kept in sync by `createEvent()` in `events.js`. Exists purely so signed-in users can browse open events without a `list` query against `events` (Firestore rules can't grant `list` on a collection whose per-document access depends on document content). Deliberately admin-only, even though any user can create an open event now — see "Creating and owning events" in REQUIREMENTS.md for why.
@@ -75,6 +76,30 @@ Firebase's free Spark plan.
 - **`eventCounts/{uid}`**: caller can only touch their own doc; see
   "Rate-limited event creation" below for the increment/reset rule.
 - **`users/{uid}`**: readable/writable by that user or an admin.
+
+## Storage security model (`storage.rules`)
+A separate rules engine from Firestore (its own file, deployed with
+`firebase deploy --only storage`), so nothing above is shared with it
+automatically:
+- `eventPhotos/{eventId}/{ownerUid}/{fileName}`: `read` is public, same
+  reasoning as `events/{eventId}` `get` in Firestore. `write` requires the
+  caller to be signed in and either on the same hardcoded admin allowlist
+  (duplicated here by necessity - Storage rules can't call a Firestore
+  rules function - and must be kept in sync by hand if it ever changes)
+  or `request.auth.uid == ownerUid`, a plain path-segment check. Ownership
+  is embedded in the *path* rather than checked via `firestore.get()`
+  against `events/{eventId}.createdByUid`: an early version tried the
+  cross-service lookup and it worked in the Firebase Rules Playground but
+  reliably failed (`Null value error`) against the local Storage
+  emulator's cross-service `firestore.get()`, even though the referenced
+  document genuinely existed with the right data - a self-contained path
+  check sidesteps that fragility entirely (and is simpler to reason
+  about besides). `uploadEventPhoto()` in `events.js` builds the path from
+  `auth.currentUser.uid` at upload time, which is always the event's own
+  creator (photo upload only ever happens inline during `createEvent()`).
+  Also caps `request.resource.size` under 5MB and requires `image/*`
+  `contentType`, as defense in depth behind the client-side resize (see
+  below).
 
 ## Auth flows
 
@@ -253,6 +278,35 @@ marker (both admin and non-admin), and — **only when the caller is admin
 and the event is `isOpen`** — the `openEvents` mirror, matching the
 browse-feed decision in REQUIREMENTS.md.
 
+### Event photos
+`resizeImage()` in `events.js` downscales the chosen file client-side
+before it ever leaves the browser (`<canvas>`, longest side capped at
+1600px, re-encoded as JPEG at 0.82 quality) - this is what makes
+"reasonably sized" real regardless of the original phone-camera file size,
+not just the 5MB `storage.rules` cap. `uploadEventPhoto(eventId, ownerUid, file)`
+uploads the resized blob to a fixed path,
+`eventPhotos/{eventId}/{ownerUid}/photo.jpg` - one photo per event, so
+re-uploading (no UI for that yet, but the path scheme already supports
+it) simply overwrites. `ownerUid` is part of the path so `storage.rules`
+can authorize the write with a plain path-segment check - see "Storage
+security model" above.
+
+`createEvent()` uploads the photo (if given) *after* the event doc is
+written, purely so it can attach the resulting `photoUrl` back onto that
+doc via `updateDoc` in the same call. A photo-upload failure doesn't undo
+the event creation; it's reported back as `photoError` on the return
+value so `admin.js`/`my-events.js` can show it as a non-fatal warning
+("Event created, but the photo couldn't be uploaded: ...") rather than
+implying the whole submission failed.
+
+`photoUrl` (a Firebase Storage download URL, which embeds its own access
+token) is stored directly on the event doc once upload succeeds, and
+rendered as an `<img>` wherever event data already gets displayed:
+`event.js`'s `loadEventDetails()` (the main event page) and `events.js`'s
+shared `renderEventCard()` (admin/owner management cards). Not currently
+shown in the more compact "Your RSVPs"/"Open events" list items on the
+homepage - could be added the same way if wanted later.
+
 ## File map
 
 - `invites/index.html` / `js/app.js` — home: auth widget, "Your RSVPs",
@@ -270,7 +324,7 @@ browse-feed decision in REQUIREMENTS.md.
 - `invites/js/auth-widget.js` — the shared sign-in/sign-up/magic-link/"set a password" UI component, mounted on all pages.
 - `invites/js/firebase-init.js` / `firebase-config.js` — SDK init; auto-connects to the local emulator suite on `localhost`/`127.0.0.1`.
 - `invites/styles.css` — self-contained stylesheet (not shared with the main site's `style.css` — different origin/deploy target).
-- `firestore.rules`, `firestore.indexes.json`, `firebase.json`, `.firebaserc` — Firebase project config, at repo root (not under `invites/`) since they configure the whole Firebase project, not just the hosted files.
+- `firestore.rules`, `firestore.indexes.json`, `storage.rules`, `firebase.json`, `.firebaserc` — Firebase project config, at repo root (not under `invites/`) since they configure the whole Firebase project, not just the hosted files.
 
 ## Event page layout
 On `event.html` (only - `index.html`/`admin.html`/`my-events.html` keep
@@ -290,12 +344,17 @@ same signed-in/out state it already branches on.
 ## Deployment
 
 - `.github/workflows/firebase-deploy.yml` deploys Hosting + Firestore rules
-  on push to `main` touching `invites/**`, `firebase.json`, or
-  `firestore.rules`, using a `FIREBASE_SERVICE_ACCOUNT` + `FIREBASE_PROJECT_ID`
-  GitHub secret pair.
-- Local dev/testing: `firebase emulators:start` (Auth + Firestore + Hosting,
-  see `firebase.json`'s `emulators` block) — no cloud project needed to
-  develop against.
+  + Storage rules on push to `main` touching `invites/**`, `firebase.json`,
+  `firestore.rules`, or `storage.rules`, using a `FIREBASE_SERVICE_ACCOUNT`
+  + `FIREBASE_PROJECT_ID` GitHub secret pair.
+- **Cloud Storage has to be enabled once in the Firebase console** (Build →
+  Storage → "Get started") before any of this works against the real
+  project - unlike Firestore/Auth, a brand-new Firebase project doesn't
+  provision a default Storage bucket automatically. Nothing in this repo
+  can do that step; the emulator doesn't need it.
+- Local dev/testing: `firebase emulators:start` (Auth + Firestore +
+  Storage + Hosting, see `firebase.json`'s `emulators` block) — no cloud
+  project needed to develop against.
 - `playwright.invites.config.js` runs `tests/invites.spec.js` against a
   plain static server rooted at `invites/` (matches the Hosting public
   root, so absolute paths like `/styles.css` resolve the same way locally

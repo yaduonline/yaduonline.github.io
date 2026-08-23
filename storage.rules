@@ -1,0 +1,35 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Mirrors the admin allowlist in firestore.rules. Storage rules are a
+    // separate engine that can't share functions with Firestore rules, so
+    // this has to be kept in sync by hand if the allowlist ever changes.
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email in [
+        'yaduonline@gmail.com'
+      ];
+    }
+
+    // One photo per event, readable by anyone (event details are already
+    // public via the direct link - see firestore.rules), writable by the
+    // event's own creator or an admin. The creator's uid is embedded in
+    // the path itself (set once, at upload time, by createEvent() in
+    // events.js - see DESIGN.md) rather than checked via a cross-service
+    // firestore.get() call, which turned out to be unreliable against the
+    // local emulator (and is lightly-documented enough elsewhere that a
+    // self-contained rule seemed safer to depend on). A signed-in user can
+    // only ever write under their own uid segment, so this can't be used
+    // to tamper with anyone else's actual event photo - the worst a
+    // malicious eventId here could do is waste storage under the
+    // uploader's own uid.
+    match /eventPhotos/{eventId}/{ownerUid}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null &&
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*') &&
+        (isAdmin() || request.auth.uid == ownerUid);
+    }
+  }
+}

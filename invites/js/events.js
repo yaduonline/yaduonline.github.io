@@ -1,17 +1,76 @@
-import { auth, db } from "./firebase-init.js";
+import { auth, db, storage } from "./firebase-init.js";
 import { isAdminUser } from "./auth.js";
 import {
   collection,
   doc,
   getDocs,
   setDoc,
+  updateDoc,
   deleteDoc,
   serverTimestamp,
   runTransaction,
 } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+} from "https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DAILY_EVENT_LIMIT = 10;
+const PHOTO_MAX_DIMENSION = 1600;
+const PHOTO_QUALITY = 0.82;
+
+// Downscales an image client-side before it ever leaves the browser, so
+// "reasonably sized" doesn't depend on trusting what the guest's phone
+// camera produced (often 10MB+). Longest side capped at
+// PHOTO_MAX_DIMENSION, re-encoded as JPEG - typically well under 1MB
+// after this, comfortably inside storage.rules' 5MB hard cap.
+function resizeImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > PHOTO_MAX_DIMENSION || height > PHOTO_MAX_DIMENSION) {
+        if (width >= height) {
+          height = Math.round((height * PHOTO_MAX_DIMENSION) / width);
+          width = PHOTO_MAX_DIMENSION;
+        } else {
+          width = Math.round((width * PHOTO_MAX_DIMENSION) / height);
+          height = PHOTO_MAX_DIMENSION;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("Could not process that image"))),
+        "image/jpeg",
+        PHOTO_QUALITY
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not read that image file"));
+    };
+    img.src = url;
+  });
+}
+
+// One photo per event - re-uploading (there's no UI for this yet, but the
+// path scheme supports it) overwrites the previous one at the same path.
+// The owner's uid is embedded in the path itself (rather than checked via
+// a Storage-rules-side Firestore lookup) so storage.rules can authorize
+// the write with a simple, self-contained path check - see storage.rules.
+export async function uploadEventPhoto(eventId, ownerUid, file) {
+  const blob = await resizeImage(file);
+  const photoRef = ref(storage, `eventPhotos/${eventId}/${ownerUid}/photo.jpg`);
+  await uploadBytes(photoRef, blob, { contentType: "image/jpeg" });
+  return getDownloadURL(photoRef);
+}
 
 // Creates an event, attributed to the current user. Admins have no limit;
 // everyone else is capped at DAILY_EVENT_LIMIT per rolling 24h window,
@@ -22,7 +81,13 @@ const DAILY_EVENT_LIMIT = 10;
 // openEvents browse list - non-admin events never appear in that shared
 // feed, even when open, so users still only see events they created or
 // RSVP'd to (see invites/docs/DESIGN.md).
-export async function createEvent(data) {
+//
+// `photoFile`, if given, is uploaded (see uploadEventPhoto) after the
+// event itself exists, so its `photoUrl` can be attached via updateDoc.
+// A photo failure doesn't undo the event; it's reported back via the
+// returned `photoError` so the caller can show it without implying the
+// whole thing failed.
+export async function createEvent(data, photoFile) {
   const user = auth.currentUser;
   const eventData = {
     ...data,
@@ -58,6 +123,16 @@ export async function createEvent(data) {
     });
   }
 
+  let photoError = null;
+  if (photoFile) {
+    try {
+      const photoUrl = await uploadEventPhoto(eventRef.id, user.uid, photoFile);
+      await updateDoc(eventRef, { photoUrl });
+    } catch (err) {
+      photoError = err.message;
+    }
+  }
+
   await setDoc(doc(db, "userEvents", user.uid, "items", eventRef.id), {
     createdAt: eventData.createdAt,
   });
@@ -70,7 +145,7 @@ export async function createEvent(data) {
     });
   }
 
-  return eventRef;
+  return { eventRef, photoError };
 }
 
 // Renders one event's admin/owner management card: invite link, invitee
@@ -86,6 +161,7 @@ export function renderEventCard(id, e) {
   const inviteUrl = `${location.origin}/event.html?id=${encodeURIComponent(id)}`;
 
   card.innerHTML = `
+    ${e.photoUrl ? `<img src="${escapeHtml(e.photoUrl)}" alt="" class="event-card-photo">` : ""}
     <h3>${escapeHtml(e.title || "Untitled event")} ${e.isOpen ? "<small>(open)</small>" : "<small>(invite-only)</small>"}</h3>
     ${date ? `<p class="hint">${escapeHtml(date.toLocaleString())}</p>` : ""}
     ${e.createdBy ? `<p class="hint">Created by ${escapeHtml(e.createdBy)}</p>` : ""}

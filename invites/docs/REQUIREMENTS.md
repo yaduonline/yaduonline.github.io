@@ -41,6 +41,11 @@ This is a personal site with no intention of harvesting user data.
   the creator explicitly added may RSVP). Done from the dedicated
   `my-events.html` page (linked from the homepage), separate from the
   admin dashboard.
+- Creators can optionally **upload a photo** for the event while creating
+  it (there's no way to add/change one afterward yet). It's resized in the
+  browser before upload to keep it "reasonably sized" regardless of the
+  original file, and shows on the event page and on the creator's/admin's
+  management card. Entirely optional — most events won't have one.
 - Creators can optionally turn on **"split guests into adults & children"**
   for an event, specifying the age below which a guest counts as a child.
   When on, RSVPing for that event asks for adult and child counts
@@ -147,9 +152,10 @@ compact status bar replaces it.
 - Email notifications beyond the sign-in link itself (e.g. RSVP reminders,
   confirmation emails) — would need a paid backend (Cloud Functions), not
   built.
-- Editing or canceling an event after creation — no UI for this yet
-  (Firestore rules already permit an owner or admin to update/delete an
-  event, in anticipation of this, but nothing calls it).
+- Editing or canceling an event after creation, including replacing its
+  photo — no UI for this yet (Firestore/Storage rules already permit an
+  owner or admin to update an event or its photo, in anticipation of
+  this, but nothing calls it).
 - Waitlists, plus-one management beyond a numeric guest count.
 - Any role system beyond the fixed admin allowlist (e.g. no way to make
   someone a "co-host" of another user's event).
