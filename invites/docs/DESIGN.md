@@ -19,8 +19,11 @@ entirely separate deploy target from GitHub Pages (excluded from Pages via
 the root `_config.yml`). No bundler: plain HTML + `<script type="module">`,
 Firebase JS SDK loaded straight from `gstatic.com`. No backend/Cloud
 Functions — everything is client SDK calls against Firebase Auth/Firestore,
-authorized by Firestore Security Rules. This keeps the whole app on
-Firebase's free Spark plan.
+authorized by Firestore Security Rules. The project runs on Firebase's
+Blaze (pay-as-you-go) plan, required for Cloud Storage (event photos —
+see "Deployment" below); actual usage should stay $0 given the app's
+size caps and low expected traffic. Everything besides Storage would
+still fit comfortably on the free Spark plan.
 
 ## Data model (Firestore)
 
@@ -347,11 +350,19 @@ same signed-in/out state it already branches on.
   + Storage rules on push to `main` touching `invites/**`, `firebase.json`,
   `firestore.rules`, or `storage.rules`, using a `FIREBASE_SERVICE_ACCOUNT`
   + `FIREBASE_PROJECT_ID` GitHub secret pair.
-- **Cloud Storage has to be enabled once in the Firebase console** (Build →
-  Storage → "Get started") before any of this works against the real
-  project - unlike Firestore/Auth, a brand-new Firebase project doesn't
-  provision a default Storage bucket automatically. Nothing in this repo
-  can do that step; the emulator doesn't need it.
+- **The project has to be on the Blaze (pay-as-you-go) plan for Storage to
+  work**, set up once in the Firebase console (Usage and billing → Modify
+  plan → Blaze), with Cloud Storage itself enabled after that (Build →
+  Storage → "Get started"). Unlike Firestore/Auth, Google requires a
+  linked billing account to use Cloud Storage for Firebase at all - even
+  a brand-new project on the free Spark plan can't provision a default
+  Storage bucket without upgrading first (a change from late 2024).
+  Actual cost should stay $0 given this app's usage (5MB hard cap per
+  photo, client-side resize to ~1600px JPEG, one photo per event) - it's
+  a Google requirement to *use* Storage, not a cost driver by itself -
+  but it does remove Spark's hard $0 ceiling, so a billing budget alert
+  is worth setting. Nothing in this repo can do either of these steps;
+  the emulator doesn't need them.
 - Local dev/testing: `firebase emulators:start` (Auth + Firestore +
   Storage + Hosting, see `firebase.json`'s `emulators` block) — no cloud
   project needed to develop against.
