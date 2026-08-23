@@ -12,8 +12,6 @@
   </header>
 
   <main>
-    <div id="auth-widget"></div>
-
     <p id="not-found-hint" class="hint" hidden>This event doesn't exist, or the link is incorrect.</p>
     <p id="missing-id-hint" class="hint" hidden>No event was specified. Use the link you were sent.</p>
 
@@ -21,6 +19,13 @@
       <div id="event-detail" class="event-detail"></div>
 
       <p id="event-closed-hint" class="hint" hidden></p>
+
+      <!-- Signed-out: collapsed behind a small link so it doesn't dominate
+           the page; signed-in: mountAuthWidget shows the compact status
+           bar here directly (see js/event.js). Can't nest this inside the
+           RSVP <form> below - its own sign-in/sign-up are <form>s too. -->
+      <button type="button" id="signin-toggle-link" class="link-btn" hidden>Sign in for quick RSVP</button>
+      <div id="auth-widget" hidden></div>
 
       <!-- Shown to first-time / signed-out visitors: RSVP now, verify by email after. -->
       <form id="quick-rsvp-form" class="rsvp-form" hidden>

@@ -42,3 +42,8 @@ test('admin page prompts sign-in when signed out', async ({ page }) => {
   await page.goto('/admin.html');
   await expect(page.getByText("Sign in above to access the admin dashboard.")).toBeVisible();
 });
+
+test('my-events page prompts sign-in when signed out', async ({ page }) => {
+  await page.goto('/my-events.html');
+  await expect(page.getByText("Sign in above to create and manage events.")).toBeVisible();
+});

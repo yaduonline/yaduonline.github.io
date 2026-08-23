@@ -34,6 +34,24 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/events/$(eventId)/rsvps/$(request.auth.uid));
     }
 
+    // Whether the signed-in caller created this event. Used for `invitees`/
+    // `rsvps` list rules so an owner can manage their own event the same
+    // way admin can (a get() on the parent event, not per-document content).
+    function isEventOwner(eventId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/events/$(eventId)).data.createdByUid == request.auth.uid;
+    }
+
+    // Non-admin event creation is capped at 10 per rolling 24h window,
+    // tracked in eventCounts/{uid}. Allowed if the counter doesn't exist
+    // yet, the window has expired, or the count hasn't hit the cap.
+    function underDailyEventLimit() {
+      let path = /databases/$(database)/documents/eventCounts/$(request.auth.uid);
+      return !exists(path) ||
+        request.time > get(path).data.windowStart + duration.value(24, 'h') ||
+        get(path).data.count < 10;
+    }
+
     match /users/{uid} {
       allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
     }
@@ -54,27 +72,61 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && request.auth.uid == uid;
     }
 
+    // Per-user index of "events I created" - same rationale as userRsvps,
+    // powers the "Your events" list on my-events.html without needing a
+    // full `events` list grant (admin-only).
+    match /userEvents/{uid}/items/{eventId} {
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Rolling 24h/10-event rate-limit counter for non-admin event creation.
+    // Caller can only touch their own doc; increments must be by exactly 1
+    // within a window, or a reset to 1 with a server-set windowStart once
+    // the prior window has genuinely expired (so a client can't fabricate
+    // an old window to dodge the cap).
+    match /eventCounts/{uid} {
+      allow get: if isSignedIn() && request.auth.uid == uid;
+      allow create: if isSignedIn() && request.auth.uid == uid &&
+        request.resource.data.count == 1;
+      allow update: if isSignedIn() && request.auth.uid == uid && (
+        (request.resource.data.count == resource.data.count + 1 &&
+          request.resource.data.windowStart == resource.data.windowStart) ||
+        (request.resource.data.count == 1 &&
+          request.time > resource.data.windowStart + duration.value(24, 'h') &&
+          request.resource.data.windowStart == request.time)
+      );
+    }
+
     match /events/{eventId} {
       // Event details (title/date/location/description) are readable by
       // anyone holding the direct link - same model as Evite/Google
       // Calendar invite links. The invitee list stays admin-only; RSVP
-      // responses are visible to admins and to anyone who has RSVP'd
-      // themselves (see hasRsvpd()) - not to the general public.
+      // responses are visible to admins, the event's own creator, and
+      // anyone who has RSVP'd themselves (see hasRsvpd()) - not to the
+      // general public.
       allow get: if true;
       allow list: if isAdmin();
-      allow create, update, delete: if isAdmin();
+      // Any signed-in user may create an event (not just admin); it must
+      // be attributed to the caller, and non-admins are rate-limited.
+      allow create: if isSignedIn() &&
+        request.resource.data.createdByUid == request.auth.uid &&
+        request.resource.data.createdBy == request.auth.token.email &&
+        (isAdmin() || underDailyEventLimit());
+      // Admin, or the event's own creator, can update/delete it.
+      allow update, delete: if isAdmin() ||
+        (isSignedIn() && resource.data.createdByUid == request.auth.uid);
 
       match /invitees/{email} {
-        allow read, write: if isAdmin();
+        allow read, write: if isAdmin() || isEventOwner(eventId);
       }
 
       match /rsvps/{uid} {
         allow get: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-        allow list: if isAdmin() || hasRsvpd(eventId);
+        allow list: if isAdmin() || hasRsvpd(eventId) || isEventOwner(eventId);
         allow create, update: if isSignedIn() && request.auth.uid == uid &&
           request.resource.data.email == request.auth.token.email &&
           isRsvpAllowed(eventId);
-        allow delete: if isAdmin();
+        allow delete: if isAdmin() || isEventOwner(eventId);
       }
     }
   }

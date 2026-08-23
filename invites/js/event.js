@@ -22,6 +22,12 @@ const rsvpForm = document.getElementById("rsvp-form");
 const rsvpStatus = document.getElementById("rsvp-status");
 const guestListSection = document.getElementById("guest-list-section");
 const guestList = document.getElementById("guest-list");
+const signinToggleLink = document.getElementById("signin-toggle-link");
+
+signinToggleLink.addEventListener("click", () => {
+  authContainer.hidden = false;
+  signinToggleLink.hidden = true;
+});
 
 const eventId = new URLSearchParams(location.search).get("id");
 const pendingKey = eventId ? `pendingRsvp:${eventId}` : null;
@@ -79,6 +85,10 @@ if (!eventId) {
   mountAuthWidget(authContainer, async (user) => {
     await eventDetailsPromise;
     if (!user) {
+      // Collapsed by default so the sign-in forms don't dominate the page;
+      // the toggle link reveals authContainer (see click handler above).
+      signinToggleLink.hidden = false;
+      authContainer.hidden = true;
       if (eventHasStarted) {
         eventClosedHint.textContent = "This event has already happened. RSVP is closed.";
         showRsvpState(eventClosedHint);
@@ -87,6 +97,8 @@ if (!eventId) {
       }
       return;
     }
+    signinToggleLink.hidden = true;
+    authContainer.hidden = false;
     await handleSignedIn(user);
   });
 }

@@ -24,11 +24,13 @@ Firebase's free Spark plan.
 ## Data model (Firestore)
 
 - `users/{uid}` — `{ email, displayName, firstName, lastName, createdAt }`
-- `events/{eventId}` — `{ title, description, date, location, hostName, isOpen, splitGuestsByAge, childAgeThreshold, createdBy, createdAt }`. `splitGuestsByAge` is a per-event opt-in; `childAgeThreshold` (a plain number, e.g. `13`) only means anything when it's `true`.
-- `events/{eventId}/invitees/{lowercasedEmail}` — `{ name, maxGuests, invitedAt }` (admin-managed guest list for invite-only events)
+- `events/{eventId}` — `{ title, description, date, location, hostName, isOpen, splitGuestsByAge, childAgeThreshold, createdBy, createdByUid, createdAt }`. `splitGuestsByAge` is a per-event opt-in; `childAgeThreshold` (a plain number, e.g. `13`) only means anything when it's `true`. `createdByUid` is the ownership field rules check; `createdBy` (the creator's email) is kept alongside it purely for display (event cards, "created by").
+- `events/{eventId}/invitees/{lowercasedEmail}` — `{ name, maxGuests, invitedAt }` (owner/admin-managed guest list for invite-only events)
 - `events/{eventId}/rsvps/{uid}` — `{ email, name, firstName, lastName, status: yes|no|maybe, guestCount, adultCount, childCount, comment, respondedAt }`. `guestCount` is always populated (as `adultCount + childCount` for events using the split) so every consumer that only cares about a total - CSV export's default header, `userRsvps`, older events predating this feature - keeps working unchanged; `adultCount`/`childCount` are `null` for events not using the split.
-- `openEvents/{eventId}` — denormalized copy of `isOpen: true` events (title/date/location only), kept in sync by `admin.js` whenever an open event is created. Exists purely so signed-in users can browse open events without a `list` query against `events` (Firestore rules can't grant `list` on a collection whose per-document access depends on document content).
+- `openEvents/{eventId}` — denormalized copy of **admin-created** `isOpen: true` events (title/date/location only), kept in sync by `createEvent()` in `events.js`. Exists purely so signed-in users can browse open events without a `list` query against `events` (Firestore rules can't grant `list` on a collection whose per-document access depends on document content). Deliberately admin-only, even though any user can create an open event now — see "Creating and owning events" in REQUIREMENTS.md for why.
 - `userRsvps/{uid}/items/{eventId}` — `{ eventTitle, eventDate, status, guestCount, respondedAt }`, a per-user denormalized index written alongside every RSVP so a signed-in guest can see and revisit everything they've RSVP'd to (the "Your RSVPs" list on the homepage) without needing the original invite link again — same rationale as `openEvents`: Firestore rules can't grant `list` on `events/*/rsvps` scoped to "docs belonging to me" since that's a collection-group concern, but a plain per-uid collection like this one is trivially listable by its own path.
+- `userEvents/{uid}/items/{eventId}` — `{ createdAt }`. The equivalent index for events a user *created* (powers "Your events" on `my-events.html`). Deliberately minimal - unlike `userRsvps`, it doesn't duplicate title/date/etc., since `events/{eventId}` `get` is already public; `my-events.js` just re-fetches the full doc per ID rather than risk a second, potentially-stale copy of the same fields.
+- `eventCounts/{uid}` — `{ count, windowStart }`, one doc per user, the rolling-24h rate-limit counter for non-admin event creation. See "Rate-limited event creation" below.
 
 ## Security model (`firestore.rules`)
 
@@ -38,10 +40,21 @@ Firebase's free Spark plan.
 - **`events/{eventId}` get**: public (`allow get: if true`) — the event's
   own descriptive fields are readable by anyone with the direct link, by
   design (see REQUIREMENTS.md). `list` stays admin-only, so events can't be
-  enumerated without a link.
-- **`invitees` subcollection**: admin-only read/write. Never exposed to
-  guests — a guest can't tell who else is invited or check membership
-  directly; access is inferred server-side via `isInvited()`.
+  enumerated without a link; regular users rely on `userEvents`/`userRsvps`
+  instead (see below).
+- **`events/{eventId}` create**: any signed-in user, not just admin. Must
+  self-attribute (`createdByUid == request.auth.uid`,
+  `createdBy == request.auth.token.email` — the client can't create an
+  event "as" someone else), and if not admin, must pass
+  `underDailyEventLimit()` (see "Rate-limited event creation" below).
+- **`events/{eventId}` update/delete**: `isAdmin()` or
+  `resource.data.createdByUid == request.auth.uid`. No UI calls this yet
+  (no edit/delete button exists anywhere), but the rule already reflects
+  "owners manage their own event" for whenever that UI gets built.
+- **`invitees` subcollection**: `isAdmin()` or `isEventOwner(eventId)` (a
+  `get()` on the parent event's `createdByUid`) — never exposed to guests;
+  a guest can't tell who else is invited or check membership directly,
+  access is inferred server-side via `isInvited()`.
 - **`rsvps` subcollection**: a signed-in user can create/update only their
   own doc (`request.auth.uid == uid`), and only if (`isRsvpAllowed()`): the
   event is `isOpen` or their email is in that event's `invitees`, **and**
@@ -49,15 +62,18 @@ Firebase's free Spark plan.
   (`event.date > request.time`) — this is what actually closes RSVPs once
   an event starts; the client also hides the form at that point, but this
   rule is what makes it real. `list` (reading everyone's response) is
-  allowed for admins **or** anyone who's RSVP'd themselves (`hasRsvpd()`,
-  an `exists()` check on their own doc at a fixed path — content-
-  independent, so it's a valid `list` condition, same reasoning as
-  `isAdmin()`). This is the "Who's coming" feature: RSVPing unlocks seeing
-  everyone else's response on that event, not just your own.
-- **`userRsvps/{uid}/items/{eventId}`**: readable/writable only by that uid
-  (`request.auth.uid == uid`) — this check is on a path segment, not
-  document content, so unlike `events`/`rsvps` it's a plain, always-safe
-  `list` grant.
+  allowed for admins, the event's owner (`isEventOwner()`), **or** anyone
+  who's RSVP'd themselves (`hasRsvpd()`, an `exists()` check on their own
+  doc at a fixed path — content-independent, so it's a valid `list`
+  condition, same reasoning as `isAdmin()`). The last one is the "Who's
+  coming" feature: RSVPing unlocks seeing everyone else's response on that
+  event, not just your own.
+- **`userRsvps/{uid}/items/{eventId}`** and **`userEvents/{uid}/items/{eventId}`**:
+  readable/writable only by that uid (`request.auth.uid == uid`) — this
+  check is on a path segment, not document content, so unlike
+  `events`/`rsvps` it's a plain, always-safe `list` grant.
+- **`eventCounts/{uid}`**: caller can only touch their own doc; see
+  "Rate-limited event creation" below for the increment/reset rule.
 - **`users/{uid}`**: readable/writable by that user or an admin.
 
 ## Auth flows
@@ -172,21 +188,104 @@ closed message, "Who's coming"), picking adult/child wording only when both
 the event is split-mode and the RSVP actually has that data (so older
 RSVPs from before this feature, or non-split events, still render fine).
 
-`admin.js`'s RSVP table and CSV export do the same per-event branch: an
-Adults/Children column pair instead of a single Guests column, and a
-different CSV header list, chosen from `event.splitGuestsByAge` each time a
-card is rendered.
+`events.js`'s shared `renderEventCard()` (used by both `admin.js` and
+`my-events.js` - see below) does the same per-event branch for the RSVP
+table and CSV export: an Adults/Children column pair instead of a single
+Guests column, and a different CSV header list, chosen from
+`event.splitGuestsByAge` each time a card is rendered.
+
+### Any user can create and own events
+Extracted into a shared module, **`invites/js/events.js`**, imported by
+both `admin.js` and the new `my-events.js` so the "manage your own event"
+UI (invitee add/remove, RSVP table, CSV export) is *identical* to admin's
+by construction, not a parallel reimplementation:
+- `renderEventCard(id, e)` — the event card (invite link, invitee
+  management, RSVP table/CSV, split-guest-aware) that both pages render
+  into their event list. Access to what its buttons can actually do is
+  entirely governed by the rules above (`isAdmin()` vs `isEventOwner()`),
+  not by which page rendered it - the same button code just succeeds or
+  fails differently depending on who's clicking it.
+- `loadInvitees()`, `downloadCsv()` — helpers used by the card, also moved
+  here so they're not duplicated between the two pages.
+- `createEvent(data)` — see below.
+
+`admin.js` keeps its `isAdminUser()` gate and its `events` collection
+`list` query (admin-only, unchanged) — it just renders cards and creates
+events via the shared functions now instead of inline logic.
+
+`my-events.js` (new) gates on **any signed-in user**. It queries
+`userEvents/{uid}/items` for the list of event IDs the user created,
+`getDoc`s each one for full data, and renders each via the same
+`renderEventCard()`.
+
+### Rate-limited event creation
+`createEvent()` in `events.js` is the single place events get written.
+For an admin, it's a plain `setDoc` — no limit, no counter ever touched.
+For anyone else, it wraps the write in a Firestore `runTransaction`
+against `eventCounts/{uid}`:
+1. Read the counter. If it doesn't exist, or the existing window has
+   expired (`now - windowStart > 24h`), this is a fresh window: write
+   `count: 1`.
+2. Otherwise, if `count >= 10`, throw a friendly error client-side before
+   ever attempting the write (fast feedback, no round trip needed to know
+   you're capped).
+3. Otherwise increment `count` by 1, keeping the same `windowStart`.
+4. Write the event doc and the counter update in the same transaction.
+
+The transaction is what makes this race-free under concurrent submissions
+(a plain "read-then-write" from two tabs could otherwise both pass a
+stale check) - Firestore transactions guarantee the read and both writes
+are atomic and see a consistent snapshot. The client-side check above is
+just a fast path for a good error message; the *real* boundary is
+`underDailyEventLimit()` in `firestore.rules`, which independently
+re-checks the same counter doc and would reject the write even if a
+client skipped or lied about the pre-check (verified by calling `addDoc`
+directly, bypassing `createEvent()`, in testing).
+
+A rolling 24h window rather than a calendar day: Firestore rules can't
+format `request.time` into a date string, so there's no clean way to
+validate a client-supplied "YYYY-MM-DD" key server-side. A single
+per-user counter with a rolling window sidesteps that entirely and is
+arguably more correct anyway.
+
+`createEvent()` always also writes the `userEvents/{uid}/items/{eventId}`
+marker (both admin and non-admin), and — **only when the caller is admin
+and the event is `isOpen`** — the `openEvents` mirror, matching the
+browse-feed decision in REQUIREMENTS.md.
 
 ## File map
 
-- `invites/index.html` / `js/app.js` — home: auth widget + open-events list.
-- `invites/event.html` / `js/event.js` — event details (public) + RSVP (quick or signed-in form).
-- `invites/admin.html` / `js/admin.js` — admin dashboard: create events, manage invitees, view/export RSVPs.
+- `invites/index.html` / `js/app.js` — home: auth widget, "Your RSVPs",
+  open-events list (admin-created open events only), link to `my-events.html`.
+- `invites/event.html` / `js/event.js` — event details (public) + RSVP
+  (quick or signed-in form); sign-in is collapsed behind a small toggle
+  link for signed-out visitors (see "Event page layout" below).
+- `invites/admin.html` / `js/admin.js` — admin dashboard: every event from
+  every creator, full management, no creation limit.
+- `invites/my-events.html` / `js/my-events.js` — any signed-in user: create
+  events (rate-limited if non-admin) and manage the ones they created.
+- `invites/js/events.js` — shared event creation/rendering logic used by
+  both dashboard pages (see "Any user can create and own events" above).
 - `invites/js/auth.js` — all Firebase Auth calls (sign up/in/out, Google, magic link, password linking) + the `users/{uid}` doc sync.
-- `invites/js/auth-widget.js` — the shared sign-in/sign-up/magic-link/"set a password" UI component, mounted on all three pages.
+- `invites/js/auth-widget.js` — the shared sign-in/sign-up/magic-link/"set a password" UI component, mounted on all pages.
 - `invites/js/firebase-init.js` / `firebase-config.js` — SDK init; auto-connects to the local emulator suite on `localhost`/`127.0.0.1`.
 - `invites/styles.css` — self-contained stylesheet (not shared with the main site's `style.css` — different origin/deploy target).
 - `firestore.rules`, `firestore.indexes.json`, `firebase.json`, `.firebaserc` — Firebase project config, at repo root (not under `invites/`) since they configure the whole Firebase project, not just the hosted files.
+
+## Event page layout
+On `event.html` (only - `index.html`/`admin.html`/`my-events.html` keep
+the widget prominent, since being signed-in-focused makes sense there),
+`#auth-widget` moved out of its old top-of-`<main>` position to sit
+*inside* `#event-section`, after the event details. For a signed-out
+visitor it starts `hidden`, with a small "Sign in for quick RSVP"
+(`#signin-toggle-link`) button revealing it on click - can't nest it
+inside the `quick-rsvp-form` `<form>` itself, since `auth-widget.js`
+renders its own `<form>` elements for sign-in/sign-up, and nested forms
+aren't valid HTML. Once signed in, the toggle link hides and
+`#auth-widget` (now just the compact "Signed in as X / Sign out" bar)
+shows directly - no `auth-widget.js` changes needed, `event.js`'s
+`mountAuthWidget` callback just toggles which one is visible based on the
+same signed-in/out state it already branches on.
 
 ## Deployment
 

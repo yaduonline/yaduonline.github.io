@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Events - Family Invites</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header>
+    <h1><a href="/">Family Invites</a></h1>
+  </header>
+
+  <main>
+    <div id="auth-widget"></div>
+
+    <p id="signed-out-hint" class="hint">Sign in above to create and manage events.</p>
+
+    <section id="my-events-section" hidden>
+      <div class="admin-section">
+        <h2>Create event</h2>
+        <p class="error" id="create-error" hidden></p>
+        <form id="create-event-form" class="admin-form">
+          <label>Title <input type="text" name="title" required></label>
+          <label>Date &amp; time <input type="datetime-local" name="date"></label>
+          <label>Location <input type="text" name="location"></label>
+          <label>Host name <input type="text" name="hostName"></label>
+          <label>Description <textarea name="description" rows="3"></textarea></label>
+          <label><input type="checkbox" name="isOpen"> Open event (anyone signed in can RSVP, no invite list needed)</label>
+          <label><input type="checkbox" name="splitGuestsByAge" id="split-guests-checkbox"> Split guests into adults &amp; children</label>
+          <label id="child-age-label" hidden>Children are guests under age
+            <input type="number" name="childAgeThreshold" min="1" max="99" value="13">
+          </label>
+          <button type="submit">Create event</button>
+          <p class="hint">Up to 10 events per day. Events you create are only reachable via the invite link and your own "Your events" list below - they don't appear in anyone else's browse feed.</p>
+        </form>
+      </div>
+
+      <div class="admin-section">
+        <h2>Your events</h2>
+        <p id="my-events-empty" class="hint" hidden>You haven't created any events yet.</p>
+        <div id="event-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="/js/my-events.js"></script>
+</body>
+</html>
