@@ -48,8 +48,12 @@ Firebase's free Spark plan.
   the event's `date` is either unset or still in the future
   (`event.date > request.time`) — this is what actually closes RSVPs once
   an event starts; the client also hides the form at that point, but this
-  rule is what makes it real. Reading the full collection (for the admin
-  dashboard) is admin-only.
+  rule is what makes it real. `list` (reading everyone's response) is
+  allowed for admins **or** anyone who's RSVP'd themselves (`hasRsvpd()`,
+  an `exists()` check on their own doc at a fixed path — content-
+  independent, so it's a valid `list` condition, same reasoning as
+  `isAdmin()`). This is the "Who's coming" feature: RSVPing unlocks seeing
+  everyone else's response on that event, not just your own.
 - **`userRsvps/{uid}/items/{eventId}`**: readable/writable only by that uid
   (`request.auth.uid == uid`) — this check is on a path segment, not
   document content, so unlike `events`/`rsvps` it's a plain, always-safe
@@ -136,6 +140,14 @@ just overwrites it (`writeRsvp()`). The only thing that changes this is
 the form at all (checked client-side via `eventHasStarted`, computed once
 in `loadEventDetails()` and awaited by the auth-state callback before it
 decides what to render, so there's no race between the two async loads).
+
+### Who's coming
+`event.js`'s `loadGuestList()` runs whenever the signed-in user has an
+existing RSVP for this event (checked right after loading/saving their own
+response) — a plain `getDocs` over `events/{id}/rsvps`, allowed by the
+`hasRsvpd()` rule above. Renders name + status + guest count only; email
+and comment are deliberately left out of this view (they're for admins,
+via the dashboard's RSVP table/CSV export, not for other guests).
 
 ## File map
 

@@ -66,6 +66,12 @@
         <button type="submit">Save RSVP</button>
         <p id="rsvp-status" class="status-msg" hidden></p>
       </form>
+
+      <!-- Shown once the signed-in user has RSVP'd (new or existing). -->
+      <section id="guest-list-section" hidden>
+        <h3>Who's coming</h3>
+        <ul id="guest-list" class="event-list"></ul>
+      </section>
     </section>
   </main>
 

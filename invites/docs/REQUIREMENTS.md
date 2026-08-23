@@ -36,9 +36,11 @@ This is a personal site with no intention of harvesting user data.
   **invite-only** (only people the admin explicitly added may RSVP).
 - Event details (title/date/location/description) are visible to **anyone
   holding the direct link**, signed in or not — same model as any
-  Evite/Google Calendar/Partiful invite link. The guest list and RSVP
-  responses are never public; those stay admin-only regardless of the
-  event's open/invite-only setting.
+  Evite/Google Calendar/Partiful invite link. The invite list (who was
+  invited) is never public — admin-only. RSVP responses are visible to
+  admins and to anyone who has RSVP'd themselves (see "Who's coming"
+  below) — not to the general public, and not to invitees who haven't
+  responded yet.
 - Admin can browse open events from the homepage without needing a direct
   link; invite-only events are reached only via the link the admin shares.
 
@@ -90,6 +92,13 @@ design — an unverified email shouldn't be able to write data).
 - **RSVPs close once the event's date/time has passed** — no new RSVPs and
   no edits after that point (enforced server-side, not just hidden in the
   UI). Events with no date set have no such cutoff.
+
+### Who's coming
+Once a guest has RSVP'd to an event themselves, they can see everyone
+else's response on that same event page — name, attending/not/maybe, and
+guest count. This only unlocks after responding (an invitee who hasn't
+RSVP'd yet doesn't see it), and deliberately excludes email addresses and
+comments, which stay visible to admins only.
 
 ### Admin dashboard
 - Create events (open or invite-only).

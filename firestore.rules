@@ -26,6 +26,14 @@ service cloud.firestore {
         (event.date == null || event.date > request.time);
     }
 
+    // Whether the signed-in caller has RSVP'd to this event themselves.
+    // Content-independent (same check for every doc in the collection), so
+    // it's safe to use in a `list` rule.
+    function hasRsvpd(eventId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/events/$(eventId)/rsvps/$(request.auth.uid));
+    }
+
     match /users/{uid} {
       allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
     }
@@ -49,8 +57,9 @@ service cloud.firestore {
     match /events/{eventId} {
       // Event details (title/date/location/description) are readable by
       // anyone holding the direct link - same model as Evite/Google
-      // Calendar invite links. The guest list and RSVP responses below
-      // remain fully private (owner-or-admin only) regardless.
+      // Calendar invite links. The invitee list stays admin-only; RSVP
+      // responses are visible to admins and to anyone who has RSVP'd
+      // themselves (see hasRsvpd()) - not to the general public.
       allow get: if true;
       allow list: if isAdmin();
       allow create, update, delete: if isAdmin();
@@ -61,7 +70,7 @@ service cloud.firestore {
 
       match /rsvps/{uid} {
         allow get: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-        allow list: if isAdmin();
+        allow list: if isAdmin() || hasRsvpd(eventId);
         allow create, update: if isSignedIn() && request.auth.uid == uid &&
           request.resource.data.email == request.auth.token.email &&
           isRsvpAllowed(eventId);

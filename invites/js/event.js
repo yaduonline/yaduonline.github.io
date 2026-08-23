@@ -4,6 +4,8 @@ import { sendMagicLink, applyProfileName } from "./auth.js";
 import {
   doc,
   getDoc,
+  getDocs,
+  collection,
   setDoc,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
@@ -18,6 +20,8 @@ const quickRsvpForm = document.getElementById("quick-rsvp-form");
 const quickRsvpSent = document.getElementById("quick-rsvp-sent");
 const rsvpForm = document.getElementById("rsvp-form");
 const rsvpStatus = document.getElementById("rsvp-status");
+const guestListSection = document.getElementById("guest-list-section");
+const guestList = document.getElementById("guest-list");
 
 const eventId = new URLSearchParams(location.search).get("id");
 const pendingKey = eventId ? `pendingRsvp:${eventId}` : null;
@@ -166,6 +170,18 @@ async function showSignedInForm(user) {
   const existing = await getDoc(doc(db, "events", eventId, "rsvps", user.uid));
   const existingData = existing.exists() ? existing.data() : null;
 
+  // Reset state from any previously-signed-in user on this same page load
+  // (sign-out/sign-in doesn't navigate away, so stale content would
+  // otherwise persist) before conditionally re-populating it below.
+  rsvpForm.reset();
+  rsvpStatus.hidden = true;
+  guestListSection.hidden = true;
+  guestList.innerHTML = "";
+
+  if (existingData) {
+    loadGuestList();
+  }
+
   if (eventHasStarted) {
     eventClosedHint.textContent = existingData
       ? `This event has already happened. Your response: ${existingData.status}${existingData.guestCount ? `, ${existingData.guestCount} guest(s)` : ""}.`
@@ -202,10 +218,41 @@ async function showSignedInForm(user) {
       rsvpStatus.textContent = "RSVP saved. Thank you!";
       rsvpStatus.className = "status-msg success";
       rsvpStatus.hidden = false;
+      loadGuestList();
     } catch (err) {
       reportRsvpError(err);
     }
   };
+}
+
+// Only visible to guests who've RSVP'd themselves (enforced in
+// firestore.rules via hasRsvpd()) - shows name, response, and guest count
+// for everyone who's responded. Deliberately omits email and comments,
+// which are more personal and stay admin-only.
+async function loadGuestList() {
+  guestList.innerHTML = "<li>Loading...</li>";
+  guestListSection.hidden = false;
+  try {
+    const snap = await getDocs(collection(db, "events", eventId, "rsvps"));
+    const rsvps = snap.docs
+      .map((d) => d.data())
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    if (rsvps.length === 0) {
+      guestList.innerHTML = '<li class="hint">No responses yet.</li>';
+      return;
+    }
+    guestList.innerHTML = "";
+    rsvps.forEach((r) => {
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <strong>${escapeHtml(r.name || "Someone")}</strong>
+        <div class="hint">${escapeHtml(r.status || "")}${r.guestCount ? `, ${r.guestCount} guest(s)` : ""}</div>
+      `;
+      guestList.appendChild(li);
+    });
+  } catch (err) {
+    guestList.innerHTML = `<li class="hint">Couldn't load responses: ${escapeHtml(err.message)}</li>`;
+  }
 }
 
 function escapeHtml(str) {
