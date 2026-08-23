@@ -20,6 +20,12 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/events/$(eventId)/invitees/$(request.auth.token.email.lower()));
     }
 
+    function isRsvpAllowed(eventId) {
+      let event = get(/databases/$(database)/documents/events/$(eventId)).data;
+      return (event.isOpen == true || isInvited(eventId)) &&
+        (event.date == null || event.date > request.time);
+    }
+
     match /users/{uid} {
       allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
     }
@@ -31,6 +37,13 @@ service cloud.firestore {
     match /openEvents/{eventId} {
       allow get, list: if isSignedIn();
       allow write: if isAdmin();
+    }
+
+    // Per-user index of "events I've RSVP'd to", written alongside the real
+    // RSVP doc (events/*/rsvps/{uid}) so a signed-in user can find and edit
+    // their past RSVPs without needing the original invite link again.
+    match /userRsvps/{uid}/items/{eventId} {
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
     }
 
     match /events/{eventId} {
@@ -51,7 +64,7 @@ service cloud.firestore {
         allow list: if isAdmin();
         allow create, update: if isSignedIn() && request.auth.uid == uid &&
           request.resource.data.email == request.auth.token.email &&
-          (get(/databases/$(database)/documents/events/$(eventId)).data.isOpen == true || isInvited(eventId));
+          isRsvpAllowed(eventId);
         allow delete: if isAdmin();
       }
     }

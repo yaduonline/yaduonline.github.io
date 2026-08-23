@@ -76,6 +76,21 @@ design — an unverified email shouldn't be able to write data).
   *invite-only* event still requires being on that event's invite list,
   regardless of how the account was created.
 
+### Editing an RSVP
+- A guest can change their response (attending/guest count/comment) any time
+  before the event starts, simply by returning to the same invite link and
+  signing in again (any method — password, Google, or a fresh magic link).
+  The form comes back pre-filled with their last answer; saving overwrites
+  it. There's no separate "edit mode" — RSVPing and editing are the same
+  form and the same action.
+- The homepage also lists **"Your RSVPs"** for a signed-in user — every
+  event they've responded to, each linking straight to that event's
+  (editable) RSVP form — so a guest doesn't need to keep the original invite
+  link around to go back and change their answer.
+- **RSVPs close once the event's date/time has passed** — no new RSVPs and
+  no edits after that point (enforced server-side, not just hidden in the
+  UI). Events with no date set have no such cutoff.
+
 ### Admin dashboard
 - Create events (open or invite-only).
 - Per event: add/remove invitees (email + name + max guests), copy the

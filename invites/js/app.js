@@ -10,6 +10,8 @@ import {
 const authContainer = document.getElementById("auth-widget");
 const eventsSection = document.getElementById("events-section");
 const eventsList = document.getElementById("event-list");
+const myRsvpsList = document.getElementById("my-rsvps-list");
+const myRsvpsEmpty = document.getElementById("my-rsvps-empty");
 const signedOutHint = document.getElementById("signed-out-hint");
 
 mountAuthWidget(authContainer, async (user) => {
@@ -20,8 +22,32 @@ mountAuthWidget(authContainer, async (user) => {
   }
   signedOutHint.hidden = true;
   eventsSection.hidden = false;
-  await loadOpenEvents();
+  await Promise.all([loadMyRsvps(user), loadOpenEvents()]);
 });
+
+async function loadMyRsvps(user) {
+  myRsvpsList.innerHTML = "<li>Loading...</li>";
+  try {
+    const q = query(collection(db, "userRsvps", user.uid, "items"), orderBy("respondedAt", "desc"));
+    const snap = await getDocs(q);
+    myRsvpsEmpty.hidden = !snap.empty;
+    myRsvpsList.innerHTML = "";
+    snap.forEach((docSnap) => {
+      const r = docSnap.data();
+      const date = r.eventDate && r.eventDate.toDate ? r.eventDate.toDate() : null;
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <a href="/event.html?id=${encodeURIComponent(docSnap.id)}">${escapeHtml(r.eventTitle || "Untitled event")}</a>
+        ${date ? `<time>${escapeHtml(date.toLocaleString())}</time>` : ""}
+        <div class="hint">Your response: ${escapeHtml(r.status || "")}${r.guestCount ? `, ${r.guestCount} guest(s)` : ""}</div>
+      `;
+      myRsvpsList.appendChild(li);
+    });
+  } catch (err) {
+    myRsvpsEmpty.hidden = true;
+    myRsvpsList.innerHTML = `<li class="hint">Couldn't load your RSVPs: ${escapeHtml(err.message)}</li>`;
+  }
+}
 
 async function loadOpenEvents() {
   eventsList.innerHTML = "<li>Loading...</li>";

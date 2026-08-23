@@ -13,6 +13,7 @@ const notFoundHint = document.getElementById("not-found-hint");
 const missingIdHint = document.getElementById("missing-id-hint");
 const eventSection = document.getElementById("event-section");
 const eventDetail = document.getElementById("event-detail");
+const eventClosedHint = document.getElementById("event-closed-hint");
 const quickRsvpForm = document.getElementById("quick-rsvp-form");
 const quickRsvpSent = document.getElementById("quick-rsvp-sent");
 const rsvpForm = document.getElementById("rsvp-form");
@@ -20,6 +21,9 @@ const rsvpStatus = document.getElementById("rsvp-status");
 
 const eventId = new URLSearchParams(location.search).get("id");
 const pendingKey = eventId ? `pendingRsvp:${eventId}` : null;
+
+let eventHasStarted = false;
+let eventDetailsPromise = Promise.resolve();
 
 function showTopLevel(el) {
   [notFoundHint, missingIdHint, eventSection].forEach((e) => {
@@ -29,7 +33,7 @@ function showTopLevel(el) {
 
 // Within event-section, exactly one of these is visible at a time.
 function showRsvpState(el) {
-  [quickRsvpForm, quickRsvpSent, rsvpForm].forEach((e) => {
+  [quickRsvpForm, quickRsvpSent, rsvpForm, eventClosedHint].forEach((e) => {
     e.hidden = e !== el;
   });
 }
@@ -37,10 +41,16 @@ function showRsvpState(el) {
 if (!eventId) {
   showTopLevel(missingIdHint);
 } else {
-  loadEventDetails();
+  eventDetailsPromise = loadEventDetails();
   mountAuthWidget(authContainer, async (user) => {
+    await eventDetailsPromise;
     if (!user) {
-      showRsvpState(quickRsvpForm);
+      if (eventHasStarted) {
+        eventClosedHint.textContent = "This event has already happened. RSVP is closed.";
+        showRsvpState(eventClosedHint);
+      } else {
+        showRsvpState(quickRsvpForm);
+      }
       return;
     }
     await handleSignedIn(user);
@@ -61,6 +71,7 @@ async function loadEventDetails() {
   }
   const e = eventSnap.data();
   const date = e.date && e.date.toDate ? e.date.toDate() : null;
+  eventHasStarted = !!date && date.getTime() < Date.now();
   eventDetail.innerHTML = `
     <h2>${escapeHtml(e.title || "Untitled event")}</h2>
     ${date ? `<time>${escapeHtml(date.toLocaleString())}</time>` : ""}
@@ -114,6 +125,7 @@ async function handleSignedIn(user) {
 }
 
 async function writeRsvp(user, payload) {
+  const respondedAt = serverTimestamp();
   await setDoc(doc(db, "events", eventId, "rsvps", user.uid), {
     email: user.email,
     name: [payload.firstName, payload.lastName].filter(Boolean).join(" "),
@@ -122,28 +134,52 @@ async function writeRsvp(user, payload) {
     status: payload.status,
     guestCount: payload.guestCount,
     comment: payload.comment || "",
-    respondedAt: serverTimestamp(),
+    respondedAt,
+  });
+
+  // Mirrored index so the signed-in user can find and edit this RSVP again
+  // later without needing the original invite link (see "Your RSVPs" on
+  // index.html). Firestore rules can't grant a signed-in user `list` on
+  // events/*/rsvps directly (per-doc access there depends on event/invitee
+  // content), so this denormalized per-user collection exists instead.
+  const eventSnap = await getDoc(doc(db, "events", eventId));
+  const e = eventSnap.exists() ? eventSnap.data() : {};
+  await setDoc(doc(db, "userRsvps", user.uid, "items", eventId), {
+    eventTitle: e.title || "Untitled event",
+    eventDate: e.date || null,
+    status: payload.status,
+    guestCount: payload.guestCount,
+    respondedAt,
   });
 }
 
 function reportRsvpError(err) {
   rsvpStatus.textContent =
     err.code === "permission-denied"
-      ? "This link doesn't appear to be for your invite to this event."
+      ? "Couldn't save your RSVP - either this event has already happened, or this link isn't for your invite to it."
       : "Couldn't save your RSVP: " + err.message;
   rsvpStatus.className = "status-msg error";
   rsvpStatus.hidden = false;
 }
 
 async function showSignedInForm(user) {
+  const existing = await getDoc(doc(db, "events", eventId, "rsvps", user.uid));
+  const existingData = existing.exists() ? existing.data() : null;
+
+  if (eventHasStarted) {
+    eventClosedHint.textContent = existingData
+      ? `This event has already happened. Your response: ${existingData.status}${existingData.guestCount ? `, ${existingData.guestCount} guest(s)` : ""}.`
+      : "This event has already happened. RSVP is closed.";
+    showRsvpState(eventClosedHint);
+    return;
+  }
+
   showRsvpState(rsvpForm);
 
-  const existing = await getDoc(doc(db, "events", eventId, "rsvps", user.uid));
-  if (existing.exists()) {
-    const data = existing.data();
-    rsvpForm.status.value = data.status || "yes";
-    rsvpForm.guestCount.value = data.guestCount || 1;
-    rsvpForm.comment.value = data.comment || "";
+  if (existingData) {
+    rsvpForm.status.value = existingData.status || "yes";
+    rsvpForm.guestCount.value = existingData.guestCount || 1;
+    rsvpForm.comment.value = existingData.comment || "";
     rsvpStatus.textContent = "RSVP saved. Thank you!";
     rsvpStatus.className = "status-msg success";
     rsvpStatus.hidden = false;
