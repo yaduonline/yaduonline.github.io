@@ -52,9 +52,10 @@ still fit comfortably on the free Spark plan.
   event "as" someone else), and if not admin, must pass
   `underDailyEventLimit()` (see "Rate-limited event creation" below).
 - **`events/{eventId}` update/delete**: `isAdmin()` or
-  `resource.data.createdByUid == request.auth.uid`. No UI calls this yet
-  (no edit/delete button exists anywhere), but the rule already reflects
-  "owners manage their own event" for whenever that UI gets built.
+  `resource.data.createdByUid == request.auth.uid`. `update` is used by
+  the "Edit event" feature (see "Any user can create and own events"
+  below); `delete` has no UI yet, but the rule already reflects "owners
+  manage their own event" for whenever that gets built.
 - **`invitees` subcollection**: `isAdmin()` or `isEventOwner(eventId)` (a
   `get()` on the parent event's `createdByUid`) — never exposed to guests;
   a guest can't tell who else is invited or check membership directly,
@@ -235,14 +236,16 @@ both `admin.js` and the new `my-events.js` so the "manage your own event"
 UI (invitee add/remove, RSVP table, CSV export) is *identical* to admin's
 by construction, not a parallel reimplementation:
 - `renderEventCard(id, e)` — the event card (invite link, invitee
-  management, RSVP table/CSV, split-guest-aware) that both pages render
-  into their event list. Access to what its buttons can actually do is
-  entirely governed by the rules above (`isAdmin()` vs `isEventOwner()`),
-  not by which page rendered it - the same button code just succeeds or
-  fails differently depending on who's clicking it.
+  management, RSVP table/CSV, edit form, split-guest-aware) that both
+  pages render into their event list. Access to what its buttons can
+  actually do is entirely governed by the rules above (`isAdmin()` vs
+  `isEventOwner()`), not by which page rendered it - the same button code
+  just succeeds or fails differently depending on who's clicking it.
 - `loadInvitees()`, `downloadCsv()` — helpers used by the card, also moved
   here so they're not duplicated between the two pages.
-- `createEvent(data)` — see below.
+- `createEvent(data, photoFile)` — see "Rate-limited event creation" below.
+- `updateEvent(eventId, existing, data, photoFile)` — see "Editing an
+  event" below.
 
 `admin.js` keeps its `isAdminUser()` gate and its `events` collection
 `list` query (admin-only, unchanged) — it just renders cards and creates
@@ -288,6 +291,38 @@ marker (both admin and non-admin), and — **only when the caller is admin
 and the event is `isOpen`** — the `openEvents` mirror, matching the
 browse-feed decision in REQUIREMENTS.md.
 
+### Editing an event
+The "Edit event" button on each `renderEventCard()` toggles a form with
+the same fields as creation (title, date, location, host name,
+description, photo, open/invite-only, adult/child split), pre-filled
+from the card's current data - built from the same markup pattern as
+`create-event-form` on `admin.html`/`my-events.html`, but rendered
+per-card in JS rather than as a static page element, since there can be
+many cards.
+
+`updateEvent(eventId, existing, data, photoFile)` in `events.js` is
+deliberately much simpler than `createEvent()`: a plain `updateDoc` with
+the submitted fields (no rate limit applies to edits, only to creating
+new events), then the same optional photo-upload-and-attach as creation
+if a replacement file was chosen. `existing` (the event data the card was
+last rendered with) is passed in rather than re-fetched, since the caller
+already has it in hand; it's used for two things the submitted form data
+doesn't carry: the photo upload path's `ownerUid` (always the event's
+*original* creator, even if an admin is the one editing - so a re-upload
+overwrites the one existing photo rather than creating a second one at a
+different path) and deciding whether to sync the `openEvents` mirror
+(based on whether `existing.createdBy`'s email is on the admin allowlist
+- i.e. whether the event was *originally* admin-created - not whether
+today's editor happens to be admin).
+
+After a successful save, the card re-fetches the fresh event doc and
+replaces itself wholesale (`card.replaceWith(renderEventCard(id, fresh))`)
+rather than patching individual fields in place - simplest way to keep
+every derived bit of the card (the open/invite-only label, the photo
+thumbnail, the split-guest RSVP table headers) consistent with whatever
+just changed, reusing the same render path as the initial list load
+instead of a second, parallel "patch this card" implementation.
+
 ### Event photos
 `resizeImage()` in `events.js` downscales the chosen file client-side
 before it ever leaves the browser (`<canvas>`, longest side capped at
@@ -296,17 +331,18 @@ before it ever leaves the browser (`<canvas>`, longest side capped at
 not just the 5MB `storage.rules` cap. `uploadEventPhoto(eventId, ownerUid, file)`
 uploads the resized blob to a fixed path,
 `eventPhotos/{eventId}/{ownerUid}/photo.jpg` - one photo per event, so
-re-uploading (no UI for that yet, but the path scheme already supports
-it) simply overwrites. `ownerUid` is part of the path so `storage.rules`
-can authorize the write with a plain path-segment check - see "Storage
-security model" above.
+replacing one (via the "Edit event" form's "Replace photo" field - see
+"Editing an event" above) simply overwrites it at the same path.
+`ownerUid` is part of the path so `storage.rules` can authorize the write
+with a plain path-segment check - see "Storage security model" above.
 
-`createEvent()` uploads the photo (if given) *after* the event doc is
-written, purely so it can attach the resulting `photoUrl` back onto that
-doc via `updateDoc` in the same call. A photo-upload failure doesn't undo
-the event creation; it's reported back as `photoError` on the return
-value so `admin.js`/`my-events.js` can show it as a non-fatal warning
-("Event created, but the photo couldn't be uploaded: ...") rather than
+Both `createEvent()` and `updateEvent()` upload the photo (if given)
+*after* the event doc write, purely so they can attach the resulting
+`photoUrl` back onto that doc via `updateDoc` in the same call. A
+photo-upload failure doesn't undo the rest of the create/update; it's
+reported back as `photoError` on the return value so `admin.js`/
+`my-events.js`/the edit form can show it as a non-fatal warning ("Event
+created/updated, but the photo couldn't be uploaded: ...") rather than
 implying the whole submission failed.
 
 `photoUrl` (a Firebase Storage download URL, which embeds its own access

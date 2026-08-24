@@ -42,10 +42,10 @@ This is a personal site with no intention of harvesting user data.
   `my-events.html` page (linked from the homepage), separate from the
   admin dashboard.
 - Creators can optionally **upload a photo** for the event while creating
-  it (there's no way to add/change one afterward yet). It's resized in the
-  browser before upload to keep it "reasonably sized" regardless of the
-  original file, and shows on the event page and on the creator's/admin's
-  management card. Entirely optional — most events won't have one.
+  it. It's resized in the browser before upload to keep it "reasonably
+  sized" regardless of the original file, and shows on the event page and
+  on the creator's/admin's management card. Entirely optional — most
+  events won't have one.
 - Creators can optionally turn on **"split guests into adults & children"**
   for an event, specifying the age below which a guest counts as a child.
   When on, RSVPing for that event asks for adult and child counts
@@ -54,9 +54,11 @@ This is a personal site with no intention of harvesting user data.
   per-event — different events on the same site can use either mode.
 - **Creating an event makes you its owner**, with the same management
   capabilities admin has for it: add/remove invitees, view its RSVP list,
-  export its CSV — all scoped to events you personally created, on your
-  own `my-events.html` page. You only see/manage events you created (or
-  ones you've RSVP'd to, via "Your RSVPs"/"Who's coming") — not other
+  export its CSV, and **edit the event itself** (an "Edit event" button
+  on its card reveals the same fields as creation, pre-filled, including
+  replacing the photo) — all scoped to events you personally created, on
+  your own `my-events.html` page. You only see/manage events you created
+  (or ones you've RSVP'd to, via "Your RSVPs"/"Who's coming") — not other
   people's events, unless you're admin.
 - **Non-admin users are capped at 10 event creations per rolling 24-hour
   window**, enforced server-side (not just a UI limit), to guard against
@@ -152,10 +154,9 @@ compact status bar replaces it.
 - Email notifications beyond the sign-in link itself (e.g. RSVP reminders,
   confirmation emails) — would need a paid backend (Cloud Functions), not
   built.
-- Editing or canceling an event after creation, including replacing its
-  photo — no UI for this yet (Firestore/Storage rules already permit an
-  owner or admin to update an event or its photo, in anticipation of
-  this, but nothing calls it).
+- **Canceling/deleting** an event after creation — editing is supported
+  (see "Creating and owning events" above), but there's no delete button
+  anywhere yet, even though Firestore rules already permit it.
 - Waitlists, plus-one management beyond a numeric guest count.
 - Any role system beyond the fixed admin allowlist (e.g. no way to make
   someone a "co-host" of another user's event).

@@ -3,12 +3,14 @@ import { isAdminUser } from "./auth.js";
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   setDoc,
   updateDoc,
   deleteDoc,
   serverTimestamp,
   runTransaction,
+  Timestamp,
 } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import {
   ref,
@@ -148,6 +150,49 @@ export async function createEvent(data, photoFile) {
   return { eventRef, photoError };
 }
 
+// Updates an existing event's fields, attributed to whoever's editing (an
+// admin or the event's own creator - enforced server-side by
+// firestore.rules' update rule, same as here). No rate limit applies to
+// edits (only creation). `photoFile`, if given, replaces the photo at the
+// same Storage path the event was created with - always keyed by the
+// event's original `createdByUid`, not the editor's uid, so an admin
+// editing someone else's event still overwrites the one existing photo
+// rather than creating a second one storage.rules would then have to
+// reconcile (storage.rules' isAdmin() bypass allows this).
+export async function updateEvent(eventId, existing, data, photoFile) {
+  const eventRef = doc(db, "events", eventId);
+  await updateDoc(eventRef, data);
+
+  let photoError = null;
+  if (photoFile) {
+    try {
+      const photoUrl = await uploadEventPhoto(eventId, existing.createdByUid, photoFile);
+      await updateDoc(eventRef, { photoUrl });
+    } catch (err) {
+      photoError = err.message;
+    }
+  }
+
+  // Keep the openEvents browse-feed mirror in sync, same admin-only /
+  // isOpen-only condition createEvent() applies - based on whether the
+  // event's original creator is an admin (createdBy's email), not whoever
+  // is doing this particular edit.
+  if (isAdminUser({ email: existing.createdBy })) {
+    const merged = { ...existing, ...data };
+    if (merged.isOpen) {
+      await setDoc(doc(db, "openEvents", eventId), {
+        title: merged.title,
+        date: merged.date,
+        location: merged.location,
+      });
+    } else {
+      await deleteDoc(doc(db, "openEvents", eventId));
+    }
+  }
+
+  return { photoError };
+}
+
 // Renders one event's admin/owner management card: invite link, invitee
 // list (add/remove), RSVP table + CSV export (adult/child columns when
 // the event uses that split). Used by both admin.js (all events) and
@@ -167,7 +212,24 @@ export function renderEventCard(id, e) {
     ${e.createdBy ? `<p class="hint">Created by ${escapeHtml(e.createdBy)}</p>` : ""}
     <p class="hint">Invite link: <code>${escapeHtml(inviteUrl)}</code>
       <button type="button" class="small-btn copy-link-btn">Copy</button>
+      <button type="button" class="small-btn edit-event-btn">Edit event</button>
     </p>
+    <p class="error edit-event-error" hidden></p>
+    <form class="admin-form edit-event-form" hidden>
+      <label>Title <input type="text" name="title" value="${escapeHtml(e.title || "")}" required></label>
+      <label>Date &amp; time <input type="datetime-local" name="date" value="${escapeHtml(toDatetimeLocalValue(date))}"></label>
+      <label>Location <input type="text" name="location" value="${escapeHtml(e.location || "")}"></label>
+      <label>Host name <input type="text" name="hostName" value="${escapeHtml(e.hostName || "")}"></label>
+      <label>Description <textarea name="description" rows="3">${escapeHtml(e.description || "")}</textarea></label>
+      <label>Replace photo (optional) <input type="file" name="photo" accept="image/*"></label>
+      <label><input type="checkbox" name="isOpen" ${e.isOpen ? "checked" : ""}> Open event (anyone signed in can RSVP, no invite list needed)</label>
+      <label><input type="checkbox" name="splitGuestsByAge" class="edit-split-guests-checkbox" ${e.splitGuestsByAge ? "checked" : ""}> Split guests into adults &amp; children</label>
+      <label class="edit-child-age-label" ${e.splitGuestsByAge ? "" : "hidden"}>Children are guests under age
+        <input type="number" name="childAgeThreshold" min="1" max="99" value="${escapeHtml(String(e.childAgeThreshold ?? 13))}">
+      </label>
+      <button type="submit">Save changes</button>
+      <button type="button" class="link-btn cancel-edit-btn">Cancel</button>
+    </form>
 
     <h4>Invitees</h4>
     <form class="inline-form add-invitee-form">
@@ -198,6 +260,62 @@ export function renderEventCard(id, e) {
       setTimeout(() => (card.querySelector(".copy-link-btn").textContent = "Copy"), 1500);
     } catch {
       window.prompt("Copy this link:", inviteUrl);
+    }
+  });
+
+  const editForm = card.querySelector(".edit-event-form");
+  const editError = card.querySelector(".edit-event-error");
+  const editSplitCheckbox = editForm.querySelector(".edit-split-guests-checkbox");
+  const editChildAgeLabel = editForm.querySelector(".edit-child-age-label");
+
+  card.querySelector(".edit-event-btn").addEventListener("click", () => {
+    editForm.hidden = !editForm.hidden;
+  });
+  card.querySelector(".cancel-edit-btn").addEventListener("click", () => {
+    editForm.hidden = true;
+  });
+  editSplitCheckbox.addEventListener("change", () => {
+    editChildAgeLabel.hidden = !editSplitCheckbox.checked;
+  });
+
+  editForm.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    editError.hidden = true;
+    const fd = new FormData(editForm);
+    const isOpen = fd.get("isOpen") === "on";
+    const splitGuestsByAge = fd.get("splitGuestsByAge") === "on";
+    const dateVal = fd.get("date");
+    const photoFile = fd.get("photo");
+    const submitBtn = editForm.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    try {
+      const { photoError } = await updateEvent(
+        id,
+        e,
+        {
+          title: fd.get("title").trim(),
+          description: (fd.get("description") || "").trim(),
+          location: (fd.get("location") || "").trim(),
+          hostName: (fd.get("hostName") || "").trim(),
+          isOpen,
+          date: dateVal ? Timestamp.fromDate(new Date(dateVal)) : null,
+          splitGuestsByAge,
+          childAgeThreshold: splitGuestsByAge ? Number(fd.get("childAgeThreshold")) || 13 : null,
+        },
+        photoFile && photoFile.size > 0 ? photoFile : null
+      );
+      const freshSnap = await getDoc(doc(db, "events", id));
+      const freshCard = renderEventCard(id, freshSnap.data());
+      if (photoError) {
+        const freshErr = freshCard.querySelector(".edit-event-error");
+        freshErr.textContent = "Event updated, but the photo couldn't be uploaded: " + photoError;
+        freshErr.hidden = false;
+      }
+      card.replaceWith(freshCard);
+    } catch (err) {
+      editError.textContent = err.message;
+      editError.hidden = false;
+      submitBtn.disabled = false;
     }
   });
 
@@ -293,6 +411,16 @@ export function downloadCsv(filename, rows, header = ["name", "email", "status",
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// Formats a Date for a <input type="datetime-local"> value, in the
+// browser's local timezone (toISOString() would shift to UTC, which is
+// wrong for pre-filling an edit form with the value a "date &amp; time"
+// field originally captured in local time).
+function toDatetimeLocalValue(date) {
+  if (!date) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function escapeHtml(str) {
