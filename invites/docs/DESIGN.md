@@ -114,7 +114,14 @@ below leans on that instead of building any custom state machine.
 ### Quick RSVP (first-time guest, no account yet)
 1. `event.html` loads event details via a public `get` (no auth needed) and
    shows a "quick RSVP" form (first/last name, email, RSVP fields) whenever
-   the visitor isn't signed in.
+   the visitor isn't signed in. Neither name field has the HTML `required`
+   attribute; instead the submit handler in `event.js` rejects only when
+   *both* are empty ("Enter your first name or last name.") - a guest known
+   by a single name isn't blocked. Email keeps `required` - always
+   mandatory. Once signed in, the equivalent fields on `#rsvp-form` are
+   `disabled` and pre-filled from the account (`user.displayName` split via
+   `splitDisplayName()`, `user.email`) rather than collected again - see
+   "Who's coming"/"RSVP editing" below for how that form works.
 2. On submit: the payload is stashed in `localStorage` under
    `pendingRsvp:<eventId>`, and `sendMagicLink(email)` (in
    [js/auth.js](../js/auth.js)) calls Firebase's `sendSignInLinkToEmail`
@@ -128,12 +135,22 @@ below leans on that instead of building any custom state machine.
    detects the callback via `isSignInWithEmailLink`, signs in via
    `signInWithEmailLink`, cleans the auth params off the URL, and clears the
    `emailForSignIn` localStorage key.
-4. Back in `event.js`'s auth-state callback: it looks for the
-   `pendingRsvp:<eventId>` entry. If found, it applies the given name to the
+4. Back in `event.js`'s auth-state callback (`handleSignedIn()`): it looks
+   for the `pendingRsvp:<eventId>` entry and clears it immediately either
+   way (a stale one should never linger). It's only *applied* if the
+   pending payload's email matches the just-signed-in user's email - a
+   guest can sign in on this same page by an unrelated method (e.g.
+   password, or a different magic-link request) while an older, never-
+   completed quick-RSVP payload for someone else's email still sits in
+   localStorage for this `eventId`; without this check that stale payload
+   would silently overwrite whoever signs in next via `applyProfileName()`
+   (confirmed by reproducing it while testing - a real account's
+   `displayName` got clobbered by an abandoned quick-RSVP attempt from a
+   different email). When it does match, it applies the given name to the
    (possibly brand-new) account via `applyProfileName()`, writes the RSVP
    doc (`writeRsvp()`, which also mirrors a summary into
-   `userRsvps/{uid}/items/{eventId}` — see Data model), and clears the
-   pending entry — the guest never has to fill anything in twice. If the
+   `userRsvps/{uid}/items/{eventId}` — see Data model) — the guest never
+   has to fill anything in twice. If the
    write fails with `permission-denied` (email wasn't actually on that
    event's invite list, or the event has already started), that's surfaced
    as a plain message instead of a raw Firebase error.
@@ -186,7 +203,12 @@ the signed-in user and renders it on the homepage, each entry linking to
 that event. There's no separate edit UI: `event.js`'s signed-in RSVP form is
 always the same form whether it's a first response or a change — it
 pre-fills from the existing `rsvps/{uid}` doc if one exists, and saving
-just overwrites it (`writeRsvp()`). The only thing that changes this is
+just overwrites it (`writeRsvp()`). The name/email fields at the top of
+that form are always populated from the signed-in account itself
+(`splitDisplayName(user.displayName)`, `user.email`) rather than from the
+`rsvps/{uid}` doc, and are `disabled` - unlike the rest of the form, this
+part isn't something a change re-fills differently, since it isn't
+per-response data. The only thing that changes the *rest* of the form is
 `isRsvpAllowed()`'s date check (see Security model) — once
 `event.date` is in the past, `event.js` shows a closed message instead of
 the form at all (checked client-side via `eventHasStarted`, computed once

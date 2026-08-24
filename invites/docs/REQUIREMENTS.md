@@ -82,7 +82,14 @@ This is a personal site with no intention of harvesting user data.
 A guest who has never used the site before must **not** be forced to create
 an account or sign in before they can RSVP. Opening an invite link shows the
 event details and a ready-to-use RSVP form right away: First name, Last
-name, Email, attending yes/no/maybe, guest count, comment.
+name, Email, attending yes/no/maybe, guest count, comment. Email is always
+required; of first/last name, **at least one is required, but not both** —
+a guest known by a single name isn't blocked from RSVPing.
+
+A **signed-in** guest instead sees their first name, last name, and email
+pre-filled from their account and **not editable** — the RSVP is always
+attributed to the identity they're signed in as, so these fields are shown
+for confirmation, not collected fresh each time.
 
 Submitting it:
 1. Sends the guest an email containing a one-click sign-in link (Firebase's

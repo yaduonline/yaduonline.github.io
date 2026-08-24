@@ -146,6 +146,11 @@ quickRsvpForm.addEventListener("submit", async (ev) => {
     comment: fd.get("comment") || "",
     ...readGuestCounts(quickRsvpForm),
   };
+  if (!payload.firstName && !payload.lastName) {
+    errEl.textContent = "Enter your first name or last name.";
+    errEl.hidden = false;
+    return;
+  }
   try {
     localStorage.setItem(pendingKey, JSON.stringify(payload));
     await sendMagicLink(payload.email);
@@ -161,15 +166,23 @@ async function handleSignedIn(user) {
   const pendingRaw = localStorage.getItem(pendingKey);
   if (pendingRaw) {
     localStorage.removeItem(pendingKey);
-    try {
-      const payload = JSON.parse(pendingRaw);
-      await applyProfileName(payload.firstName, payload.lastName);
-      refreshAuthWidget(authContainer);
-      await writeRsvp(user, payload);
-    } catch (err) {
-      await showSignedInForm(user);
-      reportRsvpError(err);
-      return;
+    const payload = JSON.parse(pendingRaw);
+    // Only apply this if it's really the continuation of the magic-link
+    // flow that stashed it - i.e. the account that just signed in is the
+    // same email the pending RSVP was for. Without this check, a stale
+    // pending payload (an abandoned quick-RSVP whose email link was never
+    // clicked) would get applied to whoever signs in next on this page by
+    // any method, silently overwriting their real name.
+    if ((user.email || "").toLowerCase() === (payload.email || "").toLowerCase()) {
+      try {
+        await applyProfileName(payload.firstName, payload.lastName);
+        refreshAuthWidget(authContainer);
+        await writeRsvp(user, payload);
+      } catch (err) {
+        await showSignedInForm(user);
+        reportRsvpError(err);
+        return;
+      }
     }
   }
   await showSignedInForm(user);
@@ -227,6 +240,15 @@ async function showSignedInForm(user) {
   guestListSection.hidden = true;
   guestList.innerHTML = "";
 
+  // Shown read-only rather than collected - a signed-in RSVP is always
+  // attributed to the account's own name/email (see writeRsvp() below and
+  // its onsubmit handler), so these fields just let the guest confirm
+  // who they're RSVPing as, not edit it.
+  const { firstName, lastName } = splitDisplayName(user.displayName);
+  rsvpForm.querySelector(".rsvp-first-name").value = firstName;
+  rsvpForm.querySelector(".rsvp-last-name").value = lastName;
+  rsvpForm.querySelector(".rsvp-email").value = user.email || "";
+
   if (existingData) {
     loadGuestList();
   }
@@ -258,11 +280,11 @@ async function showSignedInForm(user) {
     ev.preventDefault();
     rsvpStatus.hidden = true;
     const fd = new FormData(rsvpForm);
-    const [firstName, ...rest] = (user.displayName || "").split(" ");
+    const { firstName, lastName } = splitDisplayName(user.displayName);
     try {
       await writeRsvp(user, {
-        firstName: firstName || "",
-        lastName: rest.join(" "),
+        firstName,
+        lastName,
         email: user.email,
         status: fd.get("status"),
         comment: fd.get("comment") || "",
@@ -315,6 +337,14 @@ async function loadGuestList() {
   } catch (err) {
     guestList.innerHTML = `<li class="hint">Couldn't load responses: ${escapeHtml(err.message)}</li>`;
   }
+}
+
+// A signed-in user's account only stores one combined displayName, not
+// separate first/last fields - this splits it on the first space for
+// display/writing purposes wherever the RSVP flow needs both.
+function splitDisplayName(displayName) {
+  const [firstName, ...rest] = (displayName || "").split(" ");
+  return { firstName: firstName || "", lastName: rest.join(" ") };
 }
 
 function escapeHtml(str) {
