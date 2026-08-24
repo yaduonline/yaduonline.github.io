@@ -14,6 +14,7 @@ const authContainer = document.getElementById("auth-widget");
 const notFoundHint = document.getElementById("not-found-hint");
 const missingIdHint = document.getElementById("missing-id-hint");
 const eventSection = document.getElementById("event-section");
+const eventPhotoWrap = document.getElementById("event-photo-wrap");
 const eventDetail = document.getElementById("event-detail");
 const eventClosedHint = document.getElementById("event-closed-hint");
 const quickRsvpForm = document.getElementById("quick-rsvp-form");
@@ -122,8 +123,10 @@ async function loadEventDetails() {
   childAgeThreshold = e.childAgeThreshold ?? null;
   applyGuestCountMode(quickRsvpForm);
   applyGuestCountMode(rsvpForm);
+  eventPhotoWrap.innerHTML = e.photoUrl
+    ? `<img src="${escapeHtml(e.photoUrl)}" alt="" class="event-photo">`
+    : "";
   eventDetail.innerHTML = `
-    ${e.photoUrl ? `<img src="${escapeHtml(e.photoUrl)}" alt="" class="event-photo">` : ""}
     <h2>${escapeHtml(e.title || "Untitled event")}</h2>
     ${date ? `<time>${escapeHtml(date.toLocaleString())}</time>` : ""}
     ${e.location ? `<p>${escapeHtml(e.location)}</p>` : ""}

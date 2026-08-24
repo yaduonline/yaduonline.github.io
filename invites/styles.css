@@ -169,6 +169,42 @@ button {
 }
 
 /* RSVP / event detail */
+
+/* Stacked (photo above everything else) by default - matches narrow/
+   mobile viewports, where a side-by-side layout wouldn't leave enough
+   width for either column. At wider ones (see the media query below)
+   this switches to photo-on-the-left, content-on-the-right so the page
+   uses the extra horizontal space instead of just centering a narrow
+   column of text under a narrower, off-center photo. */
+.event-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.event-photo-wrap:empty {
+  display: none;
+}
+
+.event-layout-content {
+  min-width: 0;
+}
+
+@media (min-width: 700px) {
+  .event-layout {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .event-photo-wrap {
+    flex: 0 0 280px;
+  }
+
+  .event-layout-content {
+    flex: 1;
+  }
+}
+
 .event-detail {
   margin-bottom: 30px;
 }
@@ -183,15 +219,17 @@ button {
    doesn't get force-cropped into a short horizontal strip the way a full-
    width/capped-height box would. object-fit: cover still crops to fill
    this box for photos at a different ratio, but the box itself stays
-   phone-shaped rather than landscape-shaped. */
+   phone-shaped rather than landscape-shaped. Sized by its wrapper
+   (.event-photo-wrap, stacked full-width on mobile or a fixed column on
+   desktop - see .event-layout above) rather than its own max-width/
+   centering, so it lines up flush with the text next to or below it
+   instead of floating narrower and off-center. */
 .event-photo {
   display: block;
   width: 100%;
-  max-width: 480px;
   aspect-ratio: 3 / 4;
   object-fit: cover;
   border-radius: 8px;
-  margin: 0 auto 16px;
 }
 
 .event-card-photo {

@@ -16,78 +16,90 @@
     <p id="missing-id-hint" class="hint" hidden>No event was specified. Use the link you were sent.</p>
 
     <section id="event-section" hidden>
-      <div id="event-detail" class="event-detail"></div>
+      <!-- Stacked (photo above content) on narrow viewports; side by side,
+           photo on the left, on wide ones - see .event-layout in
+           styles.css. The photo lives in its own wrapper, separate from
+           #event-detail's text, specifically so CSS can lay the two out
+           independently instead of the image just flowing inline above
+           the title like another paragraph. -->
+      <div class="event-layout">
+        <div id="event-photo-wrap" class="event-photo-wrap"></div>
+        <div class="event-layout-content">
+          <div id="event-detail" class="event-detail"></div>
 
-      <p id="event-closed-hint" class="hint" hidden></p>
+          <p id="event-closed-hint" class="hint" hidden></p>
 
-      <!-- Signed-out: collapsed behind a small link so it doesn't dominate
-           the page; signed-in: mountAuthWidget shows the compact status
-           bar here directly (see js/event.js). Can't nest this inside the
-           RSVP <form> below - its own sign-in/sign-up are <form>s too. -->
-      <button type="button" id="signin-toggle-link" class="link-btn" hidden>Sign in for quick RSVP</button>
-      <div id="auth-widget" hidden></div>
+          <!-- Signed-out: collapsed behind a small link so it doesn't
+               dominate the page; signed-in: mountAuthWidget shows the
+               compact status bar here directly (see js/event.js). Can't
+               nest this inside the RSVP <form> below - its own sign-in/
+               sign-up are <form>s too. -->
+          <button type="button" id="signin-toggle-link" class="link-btn" hidden>Sign in for quick RSVP</button>
+          <div id="auth-widget" hidden></div>
 
-      <!-- Shown to first-time / signed-out visitors: RSVP now, verify by email after. -->
-      <form id="quick-rsvp-form" class="rsvp-form" hidden>
-        <h3>RSVP</h3>
-        <p class="error" hidden></p>
-        <label>First name <input type="text" name="firstName" autocomplete="given-name"></label>
-        <label>Last name <input type="text" name="lastName" autocomplete="family-name"></label>
-        <label>Email <input type="email" name="email" required autocomplete="email"></label>
-        <label>Will you attend?
-          <select name="status" required>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-            <option value="maybe">Maybe</option>
-          </select>
-        </label>
-        <label class="guest-count-generic">Number of guests (including you)
-          <input type="number" name="guestCount" min="1" value="1" required>
-        </label>
-        <div class="guest-count-split inline-form" hidden>
-          <label>Adults (including you) <input type="number" name="adultCount" min="1" value="1"></label>
-          <label class="child-count-label">Children <input type="number" name="childCount" min="0" value="0"></label>
+          <!-- Shown to first-time / signed-out visitors: RSVP now, verify by email after. -->
+          <form id="quick-rsvp-form" class="rsvp-form" hidden>
+            <h3>RSVP</h3>
+            <p class="error" hidden></p>
+            <label>First name <input type="text" name="firstName" autocomplete="given-name"></label>
+            <label>Last name <input type="text" name="lastName" autocomplete="family-name"></label>
+            <label>Email <input type="email" name="email" required autocomplete="email"></label>
+            <label>Will you attend?
+              <select name="status" required>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+                <option value="maybe">Maybe</option>
+              </select>
+            </label>
+            <label class="guest-count-generic">Number of guests (including you)
+              <input type="number" name="guestCount" min="1" value="1" required>
+            </label>
+            <div class="guest-count-split inline-form" hidden>
+              <label>Adults (including you) <input type="number" name="adultCount" min="1" value="1"></label>
+              <label class="child-count-label">Children <input type="number" name="childCount" min="0" value="0"></label>
+            </div>
+            <label>Comment (optional)
+              <textarea name="comment" rows="2"></textarea>
+            </label>
+            <button type="submit">Save RSVP</button>
+            <p class="hint">We'll email you a link to confirm it's really you - no password needed.</p>
+          </form>
+          <p id="quick-rsvp-sent" class="status-msg success" hidden>Check your email for a link to confirm your RSVP.</p>
+
+          <!-- Shown to signed-in users (returning, or just verified via the emailed link). -->
+          <form id="rsvp-form" class="rsvp-form" hidden>
+            <h3>RSVP</h3>
+            <label>First name <input type="text" class="rsvp-first-name" disabled></label>
+            <label>Last name <input type="text" class="rsvp-last-name" disabled></label>
+            <label>Email <input type="email" class="rsvp-email" disabled></label>
+            <label>Will you attend?
+              <select name="status" required>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+                <option value="maybe">Maybe</option>
+              </select>
+            </label>
+            <label class="guest-count-generic">Number of guests (including you)
+              <input type="number" name="guestCount" min="1" value="1" required>
+            </label>
+            <div class="guest-count-split inline-form" hidden>
+              <label>Adults (including you) <input type="number" name="adultCount" min="1" value="1"></label>
+              <label class="child-count-label">Children <input type="number" name="childCount" min="0" value="0"></label>
+            </div>
+            <label>Comment (optional)
+              <textarea name="comment" rows="2"></textarea>
+            </label>
+            <button type="submit">Save RSVP</button>
+            <p id="rsvp-status" class="status-msg" hidden></p>
+          </form>
+
+          <!-- Shown once the signed-in user has RSVP'd (new or existing). -->
+          <section id="guest-list-section" hidden>
+            <h3>Who's coming</h3>
+            <ul id="guest-list" class="event-list"></ul>
+          </section>
         </div>
-        <label>Comment (optional)
-          <textarea name="comment" rows="2"></textarea>
-        </label>
-        <button type="submit">Save RSVP</button>
-        <p class="hint">We'll email you a link to confirm it's really you - no password needed.</p>
-      </form>
-      <p id="quick-rsvp-sent" class="status-msg success" hidden>Check your email for a link to confirm your RSVP.</p>
-
-      <!-- Shown to signed-in users (returning, or just verified via the emailed link). -->
-      <form id="rsvp-form" class="rsvp-form" hidden>
-        <h3>RSVP</h3>
-        <label>First name <input type="text" class="rsvp-first-name" disabled></label>
-        <label>Last name <input type="text" class="rsvp-last-name" disabled></label>
-        <label>Email <input type="email" class="rsvp-email" disabled></label>
-        <label>Will you attend?
-          <select name="status" required>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-            <option value="maybe">Maybe</option>
-          </select>
-        </label>
-        <label class="guest-count-generic">Number of guests (including you)
-          <input type="number" name="guestCount" min="1" value="1" required>
-        </label>
-        <div class="guest-count-split inline-form" hidden>
-          <label>Adults (including you) <input type="number" name="adultCount" min="1" value="1"></label>
-          <label class="child-count-label">Children <input type="number" name="childCount" min="0" value="0"></label>
-        </div>
-        <label>Comment (optional)
-          <textarea name="comment" rows="2"></textarea>
-        </label>
-        <button type="submit">Save RSVP</button>
-        <p id="rsvp-status" class="status-msg" hidden></p>
-      </form>
-
-      <!-- Shown once the signed-in user has RSVP'd (new or existing). -->
-      <section id="guest-list-section" hidden>
-        <h3>Who's coming</h3>
-        <ul id="guest-list" class="event-list"></ul>
-      </section>
+      </div>
     </section>
   </main>
 

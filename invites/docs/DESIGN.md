@@ -434,6 +434,31 @@ shows directly - no `auth-widget.js` changes needed, `event.js`'s
 `mountAuthWidget` callback just toggles which one is visible based on the
 same signed-in/out state it already branches on.
 
+### Responsive photo/content layout
+`#event-section` wraps its photo and everything else in `.event-layout`,
+a flex container with two children: `#event-photo-wrap` (just the `<img>`,
+set separately from `#event-detail` by `loadEventDetails()` - see "Event
+photos" in this doc) and `.event-layout-content` (event details text,
+sign-in, both RSVP forms, guest list - everything that used to sit
+directly in `#event-section`). Below 700px viewport width, `.event-layout`
+stacks them in a column (photo above content, matching how it already
+looked on mobile); at 700px and up it switches to a row, photo in a
+fixed-width `280px` left column, content filling the rest. Splitting the
+photo out of `#event-detail`'s own markup (rather than leaving it as the
+first thing in that same `innerHTML` block) is what makes the two-column
+split possible - flexbox lays out `#event-photo-wrap` and
+`.event-layout-content` as independent columns, so the photo's height no
+longer has to match its own caption text the way a photo sitting inline
+above a paragraph would. `.event-photo` itself has no `max-width` or
+centering of its own anymore - it's sized by whichever column it's in
+(full width when stacked, the fixed `280px` column when side by side), so
+it lines up flush with the text next to or below it instead of floating
+narrower and off-center (the bug that prompted this - centering a
+narrower image above full-width text left its edge visibly offset).
+`#event-photo-wrap:empty { display: none }` collapses the column entirely
+for events with no photo, so `.event-layout-content` gets the full width
+instead of leaving a blank gap.
+
 ## Deployment
 
 - `.github/workflows/firebase-deploy.yml` deploys Hosting + Firestore rules
