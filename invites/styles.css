@@ -179,20 +179,44 @@ button {
   margin-bottom: 10px;
 }
 
+/* Portrait aspect ratio - a typical phone photo shot vertically, so it
+   doesn't get force-cropped into a short horizontal strip the way a full-
+   width/capped-height box would. object-fit: cover still crops to fill
+   this box for photos at a different ratio, but the box itself stays
+   phone-shaped rather than landscape-shaped. */
 .event-photo {
+  display: block;
   width: 100%;
-  max-height: 320px;
+  max-width: 480px;
+  aspect-ratio: 3 / 4;
   object-fit: cover;
   border-radius: 8px;
-  margin-bottom: 16px;
+  margin: 0 auto 16px;
 }
 
 .event-card-photo {
+  display: block;
   width: 100%;
-  max-height: 180px;
+  max-width: 320px;
+  aspect-ratio: 3 / 4;
   object-fit: cover;
   border-radius: 6px;
-  margin-bottom: 12px;
+  margin: 0 auto 12px;
+}
+
+.form-photo-preview {
+  display: block;
+  width: 160px;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 6px;
+  margin-top: 8px;
+  border: 1px solid #ddd;
+}
+
+.photo-upload-status {
+  font-size: 0.85rem;
+  color: #666;
 }
 
 .rsvp-form {

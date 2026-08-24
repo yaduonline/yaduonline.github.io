@@ -27,11 +27,13 @@
           <label>Host name <input type="text" name="hostName"></label>
           <label>Description <textarea name="description" rows="3"></textarea></label>
           <label>Photo (optional) <input type="file" name="photo" accept="image/*"></label>
+          <img id="create-photo-preview" class="form-photo-preview" alt="" hidden>
           <label><input type="checkbox" name="isOpen"> Open event (anyone signed in can RSVP, no invite list needed)</label>
           <label><input type="checkbox" name="splitGuestsByAge" id="split-guests-checkbox"> Split guests into adults &amp; children</label>
           <label id="child-age-label" hidden>Children are guests under age
             <input type="number" name="childAgeThreshold" min="1" max="99" value="13">
           </label>
+          <p class="photo-upload-status" id="create-photo-status" hidden></p>
           <button type="submit">Create event</button>
           <p class="hint">Up to 10 events per day. Events you create are only reachable via the invite link and your own "Your events" list below - they don't appear in anyone else's browse feed.</p>
         </form>

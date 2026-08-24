@@ -62,8 +62,27 @@ function resizeImage(file) {
   });
 }
 
-// One photo per event - re-uploading (there's no UI for this yet, but the
-// path scheme supports it) overwrites the previous one at the same path.
+// Shows an instant local preview of a chosen photo file - before any
+// upload happens, since the actual upload only occurs at form-submit time
+// (see "Editing an event"/"Event photos" in DESIGN.md). Purely a client-
+// side object URL, no network involved, so it's free and immediate; used
+// by both the create forms (admin.js, my-events.js) and the edit form
+// below on the same file input + <img class="form-photo-preview"> pair.
+export function wirePhotoPreview(input, previewImg) {
+  input.addEventListener("change", () => {
+    const file = input.files[0];
+    if (previewImg.src) URL.revokeObjectURL(previewImg.src);
+    if (file) {
+      previewImg.src = URL.createObjectURL(file);
+      previewImg.hidden = false;
+    } else {
+      previewImg.hidden = true;
+    }
+  });
+}
+
+// One photo per event - re-uploading (via the "Edit event" form's
+// "Replace photo" field) overwrites the previous one at the same path.
 // The owner's uid is embedded in the path itself (rather than checked via
 // a Storage-rules-side Firestore lookup) so storage.rules can authorize
 // the write with a simple, self-contained path check - see storage.rules.
@@ -222,11 +241,13 @@ export function renderEventCard(id, e) {
       <label>Host name <input type="text" name="hostName" value="${escapeHtml(e.hostName || "")}"></label>
       <label>Description <textarea name="description" rows="3">${escapeHtml(e.description || "")}</textarea></label>
       <label>Replace photo (optional) <input type="file" name="photo" accept="image/*"></label>
+      <img class="form-photo-preview" alt="" hidden>
       <label><input type="checkbox" name="isOpen" ${e.isOpen ? "checked" : ""}> Open event (anyone signed in can RSVP, no invite list needed)</label>
       <label><input type="checkbox" name="splitGuestsByAge" class="edit-split-guests-checkbox" ${e.splitGuestsByAge ? "checked" : ""}> Split guests into adults &amp; children</label>
       <label class="edit-child-age-label" ${e.splitGuestsByAge ? "" : "hidden"}>Children are guests under age
         <input type="number" name="childAgeThreshold" min="1" max="99" value="${escapeHtml(String(e.childAgeThreshold ?? 13))}">
       </label>
+      <p class="photo-upload-status" hidden></p>
       <button type="submit">Save changes</button>
       <button type="button" class="link-btn cancel-edit-btn">Cancel</button>
     </form>
@@ -267,6 +288,7 @@ export function renderEventCard(id, e) {
   const editError = card.querySelector(".edit-event-error");
   const editSplitCheckbox = editForm.querySelector(".edit-split-guests-checkbox");
   const editChildAgeLabel = editForm.querySelector(".edit-child-age-label");
+  const editPhotoStatus = editForm.querySelector(".photo-upload-status");
 
   card.querySelector(".edit-event-btn").addEventListener("click", () => {
     editForm.hidden = !editForm.hidden;
@@ -277,6 +299,7 @@ export function renderEventCard(id, e) {
   editSplitCheckbox.addEventListener("change", () => {
     editChildAgeLabel.hidden = !editSplitCheckbox.checked;
   });
+  wirePhotoPreview(editForm.querySelector('[name="photo"]'), editForm.querySelector(".form-photo-preview"));
 
   editForm.addEventListener("submit", async (ev) => {
     ev.preventDefault();
@@ -286,8 +309,13 @@ export function renderEventCard(id, e) {
     const splitGuestsByAge = fd.get("splitGuestsByAge") === "on";
     const dateVal = fd.get("date");
     const photoFile = fd.get("photo");
+    const hasPhoto = photoFile && photoFile.size > 0;
     const submitBtn = editForm.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
+    if (hasPhoto) {
+      editPhotoStatus.textContent = "Uploading photo…";
+      editPhotoStatus.hidden = false;
+    }
     try {
       const { photoError } = await updateEvent(
         id,
@@ -302,7 +330,7 @@ export function renderEventCard(id, e) {
           splitGuestsByAge,
           childAgeThreshold: splitGuestsByAge ? Number(fd.get("childAgeThreshold")) || 13 : null,
         },
-        photoFile && photoFile.size > 0 ? photoFile : null
+        hasPhoto ? photoFile : null
       );
       const freshSnap = await getDoc(doc(db, "events", id));
       const freshCard = renderEventCard(id, freshSnap.data());
@@ -316,6 +344,7 @@ export function renderEventCard(id, e) {
       editError.textContent = err.message;
       editError.hidden = false;
       submitBtn.disabled = false;
+      editPhotoStatus.hidden = true;
     }
   });
 

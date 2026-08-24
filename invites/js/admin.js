@@ -1,7 +1,7 @@
 import { mountAuthWidget } from "./auth-widget.js";
 import { db } from "./firebase-init.js";
 import { isAdminUser } from "./auth.js";
-import { createEvent, renderEventCard } from "./events.js";
+import { createEvent, renderEventCard, wirePhotoPreview } from "./events.js";
 import {
   collection,
   getDocs,
@@ -19,10 +19,13 @@ const createError = document.getElementById("create-error");
 const eventListEl = document.getElementById("event-list");
 const splitGuestsCheckbox = document.getElementById("split-guests-checkbox");
 const childAgeLabel = document.getElementById("child-age-label");
+const createPhotoPreview = document.getElementById("create-photo-preview");
+const createPhotoStatus = document.getElementById("create-photo-status");
 
 splitGuestsCheckbox.addEventListener("change", () => {
   childAgeLabel.hidden = !splitGuestsCheckbox.checked;
 });
+wirePhotoPreview(createForm.querySelector('[name="photo"]'), createPhotoPreview);
 
 function showOnly(el) {
   [signedOutHint, notAdminHint, adminSection].forEach((e) => {
@@ -52,6 +55,13 @@ createForm.addEventListener("submit", async (e) => {
   const dateVal = fd.get("date");
   const date = dateVal ? Timestamp.fromDate(new Date(dateVal)) : null;
   const photoFile = fd.get("photo");
+  const hasPhoto = photoFile && photoFile.size > 0;
+  const submitBtn = createForm.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  if (hasPhoto) {
+    createPhotoStatus.textContent = "Uploading photo…";
+    createPhotoStatus.hidden = false;
+  }
   try {
     const { photoError } = await createEvent(
       {
@@ -64,7 +74,7 @@ createForm.addEventListener("submit", async (e) => {
         splitGuestsByAge,
         childAgeThreshold: splitGuestsByAge ? Number(fd.get("childAgeThreshold")) || 13 : null,
       },
-      photoFile && photoFile.size > 0 ? photoFile : null
+      hasPhoto ? photoFile : null
     );
     if (photoError) {
       createError.textContent = "Event created, but the photo couldn't be uploaded: " + photoError;
@@ -72,10 +82,14 @@ createForm.addEventListener("submit", async (e) => {
     }
     createForm.reset();
     childAgeLabel.hidden = true;
+    createPhotoPreview.hidden = true;
     await loadEvents();
   } catch (err) {
     createError.textContent = err.message;
     createError.hidden = false;
+  } finally {
+    submitBtn.disabled = false;
+    createPhotoStatus.hidden = true;
   }
 });
 

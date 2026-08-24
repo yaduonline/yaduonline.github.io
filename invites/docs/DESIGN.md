@@ -353,6 +353,31 @@ shared `renderEventCard()` (admin/owner management cards). Not currently
 shown in the more compact "Your RSVPs"/"Open events" list items on the
 homepage - could be added the same way if wanted later.
 
+`.event-photo`/`.event-card-photo` (`styles.css`) render at a portrait
+`aspect-ratio: 3 / 4` with `object-fit: cover`, rather than a fixed,
+low `max-height` on a full-width box - the earlier fixed-height approach
+forced every photo into a short, wide (landscape) frame regardless of
+the source image's own orientation, cropping a typical vertically-shot
+phone photo hard. A portrait-shaped box matches that common case; a
+genuinely landscape photo still displays fine, just cropped to fit the
+portrait frame the same way `cover` always crops to fill its box.
+
+Both create forms (`admin.html`/`my-events.html`) and the edit form show
+an instant local preview of the chosen file the moment it's picked
+(`wirePhotoPreview()` in `events.js`, wired to the same `<input
+type="file">` + `<img class="form-photo-preview">` pair in each form) -
+a plain `URL.createObjectURL(file)`, no network involved, so it's
+immediate regardless of upload speed. The actual upload only happens at
+submit time (inside `createEvent()`/`updateEvent()`, as described above);
+during that `await`, the submit button disables and a "Uploading
+photo…" message shows next to the preview
+(`.photo-upload-status`), clearing once the whole create/update call
+resolves - at which point the real event card re-renders with the
+now-uploaded `photoUrl` (a fresh `getDocs`/`getDoc` + `renderEventCard()`
+call, same as any other create/edit completion), so the on-page photo
+updates to the server-hosted version right as the "uploading" state
+clears.
+
 ## File map
 
 - `invites/index.html` / `js/app.js` — home: auth widget, "Your RSVPs",
