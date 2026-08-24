@@ -115,11 +115,19 @@ async function render(container, user) {
     wireSignedOut(container);
     return;
   }
-  let needsPassword = true;
-  try {
-    needsPassword = !(await hasPassword(user.uid));
-  } catch (err) {
-    console.warn("Could not check password status:", err);
+  // Google sign-in is already a complete, independent credential - "set a
+  // password" only makes sense for accounts whose only way in is a magic
+  // link, so Google users skip this check entirely rather than being
+  // treated as passwordless.
+  const isGoogleUser = user.providerData.some((p) => p.providerId === "google.com");
+  let needsPassword = false;
+  if (!isGoogleUser) {
+    needsPassword = true;
+    try {
+      needsPassword = !(await hasPassword(user.uid));
+    } catch (err) {
+      console.warn("Could not check password status:", err);
+    }
   }
   container.innerHTML = signedInHtml(user, isAdminUser(user), needsPassword);
   wireSignedIn(container);

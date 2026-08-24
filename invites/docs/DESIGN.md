@@ -155,7 +155,14 @@ Enumeration Protection on. So this is tracked explicitly instead: a
 `hasPassword: true` field on `users/{uid}`, set by `signUpWithEmail`,
 `signInWithEmail`, and `setPassword`. `auth-widget.js`'s signed-in render
 does a `getDoc` on that field (`hasPassword(uid)` in `auth.js`) to decide
-whether to show the standing "Set a password" control.
+whether to show the standing "Set a password" control - except for Google
+sign-in, which is checked first via `user.providerData` (reliably reports
+`providerId: "google.com"`, unlike the password/email-link ambiguity
+above) and skips the `hasPassword` lookup entirely. A Google account is
+already a complete, independent credential, so "you're passwordless, add
+a password" never applies to it - `signInWithGoogle()` never sets
+`hasPassword`, so without this check a Google user would incorrectly be
+shown the prompt every time.
 
 `setPassword()` tries `linkWithCredential` first; because of the same
 provider-sharing quirk, that call fails with `auth/provider-already-linked`
