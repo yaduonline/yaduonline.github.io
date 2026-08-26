@@ -134,6 +134,29 @@ design — an unverified email shouldn't be able to write data).
   no edits after that point (enforced server-side, not just hidden in the
   UI). Events with no date set have no such cutoff.
 
+### RSVP confirmation emails
+When someone RSVPs, two emails go out automatically:
+
+- **To the guest**, every time they save — a receipt for what was just
+  recorded (their response, the event's when/where, who's hosting) plus a
+  link back to change it. Deliberately does *not* echo their own comment
+  back at them.
+- **To the event's creator**, when the RSVP is new or when the attendance
+  details actually change (yes/no/maybe, guest count, adult/child counts) —
+  but **not** for a comment-only edit, which would otherwise fill the
+  host's inbox with noise. Includes who responded, their response, and
+  their comment.
+
+A creator RSVPing to their own event gets only the guest receipt, not a
+duplicate notification about themselves.
+
+Sent from the site's own Gmail account. Consistent with the privacy tenet
+above, the messages carry no tracking pixels, no remote images, and no
+analytics links — the only link in either is back to the event page. Note
+that sending email necessarily means guest names and addresses pass
+through Google's mail infrastructure; that's inherent to email and is the
+one place RSVP data leaves Firebase.
+
 ### Who's coming
 Once a guest has RSVP'd to an event themselves, they can see everyone
 else's response on that same event page — name, attending/not/maybe, and
@@ -158,9 +181,9 @@ identify themselves first or already has an account; once signed in, a
 compact status bar replaces it.
 
 ## Out of scope (for now)
-- Email notifications beyond the sign-in link itself (e.g. RSVP reminders,
-  confirmation emails) — would need a paid backend (Cloud Functions), not
-  built.
+- **RSVP reminders** and any other scheduled/bulk mail — confirmation
+  emails exist (see "RSVP confirmation emails" above), but nothing sends
+  on a timer or to a whole guest list at once.
 - **Canceling/deleting** an event after creation — editing is supported
   (see "Creating and owning events" above), but there's no delete button
   anywhere yet, even though Firestore rules already permit it.

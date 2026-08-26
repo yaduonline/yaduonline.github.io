@@ -1,0 +1,7 @@
+node_modules/
+
+# Local secret values for the Functions emulator (firebase functions:secrets).
+# Never commit real credentials - see docs/DESIGN.md "RSVP emails".
+.secret.local
+.env
+.env.*

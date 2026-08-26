@@ -9,6 +9,7 @@ on:
       - 'firestore.rules'
       - 'firestore.indexes.json'
       - 'storage.rules'
+      - 'functions/**'
       - '.github/workflows/firebase-deploy.yml'
   workflow_dispatch:
 
@@ -24,8 +25,10 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: echo "$FIREBASE_SERVICE_ACCOUNT" > "${{ runner.temp }}/firebase-sa.json"
-      - name: Deploy hosting + Firestore + Storage rules
+      - name: Install functions dependencies
+        run: npm --prefix functions ci || npm --prefix functions install
+      - name: Deploy hosting + Firestore + Storage rules + Functions
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-sa.json
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-        run: npx firebase-tools deploy --only hosting,firestore,storage --project "$FIREBASE_PROJECT_ID" --non-interactive
+        run: npx firebase-tools deploy --only hosting,firestore,storage,functions --project "$FIREBASE_PROJECT_ID" --non-interactive

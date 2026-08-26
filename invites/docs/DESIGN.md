@@ -12,14 +12,17 @@ invites.yaduonline.com    → Firebase Hosting, serving invites/ (static HTML/JS
                               ↳ Firebase Auth (email/password, Google, email-link)
                               ↳ Firestore (events, invitees, rsvps, users, openEvents)
                               ↳ Cloud Storage (one photo per event)
+                              ↳ Cloud Functions (RSVP confirmation emails)
 ```
 
 Same repo as the main site. `invites/` is the Firebase Hosting public root —
 entirely separate deploy target from GitHub Pages (excluded from Pages via
 the root `_config.yml`). No bundler: plain HTML + `<script type="module">`,
-Firebase JS SDK loaded straight from `gstatic.com`. No backend/Cloud
-Functions — everything is client SDK calls against Firebase Auth/Firestore,
-authorized by Firestore Security Rules. The project runs on Firebase's
+Firebase JS SDK loaded straight from `gstatic.com`. The site itself is
+still entirely client SDK calls against Firebase Auth/Firestore/Storage,
+authorized by security rules — the one piece of server-side code is a
+single Cloud Function that sends RSVP emails (see "RSVP emails" below),
+which nothing in the browser calls directly. The project runs on Firebase's
 Blaze (pay-as-you-go) plan, required for Cloud Storage (event photos —
 see "Deployment" below); actual usage should stay $0 given the app's
 size caps and low expected traffic. Everything besides Storage would
@@ -345,6 +348,71 @@ thumbnail, the split-guest RSVP table headers) consistent with whatever
 just changed, reusing the same render path as the initial list load
 instead of a second, parallel "patch this card" implementation.
 
+### RSVP emails
+The only server-side code in the project: `functions/index.js` exports
+`onRsvpWritten`, an `onDocumentWritten` Firestore trigger on
+`events/{eventId}/rsvps/{uid}`.
+
+**Why a trigger rather than a callable/HTTP endpoint the client posts to:**
+the client never asks for mail to be sent, so it cannot forge a message,
+point one at an arbitrary recipient, or spam a host beyond genuinely
+RSVPing - which `firestore.rules` already governs (`isRsvpAllowed()`).
+The recipients are derived server-side from data the function reads
+itself: the guest from `rsvp.email`, the host from the parent event's
+`createdBy`. Nothing about the email is client-supplied.
+
+**Who gets what** (`hasAttendanceChanged()` in `functions/email.js`):
+- The **guest** gets a receipt on every save, worded differently for a
+  first response vs. an update.
+- The **host** is emailed only when the RSVP is new or when `status`,
+  `guestCount`, `adultCount`, or `childCount` changed - a comment-only
+  edit is deliberately silent, so the host's inbox stays signal-heavy.
+  `null` and `undefined` counts compare equal, so RSVPs predating the
+  adult/child split don't read as a change on their next save.
+- If the host *is* the guest (they RSVP'd to their own event) the host
+  copy is skipped - they don't need telling what they just did.
+
+**Structure.** `functions/email.js` holds the decision and content logic
+as pure functions with no Firebase or nodemailer imports, so it's directly
+unit-testable (`npm test` in `functions/`, using Node's built-in runner -
+no test framework dependency, matching the repo's no-build-step habit).
+`functions/index.js` is the thin trigger: read the event doc, convert the
+Firestore `Timestamp` to a `Date` once at the boundary, decide, deliver.
+
+**Time zones.** Cloud Functions run in UTC, but an event's date was
+entered by its creator in *their* local time, so formatting server-side
+would show a wrong-looking hour. `formatEventDate()` renders in a fixed
+`DISPLAY_TIME_ZONE` (`America/Los_Angeles`) and always prints the zone
+abbreviation, so the time can't be misread. One constant to change if the
+family stops being Pacific-based. Note that `Intl.DateTimeFormat` refuses
+to combine `dateStyle`/`timeStyle` with `timeZoneName`, hence the
+spelled-out component options.
+
+**Failure handling.** The RSVP is already committed by the time the
+trigger runs, so email is strictly best-effort: each send is wrapped
+individually and logs on failure rather than throwing. A guest never sees
+a mail problem surface as an RSVP problem, and one failed recipient
+doesn't block the other.
+
+**Credentials.** Sent via Gmail SMTP (nodemailer) as
+`yaduonline@gmail.com`. The address isn't secret - it's already the admin
+allowlist entry in `firestore.rules` - but the Gmail **app password** is,
+and lives in Secret Manager via `defineSecret("GMAIL_APP_PASSWORD")`,
+never in this repo. Set it once with
+`firebase functions:secrets:set GMAIL_APP_PASSWORD`.
+
+**Emulator behaviour.** When `FUNCTIONS_EMULATOR === "true"` the function
+logs the full message it *would* have sent instead of connecting to SMTP -
+so trigger decisions stay fully observable locally with no real credential
+and zero risk of mailing anyone during testing.
+
+> **Emulator gotcha:** Firestore triggers are project-scoped, so the
+> emulator must run with the *same* project id the client config uses
+> (`firebase emulators:start --project events-45ce5`). Started under a
+> different id (e.g. `demo-yaduonline-invites`), everything else still
+> works - rules, auth, storage - but writes land in a different namespace
+> than the trigger watches and the function silently never fires.
+
 ### Event photos
 `resizeImage()` in `events.js` downscales the chosen file client-side
 before it ever leaves the browser (`<canvas>`, longest side capped at
@@ -418,6 +486,7 @@ clears.
 - `invites/js/firebase-init.js` / `firebase-config.js` — SDK init; auto-connects to the local emulator suite on `localhost`/`127.0.0.1`.
 - `invites/styles.css` — self-contained stylesheet (not shared with the main site's `style.css` — different origin/deploy target).
 - `firestore.rules`, `firestore.indexes.json`, `storage.rules`, `firebase.json`, `.firebaserc` — Firebase project config, at repo root (not under `invites/`) since they configure the whole Firebase project, not just the hosted files.
+- `functions/` — the only server-side code: `index.js` (the RSVP trigger), `email.js` (pure decision/content logic), `email.test.js` (`npm test`). Has its own `package.json`/`node_modules`, so it's the one part of the repo with a dependency install step; the hosted site under `invites/` stays build-free.
 
 ## Event page layout
 On `event.html` (only - `index.html`/`admin.html`/`my-events.html` keep
@@ -499,9 +568,16 @@ instead of leaving a blank gap.
 ## Deployment
 
 - `.github/workflows/firebase-deploy.yml` deploys Hosting + Firestore rules
-  + Storage rules on push to `main` touching `invites/**`, `firebase.json`,
-  `firestore.rules`, or `storage.rules`, using a `FIREBASE_SERVICE_ACCOUNT`
-  + `FIREBASE_PROJECT_ID` GitHub secret pair.
+  + Storage rules + Functions on push to `main` touching `invites/**`,
+  `firebase.json`, `firestore.rules`, `storage.rules`, or `functions/**`,
+  using a `FIREBASE_SERVICE_ACCOUNT` + `FIREBASE_PROJECT_ID` GitHub secret
+  pair. The workflow installs `functions/` dependencies before deploying.
+- **The Gmail app password must be set once** before RSVP emails work
+  against the real project: `firebase functions:secrets:set
+  GMAIL_APP_PASSWORD` (generate it at myaccount.google.com → Security →
+  App passwords; requires 2-Step Verification on the account). It's stored
+  in Secret Manager, never in this repo. The CI service account needs
+  permission to read it at deploy time — see "RSVP emails" above.
 - **The project has to be on the Blaze (pay-as-you-go) plan for Storage to
   work**, set up once in the Firebase console (Usage and billing → Modify
   plan → Blaze), with Cloud Storage itself enabled after that (Build →
@@ -515,9 +591,13 @@ instead of leaving a blank gap.
   but it does remove Spark's hard $0 ceiling, so a billing budget alert
   is worth setting. Nothing in this repo can do either of these steps;
   the emulator doesn't need them.
-- Local dev/testing: `firebase emulators:start` (Auth + Firestore +
-  Storage + Hosting, see `firebase.json`'s `emulators` block) — no cloud
-  project needed to develop against.
+- Local dev/testing: `firebase emulators:start --project events-45ce5`
+  (Auth + Firestore + Storage + Hosting + Functions, see `firebase.json`'s
+  `emulators` block) — no cloud project or credential needed to develop
+  against. Pass the real project id even locally, or Firestore triggers
+  won't fire; see the gotcha under "RSVP emails" above.
+- `cd functions && npm test` runs the email unit tests (Node's built-in
+  runner, no dependencies beyond what Functions already needs).
 - `playwright.invites.config.js` runs `tests/invites.spec.js` against a
   plain static server rooted at `invites/` (matches the Hosting public
   root, so absolute paths like `/styles.css` resolve the same way locally
