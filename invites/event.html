@@ -29,13 +29,17 @@
 
           <p id="event-closed-hint" class="hint" hidden></p>
 
-          <!-- Signed-out: collapsed behind a small link so it doesn't
-               dominate the page; signed-in: mountAuthWidget shows the
-               compact status bar here directly (see js/event.js). Can't
-               nest this inside the RSVP <form> below - its own sign-in/
-               sign-up are <form>s too. -->
+          <!-- Signed-out: the sign-in forms sit here, collapsed behind the
+               small link below so they don't dominate the page. Signed-in:
+               event.js moves #auth-widget down to #auth-slot-bottom, since
+               the compact "Signed in as X / Sign out" bar belongs after the
+               RSVP rather than in front of it. Can't nest it inside the
+               RSVP <form> below either way - its own sign-in/sign-up are
+               <form>s too. -->
           <button type="button" id="signin-toggle-link" class="link-btn" hidden>Sign in for quick RSVP</button>
-          <div id="auth-widget" hidden></div>
+          <div id="auth-slot-inline">
+            <div id="auth-widget" hidden></div>
+          </div>
 
           <!-- Shown to first-time / signed-out visitors: RSVP now, verify by email after. -->
           <form id="quick-rsvp-form" class="rsvp-form" hidden>
@@ -93,11 +97,20 @@
             <p id="rsvp-status" class="status-msg" hidden></p>
           </form>
 
+          <!-- Deliberately below the RSVP forms rather than up with the
+               rest of the event details - see loadEventDetails(). -->
+          <p id="event-host" class="hint" hidden></p>
+
           <!-- Shown once the signed-in user has RSVP'd (new or existing). -->
           <section id="guest-list-section" hidden>
             <h3>Who's coming</h3>
             <ul id="guest-list" class="event-list"></ul>
           </section>
+
+          <!-- Signed-in destination for #auth-widget (see above): the
+               status bar, admin-dashboard link, and Sign out all end up
+               here, at the very bottom of the page. -->
+          <div id="auth-slot-bottom" class="event-auth-bottom"></div>
         </div>
       </div>
     </section>

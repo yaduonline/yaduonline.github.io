@@ -132,6 +132,25 @@ button {
   border-bottom: 1px solid #eee;
 }
 
+/* Sits just under the RSVP form (see "Reading order" in docs/DESIGN.md),
+   which has its own border - without this it reads as part of the form. */
+#event-host {
+  margin-top: 16px;
+}
+
+/* On event.html the signed-in status bar sits at the *bottom* of the page
+   (see #auth-slot-bottom in event.html), so the divider that normally
+   separates it from the content below it has to move to its top edge
+   instead - otherwise it underlines the last thing on the page. */
+.event-auth-bottom .auth-status {
+  margin-top: 30px;
+  margin-bottom: 0;
+  padding-top: 16px;
+  padding-bottom: 0;
+  border-top: 1px solid #eee;
+  border-bottom: none;
+}
+
 .admin-link {
   font-size: 0.9rem;
 }

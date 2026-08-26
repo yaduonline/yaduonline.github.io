@@ -423,24 +423,61 @@ clears.
 On `event.html` (only - `index.html`/`admin.html`/`my-events.html` keep
 the widget prominent, since being signed-in-focused makes sense there),
 `#auth-widget` moved out of its old top-of-`<main>` position to sit
-*inside* `#event-section`, after the event details. For a signed-out
-visitor it starts `hidden`, with a small "Sign in for quick RSVP"
-(`#signin-toggle-link`) button revealing it on click - can't nest it
-inside the `quick-rsvp-form` `<form>` itself, since `auth-widget.js`
-renders its own `<form>` elements for sign-in/sign-up, and nested forms
-aren't valid HTML. Once signed in, the toggle link hides and
-`#auth-widget` (now just the compact "Signed in as X / Sign out" bar)
-shows directly - no `auth-widget.js` changes needed, `event.js`'s
-`mountAuthWidget` callback just toggles which one is visible based on the
-same signed-in/out state it already branches on.
+*inside* `#event-section`. For a signed-out visitor it starts `hidden`,
+with a small "Sign in for quick RSVP" (`#signin-toggle-link`) button
+revealing it on click - can't nest it inside the `quick-rsvp-form`
+`<form>` itself, since `auth-widget.js` renders its own `<form>` elements
+for sign-in/sign-up, and nested forms aren't valid HTML.
+
+### Reading order
+Within `.event-layout-content` the order is deliberately:
+
+1. `#event-detail` — title, **description**, date/time, location, in that
+   order (`loadEventDetails()` builds this markup). Description sits
+   directly under the heading so the invite reads as prose first, with the
+   logistics (when, then where) following.
+2. `#event-closed-hint` / `#signin-toggle-link` / `#auth-slot-inline`
+3. The RSVP forms (`#quick-rsvp-form` when signed out, `#rsvp-form` when
+   signed in) — the point of the page, kept high.
+4. `#event-host` — the "Hosted by X" line, split out of `#event-detail`'s
+   markup into its own element specifically so it can sit *below* the RSVP
+   rather than competing with the event's own details above it.
+5. `#guest-list-section` — "Who's coming", once the user has RSVP'd.
+6. `#auth-slot-bottom` — the signed-in status bar.
+
+### Where `#auth-widget` renders
+It does double duty, which is why it has two slots rather than one fixed
+position:
+- **Signed out** it renders the full sign-in/sign-up/magic-link forms,
+  which only make sense adjacent to the `#signin-toggle-link` that reveals
+  them — so it lives in `#auth-slot-inline`, above the RSVP form.
+- **Signed in** it's just the compact "Signed in as X / Admin dashboard /
+  Set a password / Sign out" bar, which is account chrome rather than
+  anything the guest came to the page for — so `event.js`'s
+  `mountAuthWidget` callback `appendChild`s it into `#auth-slot-bottom`
+  at the very bottom instead.
+
+`event.js` moves the same element between slots (rather than duplicating
+it, or `auth-widget.js` learning about either slot) — `render()` only ever
+sets `innerHTML` on the container it was handed, so moving the node itself
+is invisible to it. The move happens on *every* auth-state change in both
+directions, so signing out on a page that was signed-in correctly pulls
+the widget back inline instead of leaving the sign-in forms stranded at the
+bottom, far from the link that reveals them.
+
+`.event-auth-bottom .auth-status` flips the shared status bar's divider
+from a bottom border to a top one — the base `.auth-status` style assumes
+it's sitting above content, which would otherwise leave a stray underline
+across the last thing on the page.
 
 ### Responsive photo/content layout
 `#event-section` wraps its photo and everything else in `.event-layout`,
 a flex container with two children: `#event-photo-wrap` (just the `<img>`,
 set separately from `#event-detail` by `loadEventDetails()` - see "Event
 photos" in this doc) and `.event-layout-content` (event details text,
-sign-in, both RSVP forms, guest list - everything that used to sit
-directly in `#event-section`). Below 700px viewport width, `.event-layout`
+sign-in, both RSVP forms, host line, guest list, signed-in status bar -
+everything that used to sit directly in `#event-section`; see "Reading
+order" above for their sequence). Below 700px viewport width, `.event-layout`
 stacks them in a column (photo above content, matching how it already
 looked on mobile); at 700px and up it switches to a row, photo in a
 fixed-width `280px` left column, content filling the rest. Splitting the

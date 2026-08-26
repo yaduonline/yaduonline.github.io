@@ -16,6 +16,9 @@ const missingIdHint = document.getElementById("missing-id-hint");
 const eventSection = document.getElementById("event-section");
 const eventPhotoWrap = document.getElementById("event-photo-wrap");
 const eventDetail = document.getElementById("event-detail");
+const eventHost = document.getElementById("event-host");
+const authSlotInline = document.getElementById("auth-slot-inline");
+const authSlotBottom = document.getElementById("auth-slot-bottom");
 const eventClosedHint = document.getElementById("event-closed-hint");
 const quickRsvpForm = document.getElementById("quick-rsvp-form");
 const quickRsvpSent = document.getElementById("quick-rsvp-sent");
@@ -86,8 +89,13 @@ if (!eventId) {
   mountAuthWidget(authContainer, async (user) => {
     await eventDetailsPromise;
     if (!user) {
-      // Collapsed by default so the sign-in forms don't dominate the page;
-      // the toggle link reveals authContainer (see click handler above).
+      // Signed out, the widget renders the sign-in forms, which belong next
+      // to the toggle link that reveals them - so move it back up inline
+      // (it may be sitting in the bottom slot from a previous signed-in
+      // render on this same page load). Collapsed by default so those forms
+      // don't dominate the page; the toggle link reveals authContainer (see
+      // click handler above).
+      authSlotInline.appendChild(authContainer);
       signinToggleLink.hidden = false;
       authContainer.hidden = true;
       if (eventHasStarted) {
@@ -98,6 +106,9 @@ if (!eventId) {
       }
       return;
     }
+    // Signed in, the widget is just the compact status bar (name, admin
+    // link, Sign out) - that goes at the very bottom, after the RSVP.
+    authSlotBottom.appendChild(authContainer);
     signinToggleLink.hidden = true;
     authContainer.hidden = false;
     await handleSignedIn(user);
@@ -126,13 +137,17 @@ async function loadEventDetails() {
   eventPhotoWrap.innerHTML = e.photoUrl
     ? `<img src="${escapeHtml(e.photoUrl)}" alt="" class="event-photo">`
     : "";
+  // Title, then description, then when, then where - the order someone
+  // reads an invite in. "Hosted by" is deliberately not here: it renders
+  // into #event-host, below the RSVP forms.
   eventDetail.innerHTML = `
     <h2>${escapeHtml(e.title || "Untitled event")}</h2>
+    ${e.description ? `<p>${escapeHtml(e.description)}</p>` : ""}
     ${date ? `<time>${escapeHtml(date.toLocaleString())}</time>` : ""}
     ${e.location ? `<p>${escapeHtml(e.location)}</p>` : ""}
-    ${e.description ? `<p>${escapeHtml(e.description)}</p>` : ""}
-    ${e.hostName ? `<p class="hint">Hosted by ${escapeHtml(e.hostName)}</p>` : ""}
   `;
+  eventHost.textContent = e.hostName ? `Hosted by ${e.hostName}` : "";
+  eventHost.hidden = !e.hostName;
   showTopLevel(eventSection);
 }
 
