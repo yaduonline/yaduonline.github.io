@@ -416,6 +416,14 @@ th, td {
   font-size: 0.8rem;
 }
 
+.site-footer {
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+  color: #666;
+  font-size: 0.85rem;
+}
+
 @media (max-width: 600px) {
   body {
     padding: 15px;

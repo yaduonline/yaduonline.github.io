@@ -66,7 +66,9 @@
               <textarea name="comment" rows="2"></textarea>
             </label>
             <button type="submit">Save RSVP</button>
-            <p class="hint">We'll email you a link to confirm it's really you - no password needed.</p>
+            <!-- Text depends on whether the event is open (saves right away)
+                 or invite-only (needs the emailed link) - set in event.js. -->
+            <p class="hint" id="quick-rsvp-hint"></p>
           </form>
           <p id="quick-rsvp-sent" class="status-msg success" hidden>Check your email for a link to confirm your RSVP.</p>
 
@@ -126,5 +128,9 @@
   </main>
 
   <script type="module" src="/js/event.js"></script>
+
+  <footer class="site-footer">
+    <a href="/privacy">Privacy</a>
+  </footer>
 </body>
 </html>

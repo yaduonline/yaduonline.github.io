@@ -163,6 +163,9 @@ async function loadEventDetails() {
     ${date ? `<time>${escapeHtml(date.toLocaleString())}</time>` : ""}
     ${e.location ? `<p>${escapeHtml(e.location)}</p>` : ""}
   `;
+  document.getElementById("quick-rsvp-hint").textContent = eventIsOpen
+    ? "No account needed - your RSVP is saved as soon as you submit."
+    : "We'll email you a link to confirm it's really you - no password needed.";
   eventHost.textContent = e.hostName ? `Hosted by ${e.hostName}` : "";
   eventHost.hidden = !e.hostName;
   showTopLevel(eventSection);
