@@ -22,6 +22,7 @@ const authSlotBottom = document.getElementById("auth-slot-bottom");
 const eventClosedHint = document.getElementById("event-closed-hint");
 const quickRsvpForm = document.getElementById("quick-rsvp-form");
 const quickRsvpSent = document.getElementById("quick-rsvp-sent");
+const quickRsvpDone = document.getElementById("quick-rsvp-done");
 const rsvpForm = document.getElementById("rsvp-form");
 const rsvpStatus = document.getElementById("rsvp-status");
 const guestListSection = document.getElementById("guest-list-section");
@@ -37,6 +38,7 @@ const eventId = new URLSearchParams(location.search).get("id");
 const pendingKey = eventId ? `pendingRsvp:${eventId}` : null;
 
 let eventHasStarted = false;
+let eventIsOpen = false;
 let splitGuestsByAge = false;
 let childAgeThreshold = null;
 let eventDetailsPromise = Promise.resolve();
@@ -77,10 +79,18 @@ function showTopLevel(el) {
 
 // Within event-section, exactly one of these is visible at a time.
 function showRsvpState(el) {
-  [quickRsvpForm, quickRsvpSent, rsvpForm, eventClosedHint].forEach((e) => {
+  [quickRsvpForm, quickRsvpSent, quickRsvpDone, rsvpForm, eventClosedHint].forEach((e) => {
     e.hidden = e !== el;
   });
 }
+
+function revealSignIn() {
+  authContainer.hidden = false;
+  signinToggleLink.hidden = true;
+  authContainer.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+document.getElementById("post-rsvp-signin-link").addEventListener("click", revealSignIn);
 
 if (!eventId) {
   showTopLevel(missingIdHint);
@@ -136,6 +146,7 @@ async function loadEventDetails() {
   const e = eventSnap.data();
   const date = e.date && e.date.toDate ? e.date.toDate() : null;
   eventHasStarted = !!date && date.getTime() < Date.now();
+  eventIsOpen = e.isOpen === true;
   splitGuestsByAge = !!e.splitGuestsByAge;
   childAgeThreshold = e.childAgeThreshold ?? null;
   applyGuestCountMode(quickRsvpForm);
@@ -175,14 +186,40 @@ quickRsvpForm.addEventListener("submit", async (ev) => {
     errEl.hidden = false;
     return;
   }
+  // Open events accept a first RSVP with no account at all - the whole
+  // point being that a guest hits no wall before responding. Invite-only
+  // events still go through the magic link, because their gate is "is your
+  // address on the invite list", which is meaningless unless the address is
+  // actually verified (firestore.rules enforces the same split).
+  if (!eventIsOpen) {
+    try {
+      localStorage.setItem(pendingKey, JSON.stringify(payload));
+      await sendMagicLink(payload.email);
+      showRsvpState(quickRsvpSent);
+    } catch (err) {
+      localStorage.removeItem(pendingKey);
+      errEl.textContent = err.message;
+      errEl.hidden = false;
+    }
+    return;
+  }
+
   try {
-    localStorage.setItem(pendingKey, JSON.stringify(payload));
-    await sendMagicLink(payload.email);
-    showRsvpState(quickRsvpSent);
+    await writeRsvp(payload, null);
+    showRsvpState(quickRsvpDone);
   } catch (err) {
-    localStorage.removeItem(pendingKey);
-    errEl.textContent = err.message;
-    errEl.hidden = false;
+    // The rules only apply `create` when no document exists for this
+    // address, so a denial here is - on an open, not-yet-started event
+    // whose payload we built ourselves - an existing RSVP for this email.
+    if (err.code === "permission-denied") {
+      errEl.textContent =
+        `There's already an RSVP for ${payload.email}. Sign in with that address to change it.`;
+      errEl.hidden = false;
+      revealSignIn();
+    } else {
+      errEl.textContent = "Couldn't save your RSVP: " + err.message;
+      errEl.hidden = false;
+    }
   }
 });
 
@@ -204,7 +241,7 @@ async function handleSignedIn(user) {
       if ((user.email || "").toLowerCase() === (payload.email || "").toLowerCase()) {
         await applyProfileName(payload.firstName, payload.lastName);
         refreshAuthWidget(authContainer);
-        await writeRsvp(user, payload);
+        await writeRsvp(payload, user);
       }
     } catch (err) {
       await showSignedInForm(user);
@@ -215,10 +252,19 @@ async function handleSignedIn(user) {
   await showSignedInForm(user);
 }
 
-async function writeRsvp(user, payload) {
+// Writes (or overwrites) the RSVP for `payload.email`. `user` is the signed-in
+// account when there is one, and null for a no-account RSVP on an open event -
+// it only affects the personal "Your RSVPs" index, which needs a uid to hang
+// off. The RSVP document itself is keyed by lowercased email either way, so
+// the same person gets the same row whether or not they ever sign in, and
+// firestore.rules can treat "one RSVP per address" as a plain create/update
+// distinction.
+async function writeRsvp(payload, user) {
+  const email = payload.email.trim();
+  const emailKey = email.toLowerCase();
   const respondedAt = serverTimestamp();
-  await setDoc(doc(db, "events", eventId, "rsvps", user.uid), {
-    email: user.email,
+  await setDoc(doc(db, "events", eventId, "rsvps", emailKey), {
+    email,
     name: [payload.firstName, payload.lastName].filter(Boolean).join(" "),
     firstName: payload.firstName || "",
     lastName: payload.lastName || "",
@@ -229,6 +275,8 @@ async function writeRsvp(user, payload) {
     comment: payload.comment || "",
     respondedAt,
   });
+
+  if (!user) return;
 
   // Mirrored index so the signed-in user can find and edit this RSVP again
   // later without needing the original invite link (see "Your RSVPs" on
@@ -246,17 +294,42 @@ async function writeRsvp(user, payload) {
   });
 }
 
+// Writes the userRsvps index entry if it's missing. Only matters for RSVPs
+// created without an account, which couldn't write it at the time; a normal
+// signed-in save writes it inline (see writeRsvp). Best-effort - a failure
+// here only costs a homepage listing, so it must never break the page.
+async function ensureUserRsvpIndex(user, rsvp) {
+  try {
+    const indexRef = doc(db, "userRsvps", user.uid, "items", eventId);
+    if ((await getDoc(indexRef)).exists()) return;
+    const eventSnap = await getDoc(doc(db, "events", eventId));
+    const e = eventSnap.exists() ? eventSnap.data() : {};
+    await setDoc(indexRef, {
+      eventTitle: e.title || "Untitled event",
+      eventDate: e.date || null,
+      status: rsvp.status,
+      guestCount: rsvp.guestCount,
+      respondedAt: rsvp.respondedAt || serverTimestamp(),
+    });
+  } catch (err) {
+    console.warn("Could not backfill the Your-RSVPs index:", err);
+  }
+}
+
 function reportRsvpError(err) {
   rsvpStatus.textContent =
     err.code === "permission-denied"
-      ? "Couldn't save your RSVP - either this event has already happened, or this link isn't for your invite to it."
+      ? "Couldn't save your RSVP - either this event has already happened, or it's invite-only and this address isn't on its guest list."
       : "Couldn't save your RSVP: " + err.message;
   rsvpStatus.className = "status-msg error";
   rsvpStatus.hidden = false;
 }
 
 async function showSignedInForm(user) {
-  const existing = await getDoc(doc(db, "events", eventId, "rsvps", user.uid));
+  // Keyed by their verified address, so signing in picks up an RSVP they
+  // made earlier without an account (see writeRsvp).
+  const emailKey = (user.email || "").toLowerCase();
+  const existing = await getDoc(doc(db, "events", eventId, "rsvps", emailKey));
   const existingData = existing.exists() ? existing.data() : null;
 
   // Reset state from any previously-signed-in user on this same page load
@@ -268,16 +341,34 @@ async function showSignedInForm(user) {
   guestList.innerHTML = "";
 
   // Shown read-only rather than collected - a signed-in RSVP is always
-  // attributed to the account's own name/email (see writeRsvp() below and
-  // its onsubmit handler), so these fields just let the guest confirm
-  // who they're RSVPing as, not edit it.
-  const { firstName, lastName } = splitDisplayName(user.displayName);
+  // attributed to the account's own name/email, so these fields just let
+  // the guest confirm who they're RSVPing as, not edit it.
+  //
+  // An account created *after* a no-account RSVP has no displayName yet
+  // (nobody ever typed a name into a signup form), so fall back to the name
+  // already on the RSVP. Without this, signing in to tweak an answer would
+  // silently blank out the name the guest originally gave.
+  const fromAccount = splitDisplayName(user.displayName);
+  const firstName = fromAccount.firstName || existingData?.firstName || "";
+  const lastName = fromAccount.lastName || existingData?.lastName || "";
   rsvpForm.querySelector(".rsvp-first-name").value = firstName;
   rsvpForm.querySelector(".rsvp-last-name").value = lastName;
   rsvpForm.querySelector(".rsvp-email").value = user.email || "";
 
+  // Adopt that name onto the account itself so it's coherent everywhere
+  // else (auth widget, future events) rather than only on this RSVP.
+  if (!user.displayName && (firstName || lastName)) {
+    applyProfileName(firstName, lastName)
+      .then(() => refreshAuthWidget(authContainer))
+      .catch((err) => console.warn("Could not apply profile name:", err));
+  }
+
   if (existingData) {
     loadGuestList();
+    // An RSVP made without an account couldn't write the personal index
+    // (no uid to hang it off). Now that they've signed in, backfill it so
+    // the event shows up under "Your RSVPs" on the homepage.
+    ensureUserRsvpIndex(user, existingData);
   }
 
   if (eventHasStarted) {
@@ -307,16 +398,17 @@ async function showSignedInForm(user) {
     ev.preventDefault();
     rsvpStatus.hidden = true;
     const fd = new FormData(rsvpForm);
-    const { firstName, lastName } = splitDisplayName(user.displayName);
     try {
-      await writeRsvp(user, {
+      await writeRsvp({
+        // Resolved above - account name, falling back to the name already
+        // on the RSVP for accounts created after a no-account response.
         firstName,
         lastName,
         email: user.email,
         status: fd.get("status"),
         comment: fd.get("comment") || "",
         ...readGuestCounts(rsvpForm),
-      });
+      }, user);
       rsvpStatus.textContent = "RSVP saved. Thank you!";
       rsvpStatus.className = "status-msg success";
       rsvpStatus.hidden = false;

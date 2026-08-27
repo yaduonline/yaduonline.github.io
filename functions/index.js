@@ -51,9 +51,31 @@ async function deliver({ to, subject, text, html }) {
   });
 }
 
+// Open events accept RSVPs from anyone, with no account and no verified
+// address (see firestore.rules), so the guest confirmation is the one thing
+// here that could be turned into a way to mail strangers. A rules-level
+// volume cap can't help - with no uid to key on, the counter would be
+// writable by anyone and could be inflated to lock the event's own guests
+// out. This throttle lives server-side instead, where the count is read
+// with admin privileges from the RSVPs themselves and no client can forge
+// or exhaust it. Above the cap the host is still notified; only the
+// outbound-to-strangers half stops.
+const GUEST_EMAIL_WINDOW_MS = 60 * 60 * 1000;
+const GUEST_EMAILS_PER_WINDOW = 25;
+
+async function recentRsvpCount(eventId) {
+  const since = new Date(Date.now() - GUEST_EMAIL_WINDOW_MS);
+  const snap = await getFirestore()
+    .collection(`events/${eventId}/rsvps`)
+    .where("respondedAt", ">", since)
+    .count()
+    .get();
+  return snap.data().count;
+}
+
 export const onRsvpWritten = onDocumentWritten(
   {
-    document: "events/{eventId}/rsvps/{uid}",
+    document: "events/{eventId}/rsvps/{emailKey}",
     secrets: [GMAIL_APP_PASSWORD],
   },
   async (firestoreEvent) => {
@@ -87,7 +109,16 @@ export const onRsvpWritten = onDocumentWritten(
     // other recipient's email. Log and carry on rather than throwing.
     if (rsvp.email) {
       try {
-        await deliver({ to: rsvp.email, ...buildGuestEmail({ event, eventId, rsvp, isNew }) });
+        const recent = await recentRsvpCount(eventId);
+        if (recent > GUEST_EMAILS_PER_WINDOW) {
+          logger.warn("Guest confirmation suppressed - unusual RSVP volume", {
+            eventId,
+            recent,
+            cap: GUEST_EMAILS_PER_WINDOW,
+          });
+        } else {
+          await deliver({ to: rsvp.email, ...buildGuestEmail({ event, eventId, rsvp, isNew }) });
+        }
       } catch (err) {
         logger.error("Guest confirmation failed", { eventId, error: err.message });
       }

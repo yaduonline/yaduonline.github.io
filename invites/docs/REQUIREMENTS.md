@@ -78,7 +78,7 @@ This is a personal site with no intention of harvesting user data.
   link with can find (matching "you should only see your own
   created/RSVP'd events").
 
-### RSVPing — first-time guest, no account required up front
+### RSVPing — first-time guest, no account required at all
 A guest who has never used the site before must **not** be forced to create
 an account or sign in before they can RSVP. Opening an invite link shows the
 event details and a ready-to-use RSVP form right away: First name, Last
@@ -86,20 +86,44 @@ name, Email, attending yes/no/maybe, guest count, comment. Email is always
 required; of first/last name, **at least one is required, but not both** —
 a guest known by a single name isn't blocked from RSVPing.
 
+On an **open event**, submitting that form saves the RSVP immediately —
+no account, no email confirmation step, no wall of any kind before
+responding. Signing in is then *offered*, not required, because it's what
+unlocks two things:
+
+- **changing your answer later**, and
+- **seeing who else is coming**.
+
+**One RSVP per email address per event.** Trying to RSVP again with an
+address that already responded gives a clear message saying so and asking
+them to sign in with that address to change it — rather than silently
+overwriting a response that may not have been theirs.
+
+**Invite-only events still require sign-in**, via the emailed link flow
+below. Their whole gate is "is your address on the guest list", which means
+nothing if someone can simply *claim* to be an invited address without
+proving it.
+
+The tradeoff, stated plainly: on open events an RSVP no longer proves the
+person controls that inbox, so someone could respond using another
+person's address. The confirmation email is what surfaces that — it lands
+in the real owner's inbox, who can then sign in and correct it.
+
 A **signed-in** guest instead sees their first name, last name, and email
 pre-filled from their account and **not editable** — the RSVP is always
 attributed to the identity they're signed in as, so these fields are shown
 for confirmation, not collected fresh each time.
 
-Submitting it:
+On an **invite-only** event, submitting that form instead:
 1. Sends the guest an email containing a one-click sign-in link (Firebase's
    built-in passwordless "magic link" — no typed code, no separate backend).
 2. Once they click it and it's verified, their account is created
    automatically (using the name they gave) and their RSVP is saved — no
    further steps, no password required at any point.
 
-If they open the RSVP form and never click the email, nothing is saved (by
-design — an unverified email shouldn't be able to write data).
+If they open an invite-only RSVP form and never click that email, nothing
+is saved (by design — an unverified address shouldn't be able to claim a
+spot on a guest list it may not be on).
 
 ### Signing in — every other case
 - Returning users, or first-timers who'd rather identify themselves before

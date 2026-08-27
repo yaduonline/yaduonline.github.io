@@ -70,6 +70,15 @@
           </form>
           <p id="quick-rsvp-sent" class="status-msg success" hidden>Check your email for a link to confirm your RSVP.</p>
 
+          <!-- Shown after a no-account RSVP on an open event. Signing in is
+               offered, not required - it's what unlocks editing and the
+               guest list later (see js/event.js). -->
+          <div id="quick-rsvp-done" hidden>
+            <p class="status-msg success">Your RSVP is saved. Thank you!</p>
+            <p class="hint">We've emailed you a confirmation. To change your answer later, or to see who else is coming, sign in with this same email address.</p>
+            <button type="button" id="post-rsvp-signin-link" class="link-btn">Sign in to manage your RSVP</button>
+          </div>
+
           <!-- Shown to signed-in users (returning, or just verified via the emailed link). -->
           <form id="rsvp-form" class="rsvp-form" hidden>
             <h3>RSVP</h3>

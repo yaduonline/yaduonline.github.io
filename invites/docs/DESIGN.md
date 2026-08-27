@@ -33,9 +33,9 @@ still fit comfortably on the free Spark plan.
 - `users/{uid}` — `{ email, displayName, firstName, lastName, createdAt }`
 - `events/{eventId}` — `{ title, description, date, location, hostName, isOpen, splitGuestsByAge, childAgeThreshold, photoUrl, createdBy, createdByUid, createdAt }`. `splitGuestsByAge` is a per-event opt-in; `childAgeThreshold` (a plain number, e.g. `13`) only means anything when it's `true`. `createdByUid` is the ownership field rules check; `createdBy` (the creator's email) is kept alongside it purely for display (event cards, "created by"). `photoUrl` is only present if a photo was uploaded - see "Event photos" below.
 - `events/{eventId}/invitees/{lowercasedEmail}` — `{ name, maxGuests, invitedAt }` (owner/admin-managed guest list for invite-only events)
-- `events/{eventId}/rsvps/{uid}` — `{ email, name, firstName, lastName, status: yes|no|maybe, guestCount, adultCount, childCount, comment, respondedAt }`. `guestCount` is always populated (as `adultCount + childCount` for events using the split) so every consumer that only cares about a total - CSV export's default header, `userRsvps`, older events predating this feature - keeps working unchanged; `adultCount`/`childCount` are `null` for events not using the split.
+- `events/{eventId}/rsvps/{lowercasedEmail}` — `{ email, name, firstName, lastName, status: yes|no|maybe, guestCount, adultCount, childCount, comment, respondedAt }`. Keyed by lowercased email rather than uid, since an RSVP can now be made with no account at all (see "No-account RSVP" below); `email` keeps the address as the guest typed it, the document id is the normalized form. `guestCount` is always populated (as `adultCount + childCount` for events using the split) so every consumer that only cares about a total - CSV export's default header, `userRsvps`, older events predating this feature - keeps working unchanged; `adultCount`/`childCount` are `null` for events not using the split.
 - `openEvents/{eventId}` — denormalized copy of **admin-created** `isOpen: true` events (title/date/location only), kept in sync by `createEvent()` in `events.js`. Exists purely so signed-in users can browse open events without a `list` query against `events` (Firestore rules can't grant `list` on a collection whose per-document access depends on document content). Deliberately admin-only, even though any user can create an open event now — see "Creating and owning events" in REQUIREMENTS.md for why.
-- `userRsvps/{uid}/items/{eventId}` — `{ eventTitle, eventDate, status, guestCount, respondedAt }`, a per-user denormalized index written alongside every RSVP so a signed-in guest can see and revisit everything they've RSVP'd to (the "Your RSVPs" list on the homepage) without needing the original invite link again — same rationale as `openEvents`: Firestore rules can't grant `list` on `events/*/rsvps` scoped to "docs belonging to me" since that's a collection-group concern, but a plain per-uid collection like this one is trivially listable by its own path.
+- `userRsvps/{uid}/items/{eventId}` — `{ eventTitle, eventDate, status, guestCount, respondedAt }`, a per-user denormalized index written alongside every RSVP made while signed in (and backfilled on next sign-in for RSVPs made without an account) so a signed-in guest can see and revisit everything they've RSVP'd to (the "Your RSVPs" list on the homepage) without needing the original invite link again — same rationale as `openEvents`: Firestore rules can't grant `list` on `events/*/rsvps` scoped to "docs belonging to me" since that's a collection-group concern, but a plain per-uid collection like this one is trivially listable by its own path.
 - `userEvents/{uid}/items/{eventId}` — `{ createdAt }`. The equivalent index for events a user *created* (powers "Your events" on `my-events.html`). Deliberately minimal - unlike `userRsvps`, it doesn't duplicate title/date/etc., since `events/{eventId}` `get` is already public; `my-events.js` just re-fetches the full doc per ID rather than risk a second, potentially-stale copy of the same fields.
 - `eventCounts/{uid}` — `{ count, windowStart }`, one doc per user, the rolling-24h rate-limit counter for non-admin event creation. See "Rate-limited event creation" below.
 
@@ -63,19 +63,24 @@ still fit comfortably on the free Spark plan.
   `get()` on the parent event's `createdByUid`) — never exposed to guests;
   a guest can't tell who else is invited or check membership directly,
   access is inferred server-side via `isInvited()`.
-- **`rsvps` subcollection**: a signed-in user can create/update only their
-  own doc (`request.auth.uid == uid`), and only if (`isRsvpAllowed()`): the
-  event is `isOpen` or their email is in that event's `invitees`, **and**
-  the event's `date` is either unset or still in the future
-  (`event.date > request.time`) — this is what actually closes RSVPs once
-  an event starts; the client also hides the form at that point, but this
-  rule is what makes it real. `list` (reading everyone's response) is
-  allowed for admins, the event's owner (`isEventOwner()`), **or** anyone
-  who's RSVP'd themselves (`hasRsvpd()`, an `exists()` check on their own
-  doc at a fixed path — content-independent, so it's a valid `list`
-  condition, same reasoning as `isAdmin()`). The last one is the "Who's
-  coming" feature: RSVPing unlocks seeing everyone else's response on that
-  event, not just your own.
+- **`rsvps` subcollection**: documents are keyed by **lowercased email**,
+  not uid — see "No-account RSVP" below for why, and for the
+  create-vs-update distinction that enforces one RSVP per address.
+  `create` is open to *anyone*, signed in or not, on an `isOpen` event;
+  invite-only events additionally require the caller to own that address
+  (`ownsRsvp()`) and be on the invitee list. `update` always requires
+  `ownsRsvp()` (or admin/owner). Both paths require the event's `date` to
+  be unset or still in the future (`rsvpWindowOpen()`) — this is what
+  actually closes RSVPs once an event starts; the client also hides the
+  form at that point, but this rule is what makes it real. Because
+  unauthenticated callers can write here, `validRsvpPayload()` pins the
+  exact field set, types, and size limits. `list` (reading everyone's
+  response) is allowed for admins, the event's owner (`isEventOwner()`),
+  **or** anyone who's RSVP'd themselves (`hasRsvpd()`, an `exists()` check
+  at a fixed path derived from their verified email — content-independent,
+  so it's a valid `list` condition, same reasoning as `isAdmin()`). The
+  last one is the "Who's coming" feature: RSVPing *and signing in* unlocks
+  seeing everyone else's response on that event.
 - **`userRsvps/{uid}/items/{eventId}`** and **`userEvents/{uid}/items/{eventId}`**:
   readable/writable only by that uid (`request.auth.uid == uid`) — this
   check is on a path segment, not document content, so unlike
@@ -205,14 +210,14 @@ waiting on a listener that won't re-fire for that change.
 the signed-in user and renders it on the homepage, each entry linking to
 that event. There's no separate edit UI: `event.js`'s signed-in RSVP form is
 always the same form whether it's a first response or a change — it
-pre-fills from the existing `rsvps/{uid}` doc if one exists, and saving
+pre-fills from the existing `rsvps/{lowercasedEmail}` doc if one exists, and saving
 just overwrites it (`writeRsvp()`). The name/email fields at the top of
 that form are always populated from the signed-in account itself
 (`splitDisplayName(user.displayName)`, `user.email`) rather than from the
-`rsvps/{uid}` doc, and are `disabled` - unlike the rest of the form, this
+`rsvps/{lowercasedEmail}` doc, and are `disabled` - unlike the rest of the form, this
 part isn't something a change re-fills differently, since it isn't
 per-response data. The only thing that changes the *rest* of the form is
-`isRsvpAllowed()`'s date check (see Security model) — once
+`rsvpWindowOpen()`'s date check (see Security model) — once
 `event.date` is in the past, `event.js` shows a closed message instead of
 the form at all (checked client-side via `eventHasStarted`, computed once
 in `loadEventDetails()` and awaited by the auth-state callback before it
@@ -348,15 +353,54 @@ thumbnail, the split-guest RSVP table headers) consistent with whatever
 just changed, reusing the same render path as the initial list load
 instead of a second, parallel "patch this card" implementation.
 
+### No-account RSVP
+On an `isOpen` event, a guest can RSVP with no sign-in and no email
+verification. Three things make that work:
+
+**Email as the document key.** RSVPs are keyed by lowercased email rather
+than uid, because there is no uid to key on. This is what gives "one RSVP
+per address" for free: Firestore applies `create` only when the document
+doesn't exist, so a second attempt on the same address is evaluated as an
+`update` instead, which requires `ownsRsvp()` and is refused. `event.js`
+reads that `permission-denied` as "already responded" and says so — it
+never needs to *read* the existing RSVP to detect the collision, which
+matters because an anonymous caller has no right to read one.
+
+**Signing in adopts the RSVP rather than creating a second one.** Because
+the key is the address, `showSignedInForm()` finds an RSVP made earlier
+without an account simply by looking it up under the signed-in user's own
+email. Two wrinkles are handled there: an account created *after* a
+no-account RSVP has no `displayName`, so the form falls back to the name
+stored on the RSVP (otherwise editing would silently blank it) and adopts
+that name onto the account; and `ensureUserRsvpIndex()` backfills the
+`userRsvps` entry that couldn't be written at RSVP time for lack of a uid.
+
+**Invite-only events are deliberately excluded.** Their gate is "is your
+address on the invitee list", which is worthless if an anonymous caller
+can just assert an address. Those keep the magic-link flow, enforced in
+both `event.js` (which branches on `eventIsOpen`) and the rules (which
+require `ownsRsvp() && isInvited()`).
+
+**On rate limiting.** There is deliberately *no* rules-level volume cap on
+anonymous creates. With no uid to key a counter on, the counter would have
+to be per-event and writable by any anonymous caller — so an attacker
+could inflate it to the cap and lock the event's real guests out of
+RSVPing, turning a low-probability spam risk into a trivial
+denial-of-service. The guards that *are* enforceable sit where they can't
+be gamed: `validRsvpPayload()` in the rules (content), and a send throttle
+inside the Cloud Function (the mail account) — see "RSVP emails". The
+remaining backstop is that event IDs are random and `events` can't be
+listed, so an unshared invite link is not discoverable.
+
 ### RSVP emails
 The only server-side code in the project: `functions/index.js` exports
 `onRsvpWritten`, an `onDocumentWritten` Firestore trigger on
-`events/{eventId}/rsvps/{uid}`.
+`events/{eventId}/rsvps/{emailKey}`.
 
 **Why a trigger rather than a callable/HTTP endpoint the client posts to:**
 the client never asks for mail to be sent, so it cannot forge a message,
 point one at an arbitrary recipient, or spam a host beyond genuinely
-RSVPing - which `firestore.rules` already governs (`isRsvpAllowed()`).
+RSVPing - which `firestore.rules` already governs.
 The recipients are derived server-side from data the function reads
 itself: the guest from `rsvp.email`, the host from the parent event's
 `createdBy`. Nothing about the email is client-supplied.
@@ -393,6 +437,15 @@ trigger runs, so email is strictly best-effort: each send is wrapped
 individually and logs on failure rather than throwing. A guest never sees
 a mail problem surface as an RSVP problem, and one failed recipient
 doesn't block the other.
+
+**Send throttle.** Since open events accept RSVPs from unverified
+addresses, the guest confirmation is the one piece of this that could be
+turned into a way to mail strangers. `recentRsvpCount()` counts RSVPs
+written to the event in the last hour (a Firestore `count()` aggregation,
+read with admin privileges) and suppresses the *guest* half above
+`GUEST_EMAILS_PER_WINDOW`; the host is still notified either way. It lives
+here rather than in the rules precisely because a client can neither forge
+the count nor inflate it to lock anyone out — see "On rate limiting" above.
 
 **Credentials.** Sent via Gmail SMTP (nodemailer) as
 `yaduonline@gmail.com`. The address isn't secret - it's already the admin

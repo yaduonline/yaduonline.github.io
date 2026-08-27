@@ -20,18 +20,51 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/events/$(eventId)/invitees/$(request.auth.token.email.lower()));
     }
 
-    function isRsvpAllowed(eventId) {
+    // RSVPs close once the event starts. Events with no date never close.
+    function rsvpWindowOpen(eventId) {
       let event = get(/databases/$(database)/documents/events/$(eventId)).data;
-      return (event.isOpen == true || isInvited(eventId)) &&
-        (event.date == null || event.date > request.time);
+      return event.date == null || event.date > request.time;
     }
 
-    // Whether the signed-in caller has RSVP'd to this event themselves.
-    // Content-independent (same check for every doc in the collection), so
-    // it's safe to use in a `list` rule.
+    function isEventOpen(eventId) {
+      return get(/databases/$(database)/documents/events/$(eventId)).data.isOpen == true;
+    }
+
+    // Whether the caller has RSVP'd to this event themselves. RSVP documents
+    // are keyed by lowercased email (not uid), so a signed-in user "owns"
+    // the one matching their verified address. Content-independent (same
+    // check for every doc in the collection), so it's safe in a `list` rule.
     function hasRsvpd(eventId) {
       return isSignedIn() &&
-        exists(/databases/$(database)/documents/events/$(eventId)/rsvps/$(request.auth.uid));
+        exists(/databases/$(database)/documents/events/$(eventId)/rsvps/$(request.auth.token.email.lower()));
+    }
+
+    function ownsRsvp(emailKey) {
+      return isSignedIn() && request.auth.token.email.lower() == emailKey;
+    }
+
+    // Anyone - signed in or not - can create an RSVP on an open event, so
+    // this is the only thing standing between the public internet and the
+    // contents of that document. A strict whitelist of fields, types, and
+    // sizes is enforceable in a way volume limits are not (see the comment
+    // on the rsvps match block), so it's where the guarding effort goes.
+    function validRsvpPayload(emailKey) {
+      let d = request.resource.data;
+      return d.keys().hasOnly([
+          'email', 'name', 'firstName', 'lastName', 'status',
+          'guestCount', 'adultCount', 'childCount', 'comment', 'respondedAt'
+        ]) &&
+        d.email is string && d.email.lower() == emailKey && d.email.size() <= 254 &&
+        d.status in ['yes', 'no', 'maybe'] &&
+        d.guestCount is int && d.guestCount >= 1 && d.guestCount <= 50 &&
+        d.firstName is string && d.firstName.size() <= 100 &&
+        d.lastName is string && d.lastName.size() <= 100 &&
+        d.name is string && d.name.size() <= 200 &&
+        d.comment is string && d.comment.size() <= 1000 &&
+        (d.adultCount == null ||
+          (d.adultCount is int && d.adultCount >= 0 && d.adultCount <= 50)) &&
+        (d.childCount == null ||
+          (d.childCount is int && d.childCount >= 0 && d.childCount <= 50));
     }
 
     // Whether the signed-in caller created this event. Used for `invitees`/
@@ -120,12 +153,41 @@ service cloud.firestore {
         allow read, write: if isAdmin() || isEventOwner(eventId);
       }
 
-      match /rsvps/{uid} {
-        allow get: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      // Keyed by lowercased email rather than uid, so a first-time guest can
+      // RSVP to an open event without an account at all. Firestore only
+      // applies `create` when the document doesn't already exist, which is
+      // precisely the "one RSVP per email address" rule - a second attempt
+      // on the same address lands on `update` instead and is refused unless
+      // the caller has proven they own that address.
+      //
+      // Deliberately NOT volume-rate-limited here: with no uid to key on, a
+      // counter would have to be per-event and writable by anyone, so an
+      // attacker could inflate it to the cap and lock everyone out of
+      // RSVPing. That turns a low-probability spam risk into a trivial
+      // denial-of-service, which is strictly worse. The enforceable guards
+      // are the payload whitelist above (junk content) and, for the mail
+      // account specifically, a send throttle inside the Cloud Function
+      // (see functions/index.js), which no client can forge or exhaust.
+      match /rsvps/{emailKey} {
+        allow get: if ownsRsvp(emailKey) || isAdmin() || isEventOwner(eventId);
         allow list: if isAdmin() || hasRsvpd(eventId) || isEventOwner(eventId);
-        allow create, update: if isSignedIn() && request.auth.uid == uid &&
-          request.resource.data.email == request.auth.token.email &&
-          isRsvpAllowed(eventId);
+
+        // Open events: anyone may create a first RSVP, no sign-in needed.
+        // Invite-only events still require a verified, invited account -
+        // their whole gate is "is your address on the list", which means
+        // nothing if an anonymous caller can simply claim to be that address.
+        allow create: if rsvpWindowOpen(eventId) &&
+          validRsvpPayload(emailKey) && (
+            isEventOpen(eventId) ||
+            (ownsRsvp(emailKey) && isInvited(eventId))
+          );
+
+        // Changing an existing response always requires proving ownership of
+        // the address, whichever way the RSVP was originally made.
+        allow update: if
+          (ownsRsvp(emailKey) && rsvpWindowOpen(eventId) && validRsvpPayload(emailKey)) ||
+          isAdmin() || isEventOwner(eventId);
+
         allow delete: if isAdmin() || isEventOwner(eventId);
       }
     }
