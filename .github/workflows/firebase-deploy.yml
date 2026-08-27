@@ -9,8 +9,9 @@ on:
       - 'firestore.rules'
       - 'firestore.indexes.json'
       - 'storage.rules'
-      - 'functions/**'
       - '.github/workflows/firebase-deploy.yml'
+      # Deliberately NOT functions/** - Cloud Functions are deployed by
+      # hand, see the deploy step below.
   workflow_dispatch:
 
 jobs:
@@ -25,10 +26,20 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: echo "$FIREBASE_SERVICE_ACCOUNT" > "${{ runner.temp }}/firebase-sa.json"
-      - name: Install functions dependencies
-        run: npm --prefix functions ci || npm --prefix functions install
-      - name: Deploy hosting + Firestore + Storage rules + Functions
+      # Cloud Functions are deliberately excluded here and deployed by hand:
+      #   npx firebase-tools deploy --only functions --project events-45ce5
+      #
+      # A 2nd-gen functions deploy needs iam.serviceAccountUser,
+      # artifactregistry.writer, run.admin, cloudbuild.builds.editor,
+      # eventarc.developer and secretmanager.secretAccessor on top of what
+      # this service account has. Granting all that to a key stored in a
+      # GitHub secret - the power to push container images, administer Cloud
+      # Run and impersonate other service accounts - is a poor trade for a
+      # function that changes a few times a year. Keeping functions out also
+      # means a functions problem can never block a hosting or rules deploy,
+      # which is exactly what happened when they shared one --only list.
+      - name: Deploy hosting + Firestore + Storage rules
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-sa.json
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-        run: npx firebase-tools deploy --only hosting,firestore,storage,functions --project "$FIREBASE_PROJECT_ID" --non-interactive
+        run: npx firebase-tools deploy --only hosting,firestore,storage --project "$FIREBASE_PROJECT_ID" --non-interactive

@@ -621,10 +621,25 @@ instead of leaving a blank gap.
 ## Deployment
 
 - `.github/workflows/firebase-deploy.yml` deploys Hosting + Firestore rules
-  + Storage rules + Functions on push to `main` touching `invites/**`,
-  `firebase.json`, `firestore.rules`, `storage.rules`, or `functions/**`,
-  using a `FIREBASE_SERVICE_ACCOUNT` + `FIREBASE_PROJECT_ID` GitHub secret
-  pair. The workflow installs `functions/` dependencies before deploying.
+  + Storage rules on push to `main` touching `invites/**`, `firebase.json`,
+  `firestore.rules`, or `storage.rules`, using a `FIREBASE_SERVICE_ACCOUNT`
+  + `FIREBASE_PROJECT_ID` GitHub secret pair.
+- **Cloud Functions are deployed by hand**, not by CI:
+  `npx firebase-tools deploy --only functions --project events-45ce5`.
+  A 2nd-gen deploy needs `iam.serviceAccountUser`,
+  `artifactregistry.writer`, `run.admin`, `cloudbuild.builds.editor`,
+  `eventarc.developer` and `secretmanager.secretAccessor` on top of the
+  roles the CI service account already has - i.e. the power to push
+  container images, administer Cloud Run and impersonate other service
+  accounts, granted to a key living in a GitHub secret. That's a poor
+  trade for a function that changes a few times a year. Keeping functions
+  out of the CI `--only` list also means a functions failure can't block a
+  hosting or rules deploy, which is exactly what happened when they shared
+  one list (run #18: the whole deploy aborted, shipping nothing).
+- The **first** functions deploy on a fresh project also needs the Eventarc
+  Service Agent to finish provisioning; it fails once with "Permission
+  denied while using the Eventarc Service Agent" and succeeds on a retry a
+  few minutes later. Expected, not a misconfiguration.
 - **The Gmail app password must be set once** before RSVP emails work
   against the real project: `firebase functions:secrets:set
   GMAIL_APP_PASSWORD` (generate it at myaccount.google.com → Security →
