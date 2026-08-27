@@ -86,8 +86,14 @@ if (!eventId) {
   showTopLevel(missingIdHint);
 } else {
   eventDetailsPromise = loadEventDetails();
-  mountAuthWidget(authContainer, async (user) => {
+  mountAuthWidget(authContainer, async (user, { magicLinkError } = {}) => {
     await eventDetailsPromise;
+    if (magicLinkError) {
+      const errEl = quickRsvpForm.querySelector(".error");
+      errEl.textContent =
+        "That sign-in link didn't work - it may have expired or already been used. Please submit the form again to get a fresh one.";
+      errEl.hidden = false;
+    }
     if (!user) {
       // Signed out, the widget renders the sign-in forms, which belong next
       // to the toggle link that reveals them - so move it back up inline
@@ -184,23 +190,26 @@ async function handleSignedIn(user) {
   const pendingRaw = localStorage.getItem(pendingKey);
   if (pendingRaw) {
     localStorage.removeItem(pendingKey);
-    const payload = JSON.parse(pendingRaw);
-    // Only apply this if it's really the continuation of the magic-link
-    // flow that stashed it - i.e. the account that just signed in is the
-    // same email the pending RSVP was for. Without this check, a stale
-    // pending payload (an abandoned quick-RSVP whose email link was never
-    // clicked) would get applied to whoever signs in next on this page by
-    // any method, silently overwriting their real name.
-    if ((user.email || "").toLowerCase() === (payload.email || "").toLowerCase()) {
-      try {
+    // Parsing is inside the try alongside the writes: a malformed or
+    // stale-schema payload must not throw out of this callback, or the
+    // RSVP form never renders at all and the page looks broken.
+    try {
+      const payload = JSON.parse(pendingRaw);
+      // Only apply this if it's really the continuation of the magic-link
+      // flow that stashed it - i.e. the account that just signed in is the
+      // same email the pending RSVP was for. Without this check, a stale
+      // pending payload (an abandoned quick-RSVP whose email link was never
+      // clicked) would get applied to whoever signs in next on this page by
+      // any method, silently overwriting their real name.
+      if ((user.email || "").toLowerCase() === (payload.email || "").toLowerCase()) {
         await applyProfileName(payload.firstName, payload.lastName);
         refreshAuthWidget(authContainer);
         await writeRsvp(user, payload);
-      } catch (err) {
-        await showSignedInForm(user);
-        reportRsvpError(err);
-        return;
       }
+    } catch (err) {
+      await showSignedInForm(user);
+      reportRsvpError(err);
+      return;
     }
   }
   await showSignedInForm(user);

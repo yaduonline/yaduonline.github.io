@@ -86,14 +86,24 @@ function showError(form, message) {
  * first so the very first render already reflects it.
  */
 export async function mountAuthWidget(container, onChange) {
+  // A failed email-link sign-in used to be logged and otherwise swallowed,
+  // which left the guest back on the page still signed out with no
+  // explanation at all - indistinguishable from never having clicked the
+  // link. Pass it to onChange so the page can surface it somewhere the
+  // guest will actually look (on event.html, the RSVP form's error slot).
+  let magicLinkError = null;
   try {
     await completeMagicLinkSignIn();
   } catch (err) {
     console.warn("Magic link sign-in failed:", err);
+    magicLinkError = err;
   }
   watchAuth((user) => {
     render(container, user);
-    if (onChange) onChange(user);
+    if (onChange) onChange(user, { magicLinkError });
+    // Only report it on the first render after the failure; a later
+    // sign-out shouldn't resurface a stale message.
+    magicLinkError = null;
   });
 }
 
