@@ -1,5 +1,6 @@
 import { auth, db, storage } from "./firebase-init.js";
 import { isAdminUser } from "./auth.js";
+import { summarizeRsvps } from "./rsvp-summary.js";
 import {
   collection,
   doc,
@@ -271,6 +272,7 @@ export function renderEventCard(id, e) {
     <table class="rsvp-table" hidden>
       <thead><tr><th>Name</th><th>Email</th><th>Status</th>${e.splitGuestsByAge ? "<th>Adults</th><th>Children</th>" : "<th>Guests</th>"}<th>Comment</th></tr></thead>
       <tbody></tbody>
+      <tfoot></tfoot>
     </table>
   `;
 
@@ -367,6 +369,7 @@ export function renderEventCard(id, e) {
 
   const rsvpTable = card.querySelector(".rsvp-table");
   const rsvpBody = card.querySelector(".rsvp-table tbody");
+  const rsvpFoot = card.querySelector(".rsvp-table tfoot");
   const exportBtn = card.querySelector(".export-csv-btn");
   let lastRsvps = [];
 
@@ -390,6 +393,24 @@ export function renderEventCard(id, e) {
       `;
       rsvpBody.appendChild(tr);
     });
+
+    // Totals row. This card is only ever rendered for an admin or the
+    // event's own creator (admin.js / my-events.js), so unlike the guest
+    // list on event.html there's no extra visibility check needed here.
+    const totals = summarizeRsvps(lastRsvps);
+    const totalCells = e.splitGuestsByAge
+      ? `<td>${totals.attendingAdults}</td><td>${totals.attendingChildren}</td>`
+      : `<td>${totals.attendingGuests}</td>`;
+    rsvpFoot.innerHTML = lastRsvps.length
+      ? `<tr class="rsvp-total-row">
+           <td>Total attending</td>
+           <td></td>
+           <td>${totals.yes} yes, ${totals.no} no, ${totals.maybe} maybe</td>
+           ${totalCells}
+           <td></td>
+         </tr>`
+      : "";
+
     rsvpTable.hidden = false;
     exportBtn.hidden = lastRsvps.length === 0;
   });

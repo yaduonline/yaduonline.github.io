@@ -1,6 +1,7 @@
 import { mountAuthWidget, refreshAuthWidget } from "./auth-widget.js";
 import { db } from "./firebase-init.js";
-import { sendMagicLink, applyProfileName } from "./auth.js";
+import { sendMagicLink, applyProfileName, isAdminUser } from "./auth.js";
+import { summarizeRsvps, describeTotals } from "./rsvp-summary.js";
 import {
   doc,
   getDoc,
@@ -27,6 +28,7 @@ const rsvpForm = document.getElementById("rsvp-form");
 const rsvpStatus = document.getElementById("rsvp-status");
 const guestListSection = document.getElementById("guest-list-section");
 const guestList = document.getElementById("guest-list");
+const guestTotal = document.getElementById("guest-total");
 const signinToggleLink = document.getElementById("signin-toggle-link");
 
 signinToggleLink.addEventListener("click", () => {
@@ -39,6 +41,7 @@ const pendingKey = eventId ? `pendingRsvp:${eventId}` : null;
 
 let eventHasStarted = false;
 let eventIsOpen = false;
+let eventCreatedByUid = null;
 let splitGuestsByAge = false;
 let childAgeThreshold = null;
 let eventDetailsPromise = Promise.resolve();
@@ -147,6 +150,7 @@ async function loadEventDetails() {
   const date = e.date && e.date.toDate ? e.date.toDate() : null;
   eventHasStarted = !!date && date.getTime() < Date.now();
   eventIsOpen = e.isOpen === true;
+  eventCreatedByUid = e.createdByUid || null;
   splitGuestsByAge = !!e.splitGuestsByAge;
   childAgeThreshold = e.childAgeThreshold ?? null;
   applyGuestCountMode(quickRsvpForm);
@@ -367,7 +371,7 @@ async function showSignedInForm(user) {
   }
 
   if (existingData) {
-    loadGuestList();
+    loadGuestList(user);
     // An RSVP made without an account couldn't write the personal index
     // (no uid to hang it off). Now that they've signed in, backfill it so
     // the event shows up under "Your RSVPs" on the homepage.
@@ -415,7 +419,7 @@ async function showSignedInForm(user) {
       rsvpStatus.textContent = "RSVP saved. Thank you!";
       rsvpStatus.className = "status-msg success";
       rsvpStatus.hidden = false;
-      loadGuestList();
+      loadGuestList(user);
     } catch (err) {
       reportRsvpError(err);
     }
@@ -435,9 +439,10 @@ function describeGuestCount(r) {
 // firestore.rules via hasRsvpd()) - shows name, response, and guest count
 // for everyone who's responded. Deliberately omits email and comments,
 // which are more personal and stay admin-only.
-async function loadGuestList() {
+async function loadGuestList(user) {
   guestList.innerHTML = "<li>Loading...</li>";
   guestListSection.hidden = false;
+  guestTotal.hidden = true;
   try {
     const snap = await getDocs(collection(db, "events", eventId, "rsvps"));
     const rsvps = snap.docs
@@ -456,6 +461,15 @@ async function loadGuestList() {
       `;
       guestList.appendChild(li);
     });
+
+    // Running total, for the person actually catering the event. Every guest
+    // can already see each individual response here, so this is a
+    // presentation choice rather than a privacy boundary - it keeps the
+    // guest-facing view about who's coming, not about headcount management.
+    if (user && (isAdminUser(user) || user.uid === eventCreatedByUid)) {
+      guestTotal.textContent = `Total: ${describeTotals(summarizeRsvps(rsvps), splitGuestsByAge)}`;
+      guestTotal.hidden = false;
+    }
   } catch (err) {
     guestList.innerHTML = `<li class="hint">Couldn't load responses: ${escapeHtml(err.message)}</li>`;
   }

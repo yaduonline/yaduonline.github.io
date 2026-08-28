@@ -189,6 +189,15 @@ This only unlocks after responding (an invitee who hasn't RSVP'd yet
 doesn't see it), and deliberately excludes email addresses and comments,
 which stay visible to admins only.
 
+The **event's creator and admins additionally see a totals line** there —
+headcount of everyone who said yes (split into adults and children for
+events using that), plus how many said yes / no / maybe. Regular guests
+don't, to keep their view about who's coming rather than headcount
+management. Note this is a presentation choice, not a privacy boundary:
+every guest can already see each individual response, so the total is only
+arithmetic on what's in front of them. The same totals appear as a footer
+row on the RSVP table in the admin dashboard and on `my-events.html`.
+
 ### Admin dashboard
 `admin.html` is admin-only and shows **every event from every creator**,
 with the same per-event management as `my-events.html` (add/remove

@@ -416,6 +416,23 @@ th, td {
   font-size: 0.8rem;
 }
 
+/* Organizer-only totals, on the event page's guest list and as the RSVP
+   table's footer row. Set apart from the individual responses above them
+   so the summary doesn't read as just another guest. */
+.guest-total {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #ddd;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.rsvp-total-row td {
+  font-weight: 600;
+  border-top: 2px solid #ddd;
+  border-bottom: none;
+}
+
 .site-footer {
   margin-top: 40px;
   padding-top: 16px;

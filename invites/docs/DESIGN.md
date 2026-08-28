@@ -232,6 +232,28 @@ child breakdown instead, for events using that split - see below); email
 and comment are deliberately left out of this view (they're for admins,
 via the dashboard's RSVP table/CSV export, not for other guests).
 
+### Organizer totals
+`invites/js/rsvp-summary.js` holds `summarizeRsvps()` and
+`describeTotals()` as pure functions with no Firebase imports, shared by
+`event.js` (the "Who's coming" line) and `events.js` (the RSVP table's
+`<tfoot>` row). It's a separate module rather than living in `events.js`
+because the guest-facing event page would otherwise have to import that
+whole module - and its Cloud Storage dependency - just to add up numbers.
+
+Headcount counts only `status === "yes"`; "maybe" is reported in the
+response breakdown instead of inflating the number an organizer would
+cater for. The adult/child breakdown is shown only when it actually
+accounts for the whole headcount, so an event that switched on the split
+after some responses came in can't display totals that don't add up.
+
+On `event.html` the line renders only when
+`isAdminUser(user) || user.uid === eventCreatedByUid`. That check is
+**presentational, not a security boundary** - the guest list already shows
+every individual response to anyone who has RSVP'd, so the total is just
+arithmetic over data they can see. No rules change was needed. On the
+management card the check is unnecessary: that card is only ever rendered
+by `admin.js`/`my-events.js`, both already owner/admin-scoped.
+
 ### Splitting guests into adults & children
 Purely a per-event flag (`events/{id}.splitGuestsByAge` +
 `childAgeThreshold`), set on the admin's create-event form
