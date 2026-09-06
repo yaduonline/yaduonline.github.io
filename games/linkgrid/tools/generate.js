@@ -141,7 +141,7 @@ function anneal(n, k, rng, options = {}) {
   const cells = n * n;
   const targetLength = cells / k;
 
-  const paths = initialPartition(n, k);
+  const paths = options.start ? options.start.map((p) => p.slice()) : initialPartition(n, k);
   const owner = new Int32Array(cells).fill(-1);
   paths.forEach((path, i) => path.forEach((cell) => (owner[cell] = i)));
 
@@ -222,7 +222,102 @@ function anneal(n, k, rng, options = {}) {
     }
   }
 
-  return paths.map((path) => path.map((cell) => [(cell / n) | 0, cell % n]));
+  return options.flat ? paths : paths.map((path) => path.map((cell) => [(cell / n) | 0, cell % n]));
+}
+
+/**
+ * Merge two routes into one, given that `aEnd` and `bEnd` are the touching ends.
+ */
+function joinPaths(a, b, aAtHead, bAtHead) {
+  const left = aAtHead ? a.slice().reverse() : a.slice();
+  const right = bAtHead ? b.slice() : b.slice().reverse();
+  return left.concat(right);
+}
+
+/**
+ * Reduce a partition to `k` routes by merging neighbours.
+ *
+ * Two routes may merge only when their sole point of contact is one end each -
+ * otherwise the merged route would run alongside itself. Straight rows never
+ * qualify, so the caller warms the partition up with a short anneal first, and
+ * this function anneals again whenever it runs out of legal merges.
+ *
+ * Returns null if `k` could not be reached.
+ */
+function mergeDown(n, start, k, rng, options = {}) {
+  const adj = adjacency(n);
+  let paths = start.map((p) => p.slice());
+  const owner = new Int32Array(n * n).fill(-1);
+  const reindex = () => paths.forEach((path, i) => path.forEach((cell) => (owner[cell] = i)));
+  reindex();
+
+  const warmup = options.warmupIterations || 400 * n * n;
+
+  for (let stall = 0; paths.length > k && stall < 12; ) {
+    const options_ = [];
+    for (let i = 0; i < paths.length; i++) {
+      const a = paths[i];
+      for (const aAtHead of [true, false]) {
+        const aEnd = aAtHead ? a[0] : a[a.length - 1];
+        for (const m of adj[aEnd]) {
+          const j = owner[m];
+          if (j === i) continue;
+          const b = paths[j];
+          const bAtHead = b[0] === m;
+          if (!bAtHead && b[b.length - 1] !== m) continue;
+          // The merged route stays induced only if this is the single contact.
+          let contacts = 0;
+          for (const cell of a) {
+            for (const y of adj[cell]) if (owner[y] === j) contacts++;
+          }
+          if (contacts !== 1) continue;
+          options_.push({ i, j, aAtHead, bAtHead });
+        }
+      }
+    }
+
+    if (!options_.length) {
+      // Nothing can merge yet; shake the partition and look again.
+      paths = anneal(n, paths.length, rng, {
+        ...options,
+        start: paths,
+        iterations: warmup,
+        flat: true,
+      });
+      reindex();
+      stall++;
+      continue;
+    }
+
+    const pick = options_[randInt(rng, options_.length)];
+    const merged = joinPaths(paths[pick.i], paths[pick.j], pick.aAtHead, pick.bAtHead);
+    const keep = Math.min(pick.i, pick.j);
+    const drop = Math.max(pick.i, pick.j);
+    paths[keep] = merged;
+    paths.splice(drop, 1);
+    reindex();
+    stall = 0;
+  }
+
+  return paths.length === k ? paths : null;
+}
+
+/**
+ * Build a partition with exactly `k` routes, whatever `k` is relative to `n`.
+ * Above the grid size the starting rows are split; below it they are annealed
+ * loose and then merged.
+ */
+function buildPartition(n, k, rng, options = {}) {
+  if (k >= n) return anneal(n, k, rng, options);
+
+  let paths = anneal(n, n, rng, {
+    ...options,
+    iterations: options.warmupIterations || 400 * n * n,
+    flat: true,
+  });
+  paths = mergeDown(n, paths, k, rng, options);
+  if (!paths) return null;
+  return anneal(n, k, rng, { ...options, start: paths });
 }
 
 // ---------------------------------------------------------------------------
@@ -238,17 +333,15 @@ function endpointsOf(solution) {
 }
 
 /**
- * Anneal one candidate and check it end to end: structure, bend quality, and
- * whether the intended solution is the only clean one.
+ * Check a partition end to end: structure, bend quality, uniqueness, difficulty.
+ * Returns null when it fails any check.
  *
- * Returns null when the candidate fails any check; the caller simply moves on
- * to the next seed.
+ * `searchNodes` is how much searching is left once the easy deductions run out,
+ * and is the difficulty signal the tiers are built from.
  */
-function buildCandidate(size, colors, seed, options = {}) {
-  const rng = makeRng(seed);
-  const solution = anneal(size, colors, rng, options);
-  if (solution.length !== colors) return null;
-
+function evaluateCandidate(size, solution, options = {}) {
+  if (!solution) return null;
+  const colors = solution.length;
   const endpoints = endpointsOf(solution);
   const puzzle = { size, endpoints };
 
@@ -267,12 +360,10 @@ function buildCandidate(size, colors, seed, options = {}) {
     }
   }
 
-  const maxNodes = options.maxNodes || 3000000;
+  const maxNodes = options.maxNodes || 2000000;
   const clean = countSolutions(puzzle, { limit: 2, maxNodes, noSelfTouch: true });
   if (!clean.exhausted || clean.count !== 1) return null;
 
-  // How much search is left once the easy deductions run out. This is the
-  // difficulty signal used to order a size's puzzles into tiers.
   const search = countSolutions(puzzle, {
     limit: 1,
     maxNodes,
@@ -283,7 +374,6 @@ function buildCandidate(size, colors, seed, options = {}) {
   return {
     size,
     colors,
-    seed,
     endpoints,
     solution,
     metrics,
@@ -296,47 +386,105 @@ function buildCandidate(size, colors, seed, options = {}) {
   };
 }
 
-/**
- * Difficulty score used to rank a size's pool into tiers. Longer routes and
- * more searching both make a puzzle harder; bendiness contributes a little.
- */
-function difficultyScore(candidate) {
-  const m = candidate.metrics;
-  const backtracks = Math.max(0, candidate.stats.searchNodes - m.cells);
-  return (
-    2.0 * Math.log2(1 + backtracks) +
-    1.5 * (m.meanLength / m.size) +
-    1.0 * m.bendsPerCell
-  );
+/** Build one candidate from scratch at the given colour count. */
+function buildCandidate(size, colors, seed, options = {}) {
+  const rng = makeRng(seed);
+  const solution = buildPartition(size, colors, rng, options);
+  if (!solution || solution.length !== colors) return null;
+  const candidate = evaluateCandidate(size, solution, options);
+  if (candidate) candidate.seed = seed;
+  return candidate;
 }
 
+/** Weights that turn `anneal` into a plain random walk over legal moves. */
+const KICK_WEIGHTS = {
+  interiorBend: 0,
+  borderBend: 0,
+  bendCap: 1,
+  straightPenalty: 0,
+  shortPenalty: 0,
+  lengthPenalty: 0,
+  cornerBalance: 0,
+  startTemperature: 1,
+};
+
+const toFlat = (size, solution) => solution.map((route) => route.map((c) => c[0] * size + c[1]));
+
 /**
- * Generate up to `count` distinct passing candidates for one size, trying seeds
- * in a deterministic order.
+ * Explore the space of valid puzzles for one board size.
+ *
+ * Sampling fresh partitions only ever finds easy puzzles: the hard ones are a
+ * thin tail. So each chain instead walks - kick the current partition with a
+ * short random walk of legal moves, polish the bends back with a cool anneal,
+ * and step to the result whenever it is not much easier than where we stand.
+ * Every distinct valid puzzle the walk passes through is collected, which is why
+ * one run yields puzzles across the whole difficulty range rather than only the
+ * hardest one found.
  */
-function generatePool(size, colors, count, options = {}) {
+function explorePool(size, options = {}) {
+  const colorCounts = options.colorCounts || [size - 2, size - 1, size, size + 1];
+  const chains = options.chains || 6;
+  const rounds = options.rounds || 250;
+  const kick = options.kick || 40;
+  const polish = options.polish || 200 * size * size;
+  const tolerance = options.tolerance === undefined ? 0.6 : options.tolerance;
+
+  const seen = new Set(options.knownFingerprints || []);
   const pool = [];
-  const startSeed = options.startSeed === undefined
-    ? (size * 1000003 + colors * 7919) >>> 0
-    : options.startSeed;
-  const maxSeeds = options.maxSeeds || 600;
-  const fingerprints = new Set();
 
-  for (let i = 0; i < maxSeeds && pool.length < count; i++) {
-    const seed = (startSeed + i * 2654435761) >>> 0;
-    const candidate = buildCandidate(size, colors, seed, options);
-    if (!candidate) continue;
+  for (const colors of colorCounts) {
+    if (colors < 2) continue;
+    for (let chain = 0; chain < chains; chain++) {
+      const rng = makeRng((size * 7919 + colors * 104729 + chain * 2654435761) >>> 0);
 
-    // Reject a layout another seed already produced.
-    const fingerprint = JSON.stringify(candidate.endpoints);
-    if (fingerprints.has(fingerprint)) continue;
-    fingerprints.add(fingerprint);
+      let current = null;
+      for (let attempt = 0; attempt < 10 && !current; attempt++) {
+        const solution = buildPartition(size, colors, rng, options);
+        current = evaluateCandidate(size, solution, options);
+      }
+      if (!current) continue;
 
-    pool.push(candidate);
-    if (options.onCandidate) options.onCandidate(candidate, pool.length, i);
+      for (let round = 0; round < rounds; round++) {
+        const kicked = anneal(size, colors, rng, {
+          ...options,
+          start: toFlat(size, current.solution),
+          iterations: kick,
+          weights: KICK_WEIGHTS,
+          flat: true,
+        });
+        const polished = anneal(size, colors, rng, {
+          ...options,
+          start: kicked,
+          iterations: polish,
+          weights: { ...(options.weights || {}), startTemperature: 0.8 },
+        });
+        const candidate = evaluateCandidate(size, polished, options);
+        if (!candidate) continue;
+
+        const fingerprint = fingerprintOf(candidate.endpoints);
+        if (!seen.has(fingerprint)) {
+          seen.add(fingerprint);
+          candidate.fingerprint = fingerprint;
+          pool.push(candidate);
+          if (options.onCandidate) options.onCandidate(candidate, pool.length);
+        }
+        // Step even when slightly worse, so a chain is not trapped at a peak.
+        if (candidate.stats.searchNodes >= current.stats.searchNodes * tolerance) {
+          current = candidate;
+        }
+      }
+    }
   }
 
   return pool;
+}
+
+/** Stable identity for a puzzle: its endpoint layout. */
+function fingerprintOf(endpoints) {
+  return endpoints
+    .map((e) => e.a[0] + ',' + e.a[1] + '-' + e.b[0] + ',' + e.b[1])
+    .sort()
+    .join('|');
 }
 
 module.exports = {
@@ -345,9 +493,12 @@ module.exports = {
   pathStats,
   initialPartition,
   anneal,
+  mergeDown,
+  buildPartition,
   endpointsOf,
+  evaluateCandidate,
   buildCandidate,
-  difficultyScore,
-  generatePool,
+  explorePool,
+  fingerprintOf,
   DEFAULT_WEIGHTS,
 };

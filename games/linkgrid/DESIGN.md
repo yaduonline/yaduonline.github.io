@@ -7,12 +7,16 @@
 | `index.html` | Markup, styles, script tags. No game logic. |
 | `engine.js` | Pure rules. No DOM. Loaded as a global (`LinkgridEngine`) or via `require`. |
 | `game.js` | UI: screens, pointer and keyboard input, canvas rendering, persistence. |
-| `puzzles.js` | Generated puzzle data (`LINKGRID_PUZZLES`). |
-| `solutions.js` | Generated reference solutions. Loaded only by the tests. |
+| `puzzles/index.js` | Pack manifest: size, puzzle count, count per difficulty. Loaded eagerly. |
+| `puzzles/<size>.js` | One board size's hundred puzzles. Fetched when that pack is opened. |
+| `solutions/<size>.js` | Reference solutions, compactly encoded. Loaded only by the tests. |
 | `tools/solver.js` | Exact solver and solution counter (Node). |
 | `tools/quality.js` | Bend metrics, quality gates, structural validation. |
-| `tools/generate.js` | Puzzle generator. |
-| `tools/build.js` | CLI that regenerates `puzzles.js` and `solutions.js`. |
+| `tools/routes.js` | Compact route encoding shared by the build and the tests. |
+| `tools/generate.js` | Partition construction and the difficulty search. |
+| `tools/pool.js` | CLI: explore one board size, cache the candidates. |
+| `tools/build.js` | CLI: band the pools into levels and emit the data files. |
+| `tools/legacy.json` | The previous release's puzzles, kept so their ids stay valid. |
 | `test/suite.js` | Test suite shared by Node and the browser. |
 | `test/run.js` | Node runner, plus the solver-backed uniqueness pass. |
 | `test.html` | Browser runner. |
@@ -67,6 +71,13 @@ puzzle is solved when every colour is connected and no cell is empty.
 
 - **Screens.** Board size → puzzle list → board, switched by toggling `hidden`.
   Focus moves to the first control of the new screen.
+- **Loading.** Only the manifest ships up front, so the pack screen can show
+  progress without downloading six hundred puzzles. Opening a pack pulls in that
+  one size's file via a script tag; a failed fetch leaves a readable message and
+  the pack can be opened again.
+- **Puzzle list.** One hundred puzzles per pack, grouped into five difficulty
+  sections with a solved count per section and a compact numbered chip per
+  puzzle.
 - **Canvas.** The board area is `min(100%, 560px, 70vh)` with `aspect-ratio: 1`,
   so it stays square at every viewport; the canvas backing store is resized to
   `cssSize × devicePixelRatio` and the context scaled to match, which keeps it
@@ -85,8 +96,9 @@ puzzle is solved when every colour is connected and no cell is empty.
 ## Persistence
 
 `localStorage["linkgrid-progress-v2"] = { solved: { "8": ["8-1", ...] } }`.
-Reads and writes are wrapped in `try`/`catch`. The key is versioned because the
-puzzle set was regenerated: old ids no longer refer to anything.
+Reads and writes are wrapped in `try`/`catch`. The key stayed at v2 through the
+expansion to one hundred puzzles per size: every id from the previous release
+still points at the same puzzle, so solved markers carry over.
 
 ## Rendering palette
 
@@ -99,4 +111,4 @@ not also available as shape or text.
 - No hash routing: the browser Back button leaves the game rather than stepping
   between screens.
 - No animation beyond the redraw itself.
-- No hint or auto-solve, so `solutions.js` is not loaded by the game.
+- No hint or auto-solve, so the solution files are never loaded by the game.

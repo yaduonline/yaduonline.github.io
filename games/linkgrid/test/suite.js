@@ -31,14 +31,22 @@
   }
 
   /**
-   * @param {object} deps { Engine, Quality, puzzles, solutions }
+   * @param {object} deps { Engine, Quality, Routes, puzzles, solutions, packs }
    * @returns {{results: Array, passed: number, failed: number}}
    */
   function run(deps) {
     var Engine = deps.Engine;
     var Quality = deps.Quality;
+    var Routes = deps.Routes;
     var puzzles = deps.puzzles;
-    var solutions = deps.solutions;
+    var packs = deps.packs;
+    var rawSolutions = deps.solutions;
+
+    // Solutions ship as compact "row,col:MOVES" strings.
+    var solutions = {};
+    Object.keys(rawSolutions).forEach(function (id) {
+      solutions[id] = Routes.decode(rawSolutions[id]);
+    });
 
     var runner = makeRunner();
     var check = runner.check;
@@ -52,8 +60,32 @@
 
     check('puzzle set covers 5x5 through 10x10',
       sizes.join(',') === '5,6,7,8,9,10', 'sizes were ' + sizes.join(','));
-    check('every size ships puzzles',
-      sizes.every(function (s) { return puzzles[s].length > 0; }));
+    check('every size ships 100 puzzles',
+      sizes.every(function (s) { return puzzles[s].length === 100; }),
+      sizes.map(function (s) { return s + ':' + puzzles[s].length; }).join(' '));
+
+    var tierCountProblem = null;
+    sizes.forEach(function (size) {
+      for (var tier = 1; tier <= 5; tier++) {
+        var inTier = puzzles[size].filter(function (level) { return level.tier === tier; });
+        if (inTier.length !== 20 && !tierCountProblem) {
+          tierCountProblem = size + 'x' + size + ' tier ' + tier + ' has ' + inTier.length;
+        }
+      }
+    });
+    check('every size has 20 puzzles at each of the five difficulties',
+      tierCountProblem === null, tierCountProblem || '');
+
+    var manifestProblem = null;
+    sizes.forEach(function (size) {
+      var entry = null;
+      packs.forEach(function (pack) { if (pack.size === size) entry = pack; });
+      if (!entry) { manifestProblem = 'no manifest entry for ' + size; return; }
+      if (entry.count !== puzzles[size].length) {
+        manifestProblem = size + ': manifest says ' + entry.count;
+      }
+    });
+    check('the pack manifest matches the packs', manifestProblem === null, manifestProblem || '');
 
     var ids = {};
     var duplicateId = null;
@@ -113,6 +145,28 @@
     check('bends are denser in the middle than on the edges', interiorBad.length === 0,
       interiorBad.join(', '));
     check('bends turn all four ways', cornerBad.length === 0, cornerBad.join(', '));
+
+    // Difficulty must increase with the tier label. Route length is the part of
+    // difficulty visible without a solver, so it is what the shipped data can
+    // be checked against.
+    var orderingProblem = null;
+    sizes.forEach(function (size) {
+      var meanFor = function (tier) {
+        var inTier = puzzles[size].filter(function (level) { return level.tier === tier; });
+        var total = 0;
+        inTier.forEach(function (level) {
+          total += (size * size) / level.endpoints.length;
+        });
+        return total / inTier.length;
+      };
+      var one = meanFor(1);
+      var five = meanFor(5);
+      if (!(five > one) && !orderingProblem) {
+        orderingProblem = size + 'x' + size + ': tier 1 mean route ' + one.toFixed(1) +
+          ', tier 5 mean route ' + five.toFixed(1);
+      }
+    });
+    check('harder tiers have longer routes', orderingProblem === null, orderingProblem || '');
 
     // ------------------------------------------------------- playing a level
     var unplayable = [];

@@ -2,136 +2,236 @@
 'use strict';
 
 /**
- * Build the shipped puzzle set.
+ * Build the shipped puzzle set from the cached candidate pools.
  *
- *   node tools/build.js            # regenerate puzzles.js and solutions.js
- *   node tools/build.js --dry-run  # print the summary without writing files
+ *   node tools/pool.js 5 & ... node tools/pool.js 10 &   # explore (parallel)
+ *   node tools/build.js                                  # band, select, emit
+ *   node tools/build.js --dry-run                        # summary only
  *
- * Generation is fully seeded, so a rebuild without argument changes reproduces
- * the same puzzles.
+ * Writes puzzles/<size>.js, puzzles/index.js and solutions/<size>.js.
  */
 
 const fs = require('fs');
 const path = require('path');
-const { generatePool, difficultyScore } = require('./generate.js');
+const { evaluateCandidate, fingerprintOf } = require('./generate.js');
 const { GATES } = require('./quality.js');
+const { encode } = require('./routes.js');
+const { readCache } = require('./pool.js');
 
-const SIZES = [5, 6, 7, 8, 9, 10];
+const ALL_SIZES = [5, 6, 7, 8, 9, 10];
 const TIERS = 5;
-const PER_TIER = 3;
-const POOL_PER_COLOR_COUNT = 12;
+const PER_TIER = 20;
 
 /**
- * Colour counts tried for a size. The starting partition is one route per row,
- * which the annealer can only split further, so `size` is the floor; a couple
- * more gives shorter routes and an easier puzzle.
+ * `--sizes 5,6` limits the build to some board sizes. Only for iterating
+ * locally: the result is an incomplete manifest, and the test suite fails on it.
  */
-function colorChoices(size) {
-  return [size, size + 1, size + 2];
+const sizesArg = process.argv.indexOf('--sizes');
+const SIZES = sizesArg === -1
+  ? ALL_SIZES
+  : process.argv[sizesArg + 1].split(',').map(Number);
+
+/**
+ * Search-node count of the hardest puzzle in the previous, fifteen-per-size
+ * release. Player feedback put that puzzle at "difficulty 2 to 3", so it is
+ * pinned to the tier 2 / tier 3 boundary and the rest of the ladder is built
+ * around it. Measured with the same solver setting the tiers use.
+ */
+const LEGACY_MAX = { 5: 38, 6: 103, 7: 292, 8: 2711, 9: 19969, 10: 152674 };
+
+const ROOT = path.join(__dirname, '..');
+
+function percentile(sorted, q) {
+  if (!sorted.length) return 0;
+  return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
 }
 
-function buildSize(size, log) {
-  const pool = [];
-  for (const colors of colorChoices(size)) {
-    const part = generatePool(size, colors, POOL_PER_COLOR_COUNT, { maxSeeds: 400 });
-    log(`  ${size}x${size}: ${part.length} candidates with ${colors} colours`);
-    pool.push(...part);
+/**
+ * Tier boundaries for one size, in search nodes.
+ *
+ * `b2` is the anchor above. Below it the two easy tiers split the range
+ * geometrically; above it the three hard tiers step geometrically up to what
+ * the search actually reached, so tier 5 is as hard as the board allows.
+ */
+function tierEdges(size, nodes) {
+  const sorted = nodes.slice().sort((a, b) => a - b);
+  const low = Math.max(1, percentile(sorted, 0.05));
+  const b2 = LEGACY_MAX[size];
+  const high = Math.max(percentile(sorted, 0.99), b2 * 1.2);
+
+  const b1 = Math.round(Math.sqrt(low * b2));
+  const ratio = high / b2;
+  const b3 = Math.round(b2 * Math.pow(ratio, 1 / 3));
+  const b4 = Math.round(b2 * Math.pow(ratio, 2 / 3));
+  return [b1, b2, b3, b4];
+}
+
+function tierOf(nodes, edges) {
+  for (let i = 0; i < edges.length; i++) if (nodes <= edges[i]) return i + 1;
+  return TIERS;
+}
+
+/** Take `count` entries spread evenly across an ordered list. */
+function spread(list, count) {
+  if (count <= 0) return [];
+  if (list.length <= count) return list.slice();
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    out.push(list[Math.round((i * (list.length - 1)) / (count - 1))]);
   }
+  return out;
+}
 
-  pool.forEach((candidate) => {
-    candidate.difficulty = difficultyScore(candidate);
-  });
-  pool.sort((a, b) => a.difficulty - b.difficulty);
+/** Legacy puzzles, re-measured so they sit on the same difficulty scale. */
+function loadLegacy(size) {
+  const all = JSON.parse(fs.readFileSync(path.join(__dirname, 'legacy.json'), 'utf8'));
+  return all
+    .filter((entry) => entry.size === size)
+    .map((entry) => {
+      const candidate = evaluateCandidate(size, entry.solution, {});
+      if (!candidate) throw new Error(`legacy puzzle ${entry.id} no longer passes the gates`);
+      candidate.id = entry.id;
+      candidate.fingerprint = fingerprintOf(candidate.endpoints);
+      return candidate;
+    });
+}
 
-  const wanted = TIERS * PER_TIER;
-  if (pool.length < wanted) {
-    throw new Error(`only ${pool.length} candidates for ${size}x${size}, need ${wanted}`);
-  }
+function selectForSize(size, log) {
+  const cached = readCache(size);
+  if (!cached) throw new Error(`no pool for ${size}x${size}; run: node tools/pool.js ${size}`);
 
-  // Spread the selection evenly across the ranked pool so the tiers step up in
-  // difficulty instead of clustering.
+  const legacy = loadLegacy(size);
+  const pinned = new Set(legacy.map((c) => c.fingerprint));
+
+  const fresh = cached.candidates
+    .filter((c) => !pinned.has(c.fingerprint))
+    .map((c) => ({
+      size,
+      colors: c.colors,
+      endpoints: c.endpoints,
+      solution: c.solution,
+      fingerprint: c.fingerprint,
+      stats: { searchNodes: c.searchNodes, searchExhausted: c.searchExhausted },
+    }));
+
+  const everything = legacy.concat(fresh);
+  const edges = tierEdges(size, everything.map((c) => c.stats.searchNodes));
+
   const chosen = [];
-  for (let i = 0; i < wanted; i++) {
-    chosen.push(pool[Math.round((i * (pool.length - 1)) / (wanted - 1))]);
+  const shortfalls = [];
+  for (let tier = 1; tier <= TIERS; tier++) {
+    const band = everything
+      .filter((c) => tierOf(c.stats.searchNodes, edges) === tier)
+      .sort((a, b) => a.stats.searchNodes - b.stats.searchNodes);
+
+    // Puzzles from the previous release keep their place, so a player's solved
+    // markers survive the expansion.
+    const keep = band.filter((c) => c.id);
+    const rest = band.filter((c) => !c.id);
+    const picked = keep.concat(spread(rest, PER_TIER - keep.length));
+    if (picked.length < PER_TIER) {
+      shortfalls.push(`tier ${tier}: ${picked.length}/${PER_TIER}`);
+    }
+    picked.sort((a, b) => a.stats.searchNodes - b.stats.searchNodes);
+    picked.forEach((c) => {
+      c.tier = tier;
+      chosen.push(c);
+    });
   }
 
-  return chosen.map((candidate, index) => ({
-    id: `${size}-${index + 1}`,
-    size,
-    tier: Math.floor(index / PER_TIER) + 1,
-    colors: candidate.colors,
-    endpoints: candidate.endpoints,
-    solution: candidate.solution,
-    metrics: candidate.metrics,
-    stats: candidate.stats,
-    difficulty: candidate.difficulty,
-    seed: candidate.seed,
-  }));
+  if (shortfalls.length) {
+    log(`  ${size}x${size}: SHORT - ${shortfalls.join(', ')} (explore more: node tools/pool.js ${size} --force --rounds N)`);
+  }
+
+  // Numbering: legacy ids stay, new puzzles continue from the next free number.
+  const used = new Set(chosen.filter((c) => c.id).map((c) => Number(c.id.split('-')[1])));
+  let next = 1;
+  chosen.forEach((c) => {
+    if (c.id) return;
+    while (used.has(next)) next++;
+    used.add(next);
+    c.id = `${size}-${next}`;
+  });
+
+  return { puzzles: chosen, edges, short: shortfalls.length > 0 };
 }
 
 function formatCell(cell) {
   return `[${cell[0]},${cell[1]}]`;
 }
 
-function renderPuzzlesFile(bySize) {
-  const lines = [];
-  lines.push('/**');
-  lines.push(' * Linkgrid puzzle data - GENERATED FILE, DO NOT EDIT BY HAND.');
-  lines.push(' *');
-  lines.push(' * Rebuild with:  node tools/build.js');
-  lines.push(' * Every puzzle covers its whole grid and has exactly one solution in which');
-  lines.push(' * no route runs alongside itself. See GENERATION.md.');
-  lines.push(' */');
+function header(title) {
+  return [
+    '/**',
+    ` * ${title} - GENERATED FILE, DO NOT EDIT BY HAND.`,
+    ' *',
+    ' * Rebuild with:  node tools/pool.js <size>  then  node tools/build.js',
+    ' */',
+  ];
+}
+
+function renderPackFile(size, puzzles) {
+  const lines = header(`Linkgrid ${size}x${size} puzzles`);
   lines.push('(function (global) {');
   lines.push("  'use strict';");
   lines.push('');
-  lines.push('  var PUZZLES = {');
-  for (const size of SIZES) {
-    lines.push(`    ${size}: [`);
-    for (const puzzle of bySize[size]) {
-      const endpoints = puzzle.endpoints
-        .map((e) => `{ color: ${e.color}, a: ${formatCell(e.a)}, b: ${formatCell(e.b)} }`)
-        .join(', ');
-      lines.push(`      { id: '${puzzle.id}', size: ${puzzle.size}, tier: ${puzzle.tier}, colors: ${puzzle.colors},`);
-      lines.push(`        endpoints: [${endpoints}] },`);
-    }
-    lines.push('    ],');
+  lines.push('  var PACK = [');
+  for (const puzzle of puzzles) {
+    const endpoints = puzzle.endpoints
+      .map((e) => `{ color: ${e.color}, a: ${formatCell(e.a)}, b: ${formatCell(e.b)} }`)
+      .join(', ');
+    lines.push(`    { id: '${puzzle.id}', size: ${size}, tier: ${puzzle.tier}, colors: ${puzzle.colors},`);
+    lines.push(`      endpoints: [${endpoints}] },`);
   }
-  lines.push('  };');
+  lines.push('  ];');
   lines.push('');
-  lines.push('  global.LINKGRID_PUZZLES = PUZZLES;');
-  lines.push("  if (typeof module !== 'undefined' && module.exports) module.exports = PUZZLES;");
+  lines.push('  global.LINKGRID_PUZZLES = global.LINKGRID_PUZZLES || {};');
+  lines.push(`  global.LINKGRID_PUZZLES[${size}] = PACK;`);
+  lines.push("  if (typeof module !== 'undefined' && module.exports) module.exports = PACK;");
   lines.push("})(typeof globalThis !== 'undefined' ? globalThis : this);");
   lines.push('');
   return lines.join('\n');
 }
 
-function renderSolutionsFile(bySize) {
-  const lines = [];
-  lines.push('/**');
-  lines.push(' * Linkgrid reference solutions - GENERATED FILE, DO NOT EDIT BY HAND.');
-  lines.push(' *');
-  lines.push(' * Rebuild with:  node tools/build.js');
-  lines.push(' * Only the tests load this file; the game itself never ships solutions.');
-  lines.push(' */');
+function renderManifest(bySize) {
+  const lines = header('Linkgrid pack manifest');
   lines.push('(function (global) {');
   lines.push("  'use strict';");
   lines.push('');
-  lines.push('  var SOLUTIONS = {');
+  lines.push('  var PACKS = [');
   for (const size of SIZES) {
-    for (const puzzle of bySize[size]) {
-      const routes = puzzle.solution
-        .map((route) => '[' + route.map(formatCell).join(',') + ']')
-        .join(',\n      ');
-      lines.push(`    '${puzzle.id}': [`);
-      lines.push(`      ${routes}`);
-      lines.push('    ],');
+    const puzzles = bySize[size].puzzles;
+    const perTier = [];
+    for (let tier = 1; tier <= TIERS; tier++) {
+      perTier.push(puzzles.filter((p) => p.tier === tier).length);
     }
+    lines.push(`    { size: ${size}, count: ${puzzles.length}, perTier: [${perTier.join(', ')}] },`);
+  }
+  lines.push('  ];');
+  lines.push('');
+  lines.push('  global.LINKGRID_PACKS = PACKS;');
+  lines.push("  if (typeof module !== 'undefined' && module.exports) module.exports = PACKS;");
+  lines.push("})(typeof globalThis !== 'undefined' ? globalThis : this);");
+  lines.push('');
+  return lines.join('\n');
+}
+
+function renderSolutionFile(size, puzzles) {
+  const lines = header(`Linkgrid ${size}x${size} reference solutions`);
+  lines.push(' // Routes are "row,col:MOVES" - see tools/routes.js. Tests only.');
+  lines.push('(function (global) {');
+  lines.push("  'use strict';");
+  lines.push('');
+  lines.push('  var PACK = {');
+  for (const puzzle of puzzles) {
+    const routes = encode(puzzle.solution).map((r) => `'${r}'`).join(', ');
+    lines.push(`    '${puzzle.id}': [${routes}],`);
   }
   lines.push('  };');
   lines.push('');
-  lines.push('  global.LINKGRID_SOLUTIONS = SOLUTIONS;');
-  lines.push("  if (typeof module !== 'undefined' && module.exports) module.exports = SOLUTIONS;");
+  lines.push('  global.LINKGRID_SOLUTIONS = global.LINKGRID_SOLUTIONS || {};');
+  lines.push(`  Object.assign(global.LINKGRID_SOLUTIONS, PACK);`);
+  lines.push("  if (typeof module !== 'undefined' && module.exports) module.exports = PACK;");
   lines.push("})(typeof globalThis !== 'undefined' ? globalThis : this);");
   lines.push('');
   return lines.join('\n');
@@ -141,40 +241,49 @@ function main() {
   const dryRun = process.argv.includes('--dry-run');
   const log = (message) => process.stderr.write(message + '\n');
   const bySize = {};
+  let short = false;
 
   log('Linkgrid puzzle build');
   log(`gates: ${JSON.stringify(GATES)}`);
+  log('');
+  log('size   tier edges (search nodes)            per tier: median difficulty');
 
   for (const size of SIZES) {
-    const started = Date.now();
-    bySize[size] = buildSize(size, log);
-    log(`  ${size}x${size}: selected ${bySize[size].length} puzzles in ${Date.now() - started}ms`);
+    const result = selectForSize(size, log);
+    bySize[size] = result;
+    short = short || result.short;
+
+    const medians = [];
+    for (let tier = 1; tier <= TIERS; tier++) {
+      const band = result.puzzles.filter((p) => p.tier === tier)
+        .map((p) => p.stats.searchNodes).sort((a, b) => a - b);
+      medians.push(band.length ? band[band.length >> 1] : '-');
+    }
+    log(
+      `${String(size).padStart(2)}x${size}  ` +
+      `[${result.edges.join(', ')}]`.padEnd(34) +
+      medians.join('  ')
+    );
   }
 
   log('');
-  log('size  id     tier colors len(min-max) straight int/border bendsPerCell search');
-  for (const size of SIZES) {
-    for (const puzzle of bySize[size]) {
-      const m = puzzle.metrics;
-      const ratio = m.borderBendDensity ? m.interiorBendDensity / m.borderBendDensity : Infinity;
-      log(
-        `${String(size).padStart(2)}   ${puzzle.id.padEnd(6)} ${puzzle.tier}    ` +
-        `${String(puzzle.colors).padStart(2)}     ${String(m.minLength).padStart(2)}-${String(m.maxLength).padEnd(2)}` +
-        `        ${m.straightShare.toFixed(2)}     ${ratio.toFixed(2)}       ` +
-        `${m.bendsPerCell.toFixed(2)}        ${puzzle.stats.searchNodes}`
-      );
-    }
-  }
+  const all = SIZES.flatMap((size) => bySize[size].puzzles);
+  log(`total ${all.length} puzzles, colours ${Math.min(...all.map((p) => p.colors))}-${Math.max(...all.map((p) => p.colors))}`);
+  if (short) log('WARNING: at least one tier is short; explore more before shipping');
 
   if (dryRun) {
     log('\n--dry-run: no files written');
     return;
   }
 
-  const root = path.join(__dirname, '..');
-  fs.writeFileSync(path.join(root, 'puzzles.js'), renderPuzzlesFile(bySize));
-  fs.writeFileSync(path.join(root, 'solutions.js'), renderSolutionsFile(bySize));
-  log('\nwrote puzzles.js and solutions.js');
+  fs.mkdirSync(path.join(ROOT, 'puzzles'), { recursive: true });
+  fs.mkdirSync(path.join(ROOT, 'solutions'), { recursive: true });
+  for (const size of SIZES) {
+    fs.writeFileSync(path.join(ROOT, 'puzzles', size + '.js'), renderPackFile(size, bySize[size].puzzles));
+    fs.writeFileSync(path.join(ROOT, 'solutions', size + '.js'), renderSolutionFile(size, bySize[size].puzzles));
+  }
+  fs.writeFileSync(path.join(ROOT, 'puzzles', 'index.js'), renderManifest(bySize));
+  log('\nwrote puzzles/ and solutions/');
 }
 
 main();

@@ -12,23 +12,33 @@
 
 const Engine = require('../engine.js');
 const Quality = require('../tools/quality.js');
-const puzzles = require('../puzzles.js');
-const solutions = require('../solutions.js');
+const Routes = require('../tools/routes.js');
+const packs = require('../puzzles/index.js');
 const suite = require('./suite.js');
 const { countSolutions } = require('../tools/solver.js');
 
+// Sizes come from the manifest so a partial build fails the suite's own
+// coverage check rather than crashing the runner.
+const SIZES = packs.map((pack) => pack.size);
+const puzzles = {};
+const solutions = {};
+for (const size of SIZES) {
+  puzzles[size] = require(`../puzzles/${size}.js`);
+  Object.assign(solutions, require(`../solutions/${size}.js`));
+}
+
 const quick = process.argv.includes('--quick');
-const outcome = suite.run({ Engine, Quality, puzzles, solutions });
+const outcome = suite.run({ Engine, Quality, Routes, puzzles, solutions, packs });
 
 /**
  * Solver pass: confirm each shipped puzzle still has exactly one solution in
  * which no route runs alongside itself, and that it is the shipped solution.
  */
 function solverChecks() {
-  const levels = Object.keys(puzzles)
-    .map(Number)
-    .sort((a, b) => a - b)
-    .flatMap((size) => puzzles[size]);
+  const only = process.argv.includes('--sample');
+  const levels = SIZES.flatMap((size) => (
+    only ? puzzles[size].filter((_, i) => i % 10 === 0) : puzzles[size]
+  ));
 
   const ambiguous = [];
   const mismatched = [];
@@ -44,9 +54,10 @@ function solverChecks() {
       ambiguous.push(`${level.id} (${result.exhausted ? result.count : 'over budget'})`);
       continue;
     }
+    const shippedRoutes = Routes.decode(solutions[level.id]);
     const found = JSON.stringify(result.solutions[0]);
-    const shipped = JSON.stringify(solutions[level.id]);
-    const reversed = JSON.stringify(solutions[level.id].map((route) => route.slice().reverse()));
+    const shipped = JSON.stringify(shippedRoutes);
+    const reversed = JSON.stringify(shippedRoutes.map((route) => route.slice().reverse()));
     if (found !== shipped && found !== reversed) mismatched.push(level.id);
   }
 

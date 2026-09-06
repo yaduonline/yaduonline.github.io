@@ -9,7 +9,8 @@ board must end up covered.
 - Browser only, vanilla HTML/CSS/JS, no dependencies, no build step for the game
   itself. Puzzle data is generated offline by Node scripts under `tools/`.
 - Shared site shell: `/style.css` and `/inc/include.js` (header and footer).
-- Board sizes 5×5 through 10×10, fifteen puzzles each, five difficulty tiers.
+- Board sizes 5×5 through 10×10, one hundred puzzles each: twenty at each of
+  five difficulty levels.
 - Open square grids only: no walls, bridges, warps or non-square cells.
 
 ## Rules
@@ -53,10 +54,18 @@ those in row or column 0 or N−1.
 
 ## Difficulty
 
-- Five tiers per board size, three puzzles per tier.
-- Tiers are assigned from *measured* difficulty, not assumed: candidates are
-  ranked by how much search a solver needs once the obvious deductions run out,
-  plus mean route length and bend density. See `GENERATION.md`.
+- Five levels per board size, twenty puzzles each. Level 1 is the gentlest,
+  level 5 the hardest.
+- Levels are assigned from *measured* difficulty, not assumed: how much search a
+  solver still needs after the deductions a player would also make. See
+  `GENERATION.md`.
+- Difficulty is relative **within a board size**. A 5×5 has far less room to
+  hide a hard puzzle than a 10×10, so a 5×5 level 5 is not a 10×10 level 5.
+- Calibration anchor: the hardest puzzle of the previous fifteen-per-size
+  release sits on the level 2 / level 3 boundary, so the earlier ceiling is now
+  the middle of the ladder.
+- Puzzles carried over from that release keep their ids, so solved markers
+  survive the expansion.
 
 ## Input
 

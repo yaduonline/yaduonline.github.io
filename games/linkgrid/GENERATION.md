@@ -1,11 +1,14 @@
 # Linkgrid — Puzzle generation
 
-    node tools/build.js            # regenerate puzzles.js and solutions.js
+    for s in 5 6 7 8 9 10; do node tools/pool.js $s & done; wait   # explore
+    node tools/build.js            # band into levels, write the data files
     node tools/build.js --dry-run  # print the summary table only
     node test/run.js               # verify the shipped set
 
-Generation is seeded end to end, so a rebuild without parameter changes
-reproduces the same ninety puzzles.
+Exploration is the slow half and runs one process per board size in parallel;
+its results are cached under `tools/.pools/` so that retuning the difficulty
+bands does not mean searching again. Both halves are seeded, so a rebuild
+reproduces the same six hundred puzzles.
 
 ## What the puzzles have to be
 
@@ -84,6 +87,48 @@ induced paths.
    neighbours is dead" deduction that a human also makes) and record the node
    count. That is how much searching is left after the easy deductions.
 
+## Finding the hard ones
+
+Sampling fresh partitions produces almost entirely easy puzzles - the hard ones
+are a thin tail. Measured on 8×8, random candidates had a median of 847 search
+nodes and needed hundreds of samples to pass 3,000.
+
+Two things were tried. Hill-climbing on difficulty (re-anneal from the current
+best, keep improvements) stalls immediately: the anneal's own objective pulls
+straight back to the same local optimum, and the median mutant was *identical*
+to its parent. What works is basin hopping:
+
+1. **Kick** - run the annealer with every weight set to zero, which makes every
+   legal move acceptable and turns it into a short random walk. Forty steps is
+   enough to leave the current basin.
+2. **Polish** - a short, cool anneal to restore bend quality.
+3. **Step** - move to the result whenever it is at least 0.6× as hard as where
+   the chain stands, so a chain crosses plateaus instead of getting stuck on a
+   peak.
+
+Every distinct valid puzzle a chain passes through is collected, not just the
+improvements, which is why one run yields puzzles spread across the whole
+difficulty range rather than a handful of hard ones.
+
+## Difficulty levels
+
+The hardest puzzle of the previous release is the calibration anchor: player
+feedback placed it at "difficulty 2 to 3", so it is pinned to the level 2 /
+level 3 boundary (`LEGACY_MAX` in `tools/build.js`, measured with the same
+solver setting). Below it the two easy levels split the range geometrically;
+above it the three hard levels step geometrically up to the 99th percentile of
+what the search reached. Twenty puzzles are taken from each band, spread evenly
+across it.
+
+Puzzles from the previous release are merged into the pool and keep their ids,
+so a player's solved markers survive the expansion; they land wherever their
+measured difficulty puts them, which is levels 1 to 3.
+
+How much headroom exists above the old ceiling depends entirely on the board.
+A 5×5 has 25 cells and almost no room for a solver to get lost, so its ladder is
+compressed; a 10×10 spans more than an order of magnitude. Difficulty levels are
+therefore relative within a board size, and the game presents them that way.
+
 ## The solver
 
 `countSolutions(puzzle, options)` grows one colour at a time from its `a` dot,
@@ -101,20 +146,13 @@ Options: `limit` (stop after this many solutions), `maxNodes` (budget; a run tha
 exceeds it reports `exhausted: false` and its result is discarded rather than
 trusted), `noSelfTouch`, `collect`, and `prune`.
 
-## Tiers
+## Colour counts
 
-For each board size, pools are generated at N, N+1 and N+2 colours, scored by
+Chains run at N−2, N−1, N and N+1 colours for an N×N board. Fewer colours means
+longer routes and more freedom, which is the single biggest lever on difficulty.
 
-    2.0 · log2(1 + backtracks) + 1.5 · (mean route length / N) + 1.0 · bends per cell
-
-and ranked. Fifteen puzzles are taken evenly across the ranked pool and cut into
-five tiers of three, so tiers step up in measured difficulty rather than in an
-assumed parameter. On a 5×5 the search term is nearly flat — the board is too
-small to require backtracking — so tiers there come mostly from route length.
-
-## Measured results
-
-All ninety shipped puzzles: 0% to 14% straight connections (limit 25%),
-interior/border bend density 1.3–2.9 (limit 1.2), 0.32–0.58 bends per cell, all
-four corner orientations present, exactly one clean solution each. The solver
-difficulty signal spans 19 nodes (5×5, tier 1) to 152,674 (10×10, tier 5).
+The starting partition is one route per row, and the transfer move cannot reduce
+the count, so counts below N need a second mechanism: `mergeDown` joins two
+routes whose *only* point of contact is one end each — the condition under which
+the merged route is still induced. Straight rows never qualify, so the partition
+is annealed loose first, and annealed again whenever the merges run dry.

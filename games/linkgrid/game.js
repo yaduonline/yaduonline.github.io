@@ -8,10 +8,12 @@
   'use strict';
 
   var Engine = globalThis.LinkgridEngine;
-  var PUZZLES = globalThis.LINKGRID_PUZZLES;
-
-  var SIZES = [5, 6, 7, 8, 9, 10];
+  // puzzles/index.js ships only the manifest; each pack's puzzles are fetched
+  // the first time that board size is opened.
+  var PACKS = globalThis.LINKGRID_PACKS || [];
   var STORAGE_KEY = 'linkgrid-progress-v2';
+
+  function packs() { return globalThis.LINKGRID_PUZZLES || {}; }
 
   // Twelve hues, spaced far enough apart to stay tellable on a small board.
   var PALETTE = [
@@ -86,7 +88,33 @@
   // -------------------------------------------------------------------------
 
   function levelsFor(size) {
-    return PUZZLES[size] || [];
+    return packs()[size] || [];
+  }
+
+  var loading = {};
+
+  /** Fetch one board size's puzzles, once. */
+  function loadPack(size) {
+    if (levelsFor(size).length) return Promise.resolve(levelsFor(size));
+    if (loading[size]) return loading[size];
+    loading[size] = new Promise(function (resolve, reject) {
+      var tag = document.createElement('script');
+      tag.src = './puzzles/' + size + '.js';
+      tag.onload = function () {
+        if (levelsFor(size).length) resolve(levelsFor(size));
+        else reject(new Error('pack ' + size + ' loaded but is empty'));
+      };
+      tag.onerror = function () { reject(new Error('could not load pack ' + size)); };
+      document.head.appendChild(tag);
+    });
+    loading[size].catch(function () { delete loading[size]; });
+    return loading[size];
+  }
+
+  /** Position of a puzzle within its own difficulty tier, 1-based. */
+  function indexInTier(size, level) {
+    var within = levelsFor(size).filter(function (other) { return other.tier === level.tier; });
+    return within.indexOf(level) + 1;
   }
 
   function findLevel(size, id) {
@@ -118,8 +146,14 @@
     if (screen === 'packs') el.crumb.textContent = 'Choose a board size';
     if (screen === 'levels') el.crumb.textContent = state.size + ' by ' + state.size + ' puzzles';
     if (screen === 'puzzle') {
-      el.crumb.textContent = state.size + ' by ' + state.size + ' · puzzle ' +
-        levelNumber(state.size, state.levelId) + ' of ' + levelsFor(state.size).length;
+      var level = findLevel(state.size, state.levelId);
+      var inTier = level
+        ? levelsFor(state.size).filter(function (o) { return o.tier === level.tier; }).length
+        : 0;
+      el.crumb.textContent = level
+        ? state.size + ' by ' + state.size + ' · difficulty ' + level.tier +
+          ' · puzzle ' + indexInTier(state.size, level) + ' of ' + inTier
+        : state.size + ' by ' + state.size;
     }
 
     if (screen !== 'puzzle') hideOverlay();
@@ -132,55 +166,89 @@
     });
   }
 
-  function levelNumber(size, id) {
-    var levels = levelsFor(size);
-    for (var i = 0; i < levels.length; i++) if (levels[i].id === id) return i + 1;
-    return 0;
-  }
-
   function renderPacks() {
     el.packs.innerHTML = '';
-    SIZES.forEach(function (size) {
-      var total = levelsFor(size).length;
-      var solved = solvedIds(size).filter(function (id) {
-        return findLevel(size, id) !== null;
-      }).length;
+    PACKS.forEach(function (pack) {
+      var size = pack.size;
+      var total = pack.count;
+      // The pack itself is not loaded yet, so trust the manifest for the total.
+      var solved = Math.min(solvedIds(size).length, total);
       var button = document.createElement('button');
-      button.className = 'card' + (total && solved === total ? ' complete' : '');
+      button.className = 'card' + (total && solved >= total ? ' complete' : '');
       button.type = 'button';
       button.setAttribute('aria-label',
         size + ' by ' + size + ' board, ' + solved + ' of ' + total + ' solved');
       button.innerHTML =
         '<span class="card-title">' + size + ' × ' + size + '</span>' +
         '<span class="card-note">' + solved + ' / ' + total + ' solved</span>';
-      button.addEventListener('click', function () {
-        state.size = size;
-        renderLevels();
-        setScreen('levels');
-      });
+      button.addEventListener('click', function () { openPack(size); });
       el.packs.appendChild(button);
+    });
+  }
+
+  function openPack(size) {
+    state.size = size;
+    if (levelsFor(size).length) {
+      renderLevels();
+      setScreen('levels');
+      return;
+    }
+    el.levels.innerHTML = '<p class="loading">Loading ' + size + ' × ' + size + ' puzzles…</p>';
+    setScreen('levels');
+    loadPack(size).then(function () {
+      if (state.size !== size) return;
+      renderLevels();
+    }, function () {
+      el.levels.innerHTML = '<p class="loading">Could not load these puzzles. ' +
+        'Check your connection and try again.</p>';
     });
   }
 
   function renderLevels() {
     var size = state.size;
+    var levels = levelsFor(size);
     el.levels.innerHTML = '';
-    levelsFor(size).forEach(function (level, index) {
-      var solved = isSolvedLevel(size, level.id);
-      var button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'level' + (solved ? ' solved' : '');
-      button.setAttribute('aria-label',
-        'Puzzle ' + (index + 1) + ', tier ' + level.tier + ', ' + level.colors + ' colours' +
-        (solved ? ', solved' : ''));
-      button.innerHTML =
-        '<span class="level-no">' + (index + 1) + '</span>' +
-        '<span class="level-meta">Tier ' + level.tier + ' · ' + level.colors + ' colours</span>' +
-        '<span class="level-tick" aria-hidden="true">' + (solved ? '✓' : '') + '</span>';
-      button.addEventListener('click', function () {
-        startLevel(level);
+
+    var tiers = [];
+    levels.forEach(function (level) {
+      if (tiers.indexOf(level.tier) === -1) tiers.push(level.tier);
+    });
+    tiers.sort(function (a, b) { return a - b; });
+
+    tiers.forEach(function (tier) {
+      var inTier = levels.filter(function (level) { return level.tier === tier; });
+      var solvedHere = inTier.filter(function (level) {
+        return isSolvedLevel(size, level.id);
+      }).length;
+
+      var section = document.createElement('section');
+      section.className = 'tier';
+
+      var heading = document.createElement('h3');
+      heading.className = 'tier-title';
+      heading.textContent = 'Difficulty ' + tier;
+      var note = document.createElement('span');
+      note.className = 'tier-note';
+      note.textContent = solvedHere + ' / ' + inTier.length;
+      heading.appendChild(note);
+      section.appendChild(heading);
+
+      var grid = document.createElement('div');
+      grid.className = 'tier-grid';
+      inTier.forEach(function (level, index) {
+        var solved = isSolvedLevel(size, level.id);
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'chip' + (solved ? ' solved' : '');
+        button.textContent = String(index + 1);
+        button.setAttribute('aria-label',
+          'Difficulty ' + tier + ', puzzle ' + (index + 1) + ' of ' + inTier.length +
+          ', ' + level.colors + ' colours' + (solved ? ', solved' : ''));
+        button.addEventListener('click', function () { startLevel(level); });
+        grid.appendChild(button);
       });
-      el.levels.appendChild(button);
+      section.appendChild(grid);
+      el.levels.appendChild(section);
     });
   }
 
@@ -626,7 +694,7 @@
 
   function boot() {
     collect();
-    if (!Engine || !PUZZLES) {
+    if (!Engine || !PACKS.length) {
       el.crumb.textContent = 'Could not load the puzzles.';
       return;
     }

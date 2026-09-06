@@ -1,6 +1,9 @@
 games/loopfront/logs/
 games/loopfront/*.log
 
+# Linkgrid puzzle-search cache (regenerate with tools/pool.js)
+games/linkgrid/tools/.pools/
+
 # Ignore editor and Python temporary files
 .DS_Store
 .vscode/

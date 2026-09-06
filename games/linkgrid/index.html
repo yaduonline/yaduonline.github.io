@@ -79,18 +79,32 @@
     .card-note { font-weight: 500; font-size: 0.83rem; color: var(--muted); }
     .card.complete { border-color: #9dc0ad; background: #e9f4ed; }
 
-    .level {
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 12px;
-      text-align: left;
+    .tier { margin-top: 16px; }
+    .tier-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 0 0 8px;
+      font-size: 0.95rem;
     }
-    .level-no { font-size: 1.05rem; }
-    .level-meta { font-weight: 500; font-size: 0.8rem; color: var(--muted); }
-    .level-tick { color: var(--ok); font-weight: 700; }
-    .level.solved { border-color: #9dc0ad; background: #e9f4ed; }
+    .tier-note { font-weight: 500; font-size: 0.8rem; color: var(--muted); }
+    .tier-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
+      gap: 6px;
+    }
+    #app .chip {
+      padding: 9px 0;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+    #app .chip.solved {
+      border-color: #9dc0ad;
+      background: #dcefe3;
+      color: #2f5f45;
+    }
+    .loading { color: var(--muted); font-size: 0.9rem; margin: 16px 0; }
 
     .board-area {
       position: relative;
@@ -175,7 +189,7 @@
     </section>
 
     <section id="screenLevels" aria-label="Puzzles" hidden>
-      <div id="levels" class="grid-list"></div>
+      <div id="levels"></div>
     </section>
 
     <section id="screenPuzzle" aria-label="Puzzle board" hidden>
@@ -212,7 +226,7 @@
 
   <script src="/inc/include.js"></script>
   <script src="./engine.js"></script>
-  <script src="./puzzles.js"></script>
+  <script src="./puzzles/index.js"></script>
   <script src="./game.js"></script>
 </body>
 </html>
