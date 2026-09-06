@@ -1,369 +1,208 @@
+/**
+ * Linkgrid puzzle data - GENERATED FILE, DO NOT EDIT BY HAND.
+ *
+ * Rebuild with:  node tools/build.js
+ * Every puzzle covers its whole grid and has exactly one solution in which
+ * no route runs alongside itself. See GENERATION.md.
+ */
 (function (global) {
   'use strict';
 
-  const LEVEL_ONE_SPECS = [
-    { tier: 1, style: 'row-snake', weights: [4, 6, 5, 4, 6], variant: 0 },
-    { tier: 1, style: 'column-snake', weights: [5, 4, 6, 5, 5], variant: 1, flipRows: true },
-    { tier: 1, style: 'row-snake', weights: [3, 5, 4, 6, 7], variant: 2, flipCols: true },
-    { tier: 2, style: 'column-snake', weights: [6, 5, 4, 7, 3], variant: 0 },
-    { tier: 2, style: 'row-snake', weights: [5, 3, 6, 4, 7], variant: 1, flipRows: true },
-    { tier: 2, style: 'column-snake', weights: [4, 7, 5, 3, 6], variant: 2, flipCols: true },
-    { tier: 2, style: 'row-snake', weights: [3, 4, 5, 6, 7], variant: 3, reversePath: true },
-    { tier: 3, style: 'column-snake', weights: [7, 4, 5, 6, 3], variant: 1, flipRows: true, reversePath: true },
-    { tier: 3, style: 'row-snake', weights: [4, 6, 3, 7, 5], variant: 2, flipCols: true },
-    { tier: 3, style: 'column-snake', weights: [5, 5, 4, 6, 5], variant: 3 },
-    { tier: 4, style: 'row-snake', weights: [6, 4, 5, 3, 7], variant: 4, flipRows: true },
-    { tier: 4, style: 'column-snake', weights: [3, 7, 4, 6, 5], variant: 2, flipCols: true },
-    { tier: 4, style: 'row-snake', weights: [5, 4, 7, 3, 6], variant: 1, reversePath: true },
-    { tier: 5, style: 'column-snake', weights: [6, 3, 5, 7, 4], variant: 0, flipRows: true, flipCols: true },
-    { tier: 5, style: 'row-snake', weights: [4, 7, 3, 6, 5], variant: 2, flipRows: true, reversePath: true },
-    { tier: 5, style: 'column-snake', weights: [5, 6, 4, 3, 7], variant: 1, flipCols: true, reversePath: true },
-  ];
+  var PUZZLES = {
+    5: [
+      { id: '5-1', size: 5, tier: 1, colors: 7,
+        endpoints: [{ color: 0, a: [1,0], b: [0,1] }, { color: 1, a: [3,1], b: [2,0] }, { color: 2, a: [3,2], b: [1,3] }, { color: 3, a: [3,3], b: [2,4] }, { color: 4, a: [4,0], b: [4,4] }, { color: 5, a: [0,3], b: [1,4] }, { color: 6, a: [2,1], b: [0,2] }] },
+      { id: '5-2', size: 5, tier: 1, colors: 7,
+        endpoints: [{ color: 0, a: [0,0], b: [1,4] }, { color: 1, a: [2,0], b: [1,1] }, { color: 2, a: [3,4], b: [4,3] }, { color: 3, a: [2,1], b: [4,2] }, { color: 4, a: [3,0], b: [4,1] }, { color: 5, a: [2,4], b: [3,3] }, { color: 6, a: [2,2], b: [1,3] }] },
+      { id: '5-3', size: 5, tier: 1, colors: 7,
+        endpoints: [{ color: 0, a: [0,1], b: [1,4] }, { color: 1, a: [0,0], b: [1,1] }, { color: 2, a: [4,1], b: [3,0] }, { color: 3, a: [2,0], b: [3,1] }, { color: 4, a: [4,2], b: [3,4] }, { color: 5, a: [2,4], b: [3,2] }, { color: 6, a: [2,2], b: [1,3] }] },
+      { id: '5-4', size: 5, tier: 2, colors: 7,
+        endpoints: [{ color: 0, a: [1,0], b: [0,1] }, { color: 1, a: [1,1], b: [2,2] }, { color: 2, a: [2,4], b: [4,3] }, { color: 3, a: [2,0], b: [3,1] }, { color: 4, a: [3,0], b: [4,1] }, { color: 5, a: [0,2], b: [1,4] }, { color: 6, a: [4,2], b: [1,3] }] },
+      { id: '5-5', size: 5, tier: 2, colors: 7,
+        endpoints: [{ color: 0, a: [0,0], b: [1,1] }, { color: 1, a: [3,1], b: [1,0] }, { color: 2, a: [3,4], b: [4,3] }, { color: 3, a: [4,2], b: [2,4] }, { color: 4, a: [3,0], b: [4,1] }, { color: 5, a: [0,2], b: [1,4] }, { color: 6, a: [2,2], b: [1,3] }] },
+      { id: '5-6', size: 5, tier: 2, colors: 6,
+        endpoints: [{ color: 0, a: [2,0], b: [0,1] }, { color: 1, a: [0,3], b: [3,4] }, { color: 2, a: [3,1], b: [1,3] }, { color: 3, a: [4,2], b: [3,0] }, { color: 4, a: [3,2], b: [4,4] }, { color: 5, a: [1,1], b: [0,2] }] },
+      { id: '5-7', size: 5, tier: 3, colors: 6,
+        endpoints: [{ color: 0, a: [4,3], b: [0,4] }, { color: 1, a: [4,2], b: [2,3] }, { color: 2, a: [1,1], b: [2,2] }, { color: 3, a: [1,3], b: [0,2] }, { color: 4, a: [3,0], b: [4,1] }, { color: 5, a: [3,1], b: [0,1] }] },
+      { id: '5-8', size: 5, tier: 3, colors: 6,
+        endpoints: [{ color: 0, a: [1,0], b: [0,2] }, { color: 1, a: [4,0], b: [2,4] }, { color: 2, a: [3,4], b: [4,3] }, { color: 3, a: [3,3], b: [2,2] }, { color: 4, a: [3,1], b: [4,2] }, { color: 5, a: [0,3], b: [1,4] }] },
+      { id: '5-9', size: 5, tier: 3, colors: 6,
+        endpoints: [{ color: 0, a: [1,0], b: [0,1] }, { color: 1, a: [1,3], b: [4,4] }, { color: 2, a: [4,0], b: [0,2] }, { color: 3, a: [2,2], b: [4,3] }, { color: 4, a: [3,1], b: [4,2] }, { color: 5, a: [0,3], b: [1,4] }] },
+      { id: '5-10', size: 5, tier: 4, colors: 5,
+        endpoints: [{ color: 0, a: [1,4], b: [4,3] }, { color: 1, a: [1,2], b: [0,4] }, { color: 2, a: [4,2], b: [1,1] }, { color: 3, a: [4,1], b: [0,2] }, { color: 4, a: [3,3], b: [2,2] }] },
+      { id: '5-11', size: 5, tier: 4, colors: 5,
+        endpoints: [{ color: 0, a: [0,4], b: [4,3] }, { color: 1, a: [4,2], b: [0,2] }, { color: 2, a: [2,2], b: [3,1] }, { color: 3, a: [1,0], b: [4,1] }, { color: 4, a: [1,2], b: [0,0] }] },
+      { id: '5-12', size: 5, tier: 4, colors: 5,
+        endpoints: [{ color: 0, a: [3,4], b: [4,1] }, { color: 1, a: [4,0], b: [2,1] }, { color: 2, a: [2,0], b: [1,4] }, { color: 3, a: [2,4], b: [1,3] }, { color: 4, a: [1,1], b: [3,3] }] },
+      { id: '5-13', size: 5, tier: 5, colors: 5,
+        endpoints: [{ color: 0, a: [0,4], b: [4,2] }, { color: 1, a: [2,2], b: [1,1] }, { color: 2, a: [4,3], b: [3,4] }, { color: 3, a: [1,3], b: [3,1] }, { color: 4, a: [3,0], b: [4,1] }] },
+      { id: '5-14', size: 5, tier: 5, colors: 5,
+        endpoints: [{ color: 0, a: [3,3], b: [2,2] }, { color: 1, a: [2,0], b: [0,1] }, { color: 2, a: [3,0], b: [2,4] }, { color: 3, a: [1,4], b: [0,2] }, { color: 4, a: [4,0], b: [3,4] }] },
+      { id: '5-15', size: 5, tier: 5, colors: 5,
+        endpoints: [{ color: 0, a: [2,2], b: [3,3] }, { color: 1, a: [4,2], b: [0,3] }, { color: 2, a: [4,1], b: [2,0] }, { color: 3, a: [1,0], b: [0,2] }, { color: 4, a: [4,3], b: [0,4] }] },
+    ],
+    6: [
+      { id: '6-1', size: 6, tier: 1, colors: 8,
+        endpoints: [{ color: 0, a: [1,5], b: [3,4] }, { color: 1, a: [5,1], b: [3,0] }, { color: 2, a: [5,5], b: [4,4] }, { color: 3, a: [0,3], b: [2,2] }, { color: 4, a: [0,2], b: [5,2] }, { color: 5, a: [3,2], b: [5,4] }, { color: 6, a: [2,4], b: [0,5] }, { color: 7, a: [0,1], b: [2,0] }] },
+      { id: '6-2', size: 6, tier: 1, colors: 7,
+        endpoints: [{ color: 0, a: [2,5], b: [5,3] }, { color: 1, a: [2,2], b: [1,3] }, { color: 2, a: [3,0], b: [4,1] }, { color: 3, a: [1,4], b: [2,3] }, { color: 4, a: [4,4], b: [0,0] }, { color: 5, a: [5,0], b: [4,3] }, { color: 6, a: [1,1], b: [1,5] }] },
+      { id: '6-3', size: 6, tier: 1, colors: 8,
+        endpoints: [{ color: 0, a: [1,5], b: [2,4] }, { color: 1, a: [5,3], b: [3,0] }, { color: 2, a: [5,5], b: [3,2] }, { color: 3, a: [2,0], b: [0,3] }, { color: 4, a: [2,2], b: [0,5] }, { color: 5, a: [4,0], b: [5,1] }, { color: 6, a: [3,4], b: [4,5] }, { color: 7, a: [1,0], b: [0,1] }] },
+      { id: '6-4', size: 6, tier: 2, colors: 6,
+        endpoints: [{ color: 0, a: [3,2], b: [2,3] }, { color: 1, a: [1,0], b: [0,2] }, { color: 2, a: [1,5], b: [0,3] }, { color: 3, a: [4,4], b: [4,0] }, { color: 4, a: [3,0], b: [5,5] }, { color: 5, a: [2,5], b: [2,0] }] },
+      { id: '6-5', size: 6, tier: 2, colors: 6,
+        endpoints: [{ color: 0, a: [2,5], b: [4,4] }, { color: 1, a: [1,5], b: [2,0] }, { color: 2, a: [0,0], b: [3,2] }, { color: 3, a: [2,1], b: [1,0] }, { color: 4, a: [5,5], b: [4,0] }, { color: 5, a: [2,3], b: [0,5] }] },
+      { id: '6-6', size: 6, tier: 2, colors: 7,
+        endpoints: [{ color: 0, a: [0,2], b: [2,0] }, { color: 1, a: [2,3], b: [3,2] }, { color: 2, a: [1,0], b: [0,1] }, { color: 3, a: [5,5], b: [3,0] }, { color: 4, a: [1,5], b: [0,4] }, { color: 5, a: [4,4], b: [4,0] }, { color: 6, a: [0,3], b: [2,5] }] },
+      { id: '6-7', size: 6, tier: 3, colors: 7,
+        endpoints: [{ color: 0, a: [5,1], b: [4,0] }, { color: 1, a: [3,5], b: [5,3] }, { color: 2, a: [5,2], b: [0,1] }, { color: 3, a: [0,4], b: [2,3] }, { color: 4, a: [4,4], b: [0,5] }, { color: 5, a: [2,1], b: [4,3] }, { color: 6, a: [0,3], b: [1,1] }] },
+      { id: '6-8', size: 6, tier: 3, colors: 7,
+        endpoints: [{ color: 0, a: [0,1], b: [1,4] }, { color: 1, a: [0,4], b: [5,5] }, { color: 2, a: [2,4], b: [4,2] }, { color: 3, a: [3,2], b: [5,1] }, { color: 4, a: [4,4], b: [5,2] }, { color: 5, a: [2,3], b: [0,0] }, { color: 6, a: [5,0], b: [2,1] }] },
+      { id: '6-9', size: 6, tier: 3, colors: 6,
+        endpoints: [{ color: 0, a: [2,1], b: [0,2] }, { color: 1, a: [5,0], b: [0,1] }, { color: 2, a: [5,3], b: [3,1] }, { color: 3, a: [5,4], b: [2,3] }, { color: 4, a: [0,4], b: [5,5] }, { color: 5, a: [3,3], b: [0,3] }] },
+      { id: '6-10', size: 6, tier: 4, colors: 8,
+        endpoints: [{ color: 0, a: [5,1], b: [4,0] }, { color: 1, a: [2,1], b: [0,0] }, { color: 2, a: [3,2], b: [0,4] }, { color: 3, a: [5,2], b: [3,0] }, { color: 4, a: [2,0], b: [1,1] }, { color: 5, a: [4,5], b: [5,4] }, { color: 6, a: [5,3], b: [3,5] }, { color: 7, a: [0,3], b: [1,4] }] },
+      { id: '6-11', size: 6, tier: 4, colors: 8,
+        endpoints: [{ color: 0, a: [5,2], b: [0,0] }, { color: 1, a: [3,5], b: [5,3] }, { color: 2, a: [1,1], b: [0,2] }, { color: 3, a: [5,4], b: [4,5] }, { color: 4, a: [2,3], b: [1,4] }, { color: 5, a: [3,3], b: [0,3] }, { color: 6, a: [5,1], b: [3,0] }, { color: 7, a: [0,4], b: [2,5] }] },
+      { id: '6-12', size: 6, tier: 4, colors: 8,
+        endpoints: [{ color: 0, a: [3,1], b: [5,0] }, { color: 1, a: [5,1], b: [3,2] }, { color: 2, a: [2,0], b: [1,1] }, { color: 3, a: [1,2], b: [5,4] }, { color: 4, a: [1,0], b: [0,2] }, { color: 5, a: [1,5], b: [0,4] }, { color: 6, a: [0,3], b: [2,5] }, { color: 7, a: [5,2], b: [4,4] }] },
+      { id: '6-13', size: 6, tier: 5, colors: 7,
+        endpoints: [{ color: 0, a: [3,1], b: [5,2] }, { color: 1, a: [0,3], b: [2,5] }, { color: 2, a: [3,2], b: [4,4] }, { color: 3, a: [5,1], b: [0,2] }, { color: 4, a: [2,4], b: [5,3] }, { color: 5, a: [1,4], b: [2,2] }, { color: 6, a: [0,1], b: [1,0] }] },
+      { id: '6-14', size: 6, tier: 5, colors: 6,
+        endpoints: [{ color: 0, a: [0,3], b: [5,2] }, { color: 1, a: [3,3], b: [1,1] }, { color: 2, a: [0,4], b: [2,3] }, { color: 3, a: [0,5], b: [5,3] }, { color: 4, a: [3,0], b: [5,1] }, { color: 5, a: [3,5], b: [5,4] }] },
+      { id: '6-15', size: 6, tier: 5, colors: 6,
+        endpoints: [{ color: 0, a: [1,0], b: [0,1] }, { color: 1, a: [0,3], b: [2,4] }, { color: 2, a: [5,0], b: [0,2] }, { color: 3, a: [2,2], b: [0,4] }, { color: 4, a: [3,1], b: [4,5] }, { color: 5, a: [4,1], b: [5,5] }] },
+    ],
+    7: [
+      { id: '7-1', size: 7, tier: 1, colors: 9,
+        endpoints: [{ color: 0, a: [5,5], b: [3,3] }, { color: 1, a: [0,5], b: [2,4] }, { color: 2, a: [6,1], b: [1,2] }, { color: 3, a: [4,1], b: [6,3] }, { color: 4, a: [0,6], b: [3,5] }, { color: 5, a: [4,2], b: [6,4] }, { color: 6, a: [6,5], b: [4,6] }, { color: 7, a: [1,4], b: [3,2] }, { color: 8, a: [0,4], b: [2,0] }] },
+      { id: '7-2', size: 7, tier: 1, colors: 9,
+        endpoints: [{ color: 0, a: [2,0], b: [3,5] }, { color: 1, a: [3,6], b: [0,3] }, { color: 2, a: [5,1], b: [3,3] }, { color: 3, a: [2,2], b: [3,1] }, { color: 4, a: [1,1], b: [0,0] }, { color: 5, a: [6,3], b: [4,6] }, { color: 6, a: [1,6], b: [0,5] }, { color: 7, a: [0,1], b: [2,4] }, { color: 8, a: [5,4], b: [4,5] }] },
+      { id: '7-3', size: 7, tier: 1, colors: 8,
+        endpoints: [{ color: 0, a: [2,6], b: [0,5] }, { color: 1, a: [5,6], b: [6,5] }, { color: 2, a: [0,0], b: [2,2] }, { color: 3, a: [3,1], b: [2,0] }, { color: 4, a: [6,1], b: [2,4] }, { color: 5, a: [3,6], b: [0,3] }, { color: 6, a: [6,2], b: [4,6] }, { color: 7, a: [0,1], b: [6,0] }] },
+      { id: '7-4', size: 7, tier: 2, colors: 9,
+        endpoints: [{ color: 0, a: [3,6], b: [0,5] }, { color: 1, a: [1,0], b: [0,1] }, { color: 2, a: [0,3], b: [2,5] }, { color: 3, a: [2,4], b: [6,2] }, { color: 4, a: [0,2], b: [2,0] }, { color: 5, a: [4,4], b: [6,6] }, { color: 6, a: [5,2], b: [6,4] }, { color: 7, a: [3,5], b: [5,6] }, { color: 8, a: [6,0], b: [1,3] }] },
+      { id: '7-5', size: 7, tier: 2, colors: 9,
+        endpoints: [{ color: 0, a: [6,2], b: [4,0] }, { color: 1, a: [3,6], b: [0,5] }, { color: 2, a: [3,0], b: [6,4] }, { color: 3, a: [2,0], b: [0,3] }, { color: 4, a: [0,1], b: [1,0] }, { color: 5, a: [3,3], b: [1,5] }, { color: 6, a: [6,6], b: [4,3] }, { color: 7, a: [5,6], b: [3,5] }, { color: 8, a: [4,2], b: [0,4] }] },
+      { id: '7-6', size: 7, tier: 2, colors: 7,
+        endpoints: [{ color: 0, a: [1,5], b: [1,1] }, { color: 1, a: [1,2], b: [2,3] }, { color: 2, a: [5,3], b: [6,6] }, { color: 3, a: [6,3], b: [5,1] }, { color: 4, a: [5,5], b: [3,0] }, { color: 5, a: [5,2], b: [2,5] }, { color: 6, a: [3,1], b: [6,0] }] },
+      { id: '7-7', size: 7, tier: 3, colors: 7,
+        endpoints: [{ color: 0, a: [1,1], b: [5,0] }, { color: 1, a: [3,0], b: [0,2] }, { color: 2, a: [5,6], b: [3,4] }, { color: 3, a: [3,3], b: [1,5] }, { color: 4, a: [4,5], b: [6,6] }, { color: 5, a: [5,3], b: [4,0] }, { color: 6, a: [2,5], b: [2,2] }] },
+      { id: '7-8', size: 7, tier: 3, colors: 8,
+        endpoints: [{ color: 0, a: [0,4], b: [1,6] }, { color: 1, a: [0,0], b: [4,4] }, { color: 2, a: [3,1], b: [3,6] }, { color: 3, a: [6,3], b: [5,0] }, { color: 4, a: [0,3], b: [1,1] }, { color: 5, a: [2,3], b: [4,2] }, { color: 6, a: [2,4], b: [5,4] }, { color: 7, a: [6,4], b: [4,6] }] },
+      { id: '7-9', size: 7, tier: 3, colors: 7,
+        endpoints: [{ color: 0, a: [5,5], b: [6,6] }, { color: 1, a: [5,6], b: [2,2] }, { color: 2, a: [5,3], b: [1,6] }, { color: 3, a: [4,1], b: [5,2] }, { color: 4, a: [0,1], b: [6,0] }, { color: 5, a: [6,1], b: [3,5] }, { color: 6, a: [2,4], b: [3,3] }] },
+      { id: '7-10', size: 7, tier: 4, colors: 8,
+        endpoints: [{ color: 0, a: [6,1], b: [5,0] }, { color: 1, a: [4,0], b: [6,3] }, { color: 2, a: [3,3], b: [5,5] }, { color: 3, a: [3,0], b: [1,5] }, { color: 4, a: [2,0], b: [0,5] }, { color: 5, a: [4,2], b: [3,6] }, { color: 6, a: [1,0], b: [0,2] }, { color: 7, a: [0,6], b: [3,5] }] },
+      { id: '7-11', size: 7, tier: 4, colors: 7,
+        endpoints: [{ color: 0, a: [3,3], b: [2,2] }, { color: 1, a: [0,3], b: [2,0] }, { color: 2, a: [0,5], b: [1,6] }, { color: 3, a: [4,0], b: [3,5] }, { color: 4, a: [4,4], b: [5,0] }, { color: 5, a: [6,0], b: [4,5] }, { color: 6, a: [0,4], b: [6,3] }] },
+      { id: '7-12', size: 7, tier: 4, colors: 8,
+        endpoints: [{ color: 0, a: [6,2], b: [3,5] }, { color: 1, a: [2,6], b: [0,2] }, { color: 2, a: [0,4], b: [1,6] }, { color: 3, a: [5,4], b: [3,6] }, { color: 4, a: [5,2], b: [5,6] }, { color: 5, a: [2,2], b: [1,1] }, { color: 6, a: [2,4], b: [2,1] }, { color: 7, a: [0,1], b: [6,0] }] },
+      { id: '7-13', size: 7, tier: 5, colors: 7,
+        endpoints: [{ color: 0, a: [5,0], b: [0,2] }, { color: 1, a: [0,3], b: [6,5] }, { color: 2, a: [2,2], b: [3,3] }, { color: 3, a: [6,2], b: [5,5] }, { color: 4, a: [6,0], b: [1,3] }, { color: 5, a: [1,2], b: [4,2] }, { color: 6, a: [3,6], b: [0,5] }] },
+      { id: '7-14', size: 7, tier: 5, colors: 7,
+        endpoints: [{ color: 0, a: [0,3], b: [2,4] }, { color: 1, a: [4,4], b: [0,6] }, { color: 2, a: [6,1], b: [0,1] }, { color: 3, a: [3,2], b: [3,6] }, { color: 4, a: [0,4], b: [1,5] }, { color: 5, a: [0,2], b: [5,6] }, { color: 6, a: [3,3], b: [2,2] }] },
+      { id: '7-15', size: 7, tier: 5, colors: 9,
+        endpoints: [{ color: 0, a: [4,6], b: [6,2] }, { color: 1, a: [0,3], b: [3,6] }, { color: 2, a: [4,1], b: [0,0] }, { color: 3, a: [1,1], b: [6,0] }, { color: 4, a: [6,4], b: [5,6] }, { color: 5, a: [1,6], b: [0,5] }, { color: 6, a: [0,4], b: [2,6] }, { color: 7, a: [6,1], b: [4,2] }, { color: 8, a: [4,4], b: [3,2] }] },
+    ],
+    8: [
+      { id: '8-1', size: 8, tier: 1, colors: 10,
+        endpoints: [{ color: 0, a: [2,4], b: [6,1] }, { color: 1, a: [1,4], b: [3,0] }, { color: 2, a: [7,2], b: [4,0] }, { color: 3, a: [4,7], b: [2,5] }, { color: 4, a: [1,7], b: [0,6] }, { color: 5, a: [5,7], b: [5,3] }, { color: 6, a: [1,0], b: [0,1] }, { color: 7, a: [5,5], b: [4,4] }, { color: 8, a: [2,0], b: [3,7] }, { color: 9, a: [6,7], b: [5,2] }] },
+      { id: '8-2', size: 8, tier: 1, colors: 9,
+        endpoints: [{ color: 0, a: [6,7], b: [7,6] }, { color: 1, a: [1,7], b: [0,6] }, { color: 2, a: [4,2], b: [1,2] }, { color: 3, a: [4,6], b: [7,0] }, { color: 4, a: [3,6], b: [6,0] }, { color: 5, a: [2,7], b: [0,4] }, { color: 6, a: [3,4], b: [2,2] }, { color: 7, a: [4,1], b: [4,4] }, { color: 8, a: [7,2], b: [3,7] }] },
+      { id: '8-3', size: 8, tier: 1, colors: 10,
+        endpoints: [{ color: 0, a: [4,3], b: [0,7] }, { color: 1, a: [4,4], b: [2,6] }, { color: 2, a: [2,0], b: [0,6] }, { color: 3, a: [4,1], b: [6,3] }, { color: 4, a: [7,1], b: [6,0] }, { color: 5, a: [1,0], b: [0,1] }, { color: 6, a: [4,5], b: [6,6] }, { color: 7, a: [3,0], b: [1,4] }, { color: 8, a: [4,0], b: [7,4] }, { color: 9, a: [4,6], b: [3,5] }] },
+      { id: '8-4', size: 8, tier: 2, colors: 8,
+        endpoints: [{ color: 0, a: [1,1], b: [1,7] }, { color: 1, a: [3,2], b: [7,6] }, { color: 2, a: [5,2], b: [2,7] }, { color: 3, a: [6,4], b: [3,4] }, { color: 4, a: [4,6], b: [5,4] }, { color: 5, a: [6,0], b: [7,1] }, { color: 6, a: [0,0], b: [7,2] }, { color: 7, a: [7,3], b: [5,6] }] },
+      { id: '8-5', size: 8, tier: 2, colors: 9,
+        endpoints: [{ color: 0, a: [1,5], b: [1,0] }, { color: 1, a: [0,5], b: [5,5] }, { color: 2, a: [5,3], b: [3,1] }, { color: 3, a: [4,7], b: [7,6] }, { color: 4, a: [7,3], b: [3,5] }, { color: 5, a: [5,1], b: [7,2] }, { color: 6, a: [7,4], b: [5,6] }, { color: 7, a: [1,1], b: [1,6] }, { color: 8, a: [7,1], b: [4,3] }] },
+      { id: '8-6', size: 8, tier: 2, colors: 9,
+        endpoints: [{ color: 0, a: [4,5], b: [5,6] }, { color: 1, a: [4,1], b: [7,7] }, { color: 2, a: [2,2], b: [0,5] }, { color: 3, a: [0,3], b: [3,1] }, { color: 4, a: [3,2], b: [3,7] }, { color: 5, a: [3,4], b: [0,7] }, { color: 6, a: [1,7], b: [3,5] }, { color: 7, a: [6,0], b: [7,3] }, { color: 8, a: [0,1], b: [6,2] }] },
+      { id: '8-7', size: 8, tier: 3, colors: 8,
+        endpoints: [{ color: 0, a: [0,3], b: [1,6] }, { color: 1, a: [5,2], b: [1,5] }, { color: 2, a: [5,3], b: [0,7] }, { color: 3, a: [2,2], b: [3,3] }, { color: 4, a: [4,7], b: [5,0] }, { color: 5, a: [3,5], b: [6,1] }, { color: 6, a: [3,7], b: [6,5] }, { color: 7, a: [1,1], b: [4,2] }] },
+      { id: '8-8', size: 8, tier: 3, colors: 9,
+        endpoints: [{ color: 0, a: [3,5], b: [1,6] }, { color: 1, a: [3,2], b: [4,7] }, { color: 2, a: [4,3], b: [6,6] }, { color: 3, a: [3,1], b: [4,6] }, { color: 4, a: [7,3], b: [5,0] }, { color: 5, a: [1,2], b: [4,0] }, { color: 6, a: [0,3], b: [1,0] }, { color: 7, a: [3,3], b: [1,5] }, { color: 8, a: [6,0], b: [7,2] }] },
+      { id: '8-9', size: 8, tier: 3, colors: 8,
+        endpoints: [{ color: 0, a: [7,4], b: [4,6] }, { color: 1, a: [6,4], b: [6,0] }, { color: 2, a: [7,6], b: [3,2] }, { color: 3, a: [5,4], b: [3,5] }, { color: 4, a: [3,4], b: [5,5] }, { color: 5, a: [5,1], b: [1,1] }, { color: 6, a: [1,0], b: [2,7] }, { color: 7, a: [3,1], b: [6,1] }] },
+      { id: '8-10', size: 8, tier: 4, colors: 9,
+        endpoints: [{ color: 0, a: [6,0], b: [7,3] }, { color: 1, a: [7,5], b: [3,7] }, { color: 2, a: [3,3], b: [5,5] }, { color: 3, a: [2,0], b: [3,6] }, { color: 4, a: [1,6], b: [3,1] }, { color: 5, a: [7,4], b: [3,4] }, { color: 6, a: [0,3], b: [1,0] }, { color: 7, a: [3,0], b: [6,2] }, { color: 8, a: [4,1], b: [6,3] }] },
+      { id: '8-11', size: 8, tier: 4, colors: 10,
+        endpoints: [{ color: 0, a: [1,0], b: [0,1] }, { color: 1, a: [4,2], b: [6,0] }, { color: 2, a: [6,3], b: [7,0] }, { color: 3, a: [2,3], b: [5,5] }, { color: 4, a: [1,7], b: [0,6] }, { color: 5, a: [3,0], b: [1,1] }, { color: 6, a: [4,7], b: [4,3] }, { color: 7, a: [7,3], b: [5,7] }, { color: 8, a: [3,7], b: [1,3] }, { color: 9, a: [5,0], b: [2,7] }] },
+      { id: '8-12', size: 8, tier: 4, colors: 10,
+        endpoints: [{ color: 0, a: [0,5], b: [7,3] }, { color: 1, a: [7,4], b: [5,7] }, { color: 2, a: [5,3], b: [1,6] }, { color: 3, a: [7,2], b: [4,0] }, { color: 4, a: [1,5], b: [2,0] }, { color: 5, a: [1,2], b: [2,5] }, { color: 6, a: [7,6], b: [6,7] }, { color: 7, a: [1,1], b: [3,3] }, { color: 8, a: [5,2], b: [3,0] }, { color: 9, a: [6,0], b: [7,1] }] },
+      { id: '8-13', size: 8, tier: 5, colors: 8,
+        endpoints: [{ color: 0, a: [0,5], b: [1,7] }, { color: 1, a: [5,5], b: [2,2] }, { color: 2, a: [6,7], b: [7,5] }, { color: 3, a: [6,1], b: [4,3] }, { color: 4, a: [3,6], b: [4,1] }, { color: 5, a: [7,3], b: [5,7] }, { color: 6, a: [4,5], b: [1,0] }, { color: 7, a: [2,0], b: [5,3] }] },
+      { id: '8-14', size: 8, tier: 5, colors: 8,
+        endpoints: [{ color: 0, a: [0,5], b: [6,4] }, { color: 1, a: [5,7], b: [3,0] }, { color: 2, a: [4,3], b: [1,1] }, { color: 3, a: [6,5], b: [3,7] }, { color: 4, a: [1,6], b: [4,4] }, { color: 5, a: [0,4], b: [2,3] }, { color: 6, a: [6,3], b: [0,3] }, { color: 7, a: [6,0], b: [7,1] }] },
+      { id: '8-15', size: 8, tier: 5, colors: 10,
+        endpoints: [{ color: 0, a: [0,3], b: [3,1] }, { color: 1, a: [4,5], b: [6,7] }, { color: 2, a: [6,2], b: [5,0] }, { color: 3, a: [3,5], b: [0,5] }, { color: 4, a: [7,7], b: [5,5] }, { color: 5, a: [7,0], b: [4,0] }, { color: 6, a: [0,4], b: [7,4] }, { color: 7, a: [5,7], b: [0,6] }, { color: 8, a: [3,0], b: [0,1] }, { color: 9, a: [2,5], b: [3,3] }] },
+    ],
+    9: [
+      { id: '9-1', size: 9, tier: 1, colors: 10,
+        endpoints: [{ color: 0, a: [5,5], b: [1,2] }, { color: 1, a: [0,8], b: [2,4] }, { color: 2, a: [8,7], b: [5,8] }, { color: 3, a: [6,4], b: [1,1] }, { color: 4, a: [2,7], b: [8,3] }, { color: 5, a: [3,1], b: [7,3] }, { color: 6, a: [1,8], b: [3,5] }, { color: 7, a: [8,2], b: [0,4] }, { color: 8, a: [2,8], b: [8,5] }, { color: 9, a: [8,1], b: [7,0] }] },
+      { id: '9-2', size: 9, tier: 1, colors: 10,
+        endpoints: [{ color: 0, a: [4,4], b: [3,0] }, { color: 1, a: [3,8], b: [7,4] }, { color: 2, a: [6,7], b: [7,6] }, { color: 3, a: [8,2], b: [6,0] }, { color: 4, a: [5,8], b: [3,1] }, { color: 5, a: [2,2], b: [6,4] }, { color: 6, a: [1,0], b: [3,5] }, { color: 7, a: [7,2], b: [4,0] }, { color: 8, a: [5,5], b: [0,5] }, { color: 9, a: [1,7], b: [2,6] }] },
+      { id: '9-3', size: 9, tier: 1, colors: 11,
+        endpoints: [{ color: 0, a: [1,8], b: [0,7] }, { color: 1, a: [3,3], b: [8,0] }, { color: 2, a: [1,1], b: [5,0] }, { color: 3, a: [8,5], b: [2,6] }, { color: 4, a: [7,3], b: [0,5] }, { color: 5, a: [3,8], b: [0,6] }, { color: 6, a: [5,5], b: [6,6] }, { color: 7, a: [0,2], b: [2,1] }, { color: 8, a: [5,7], b: [1,4] }, { color: 9, a: [4,2], b: [7,0] }, { color: 10, a: [6,7], b: [8,2] }] },
+      { id: '9-4', size: 9, tier: 2, colors: 9,
+        endpoints: [{ color: 0, a: [2,5], b: [7,6] }, { color: 1, a: [0,8], b: [8,5] }, { color: 2, a: [4,5], b: [5,0] }, { color: 3, a: [3,7], b: [3,3] }, { color: 4, a: [6,2], b: [1,1] }, { color: 5, a: [4,0], b: [3,1] }, { color: 6, a: [1,7], b: [0,5] }, { color: 7, a: [4,2], b: [5,1] }, { color: 8, a: [7,0], b: [5,6] }] },
+      { id: '9-5', size: 9, tier: 2, colors: 9,
+        endpoints: [{ color: 0, a: [4,4], b: [3,7] }, { color: 1, a: [7,1], b: [5,3] }, { color: 2, a: [4,7], b: [7,2] }, { color: 3, a: [8,5], b: [6,7] }, { color: 4, a: [0,1], b: [5,1] }, { color: 5, a: [0,6], b: [8,7] }, { color: 6, a: [6,6], b: [5,0] }, { color: 7, a: [2,2], b: [4,6] }, { color: 8, a: [2,7], b: [0,2] }] },
+      { id: '9-6', size: 9, tier: 2, colors: 10,
+        endpoints: [{ color: 0, a: [2,0], b: [0,1] }, { color: 1, a: [7,7], b: [8,0] }, { color: 2, a: [5,5], b: [4,6] }, { color: 3, a: [5,2], b: [0,2] }, { color: 4, a: [3,5], b: [4,3] }, { color: 5, a: [8,5], b: [5,7] }, { color: 6, a: [3,8], b: [0,3] }, { color: 7, a: [6,2], b: [5,8] }, { color: 8, a: [1,8], b: [0,4] }, { color: 9, a: [5,6], b: [4,4] }] },
+      { id: '9-7', size: 9, tier: 3, colors: 10,
+        endpoints: [{ color: 0, a: [1,8], b: [0,7] }, { color: 1, a: [3,4], b: [8,6] }, { color: 2, a: [1,4], b: [8,8] }, { color: 3, a: [1,0], b: [7,8] }, { color: 4, a: [7,5], b: [3,5] }, { color: 5, a: [4,4], b: [6,2] }, { color: 6, a: [2,4], b: [3,0] }, { color: 7, a: [6,0], b: [8,1] }, { color: 8, a: [7,3], b: [5,5] }, { color: 9, a: [2,2], b: [5,0] }] },
+      { id: '9-8', size: 9, tier: 3, colors: 11,
+        endpoints: [{ color: 0, a: [7,0], b: [8,1] }, { color: 1, a: [4,8], b: [0,0] }, { color: 2, a: [2,1], b: [5,5] }, { color: 3, a: [0,4], b: [3,8] }, { color: 4, a: [8,5], b: [7,8] }, { color: 5, a: [4,4], b: [6,2] }, { color: 6, a: [4,6], b: [2,0] }, { color: 7, a: [5,1], b: [3,3] }, { color: 8, a: [7,6], b: [5,8] }, { color: 9, a: [1,8], b: [0,7] }, { color: 10, a: [8,2], b: [5,7] }] },
+      { id: '9-9', size: 9, tier: 3, colors: 11,
+        endpoints: [{ color: 0, a: [5,3], b: [0,2] }, { color: 1, a: [6,2], b: [0,1] }, { color: 2, a: [6,8], b: [8,7] }, { color: 3, a: [7,0], b: [8,3] }, { color: 4, a: [2,8], b: [8,6] }, { color: 5, a: [6,3], b: [3,6] }, { color: 6, a: [1,5], b: [0,4] }, { color: 7, a: [0,8], b: [8,5] }, { color: 8, a: [5,0], b: [8,4] }, { color: 9, a: [0,7], b: [0,3] }, { color: 10, a: [4,4], b: [2,2] }] },
+      { id: '9-10', size: 9, tier: 4, colors: 9,
+        endpoints: [{ color: 0, a: [3,3], b: [6,0] }, { color: 1, a: [1,8], b: [0,6] }, { color: 2, a: [0,5], b: [4,8] }, { color: 3, a: [3,2], b: [1,3] }, { color: 4, a: [6,2], b: [0,1] }, { color: 5, a: [8,5], b: [6,7] }, { color: 6, a: [7,1], b: [5,5] }, { color: 7, a: [5,2], b: [4,4] }, { color: 8, a: [4,2], b: [8,7] }] },
+      { id: '9-11', size: 9, tier: 4, colors: 9,
+        endpoints: [{ color: 0, a: [4,4], b: [1,7] }, { color: 1, a: [5,0], b: [8,3] }, { color: 2, a: [6,6], b: [5,7] }, { color: 3, a: [6,7], b: [6,1] }, { color: 4, a: [7,5], b: [0,5] }, { color: 5, a: [3,7], b: [3,4] }, { color: 6, a: [3,3], b: [2,2] }, { color: 7, a: [1,4], b: [5,5] }, { color: 8, a: [4,6], b: [8,7] }] },
+      { id: '9-12', size: 9, tier: 4, colors: 10,
+        endpoints: [{ color: 0, a: [1,4], b: [3,6] }, { color: 1, a: [2,8], b: [0,7] }, { color: 2, a: [4,0], b: [4,6] }, { color: 3, a: [6,1], b: [4,4] }, { color: 4, a: [3,3], b: [1,1] }, { color: 5, a: [8,7], b: [7,8] }, { color: 6, a: [4,2], b: [3,5] }, { color: 7, a: [8,6], b: [0,3] }, { color: 8, a: [8,4], b: [4,7] }, { color: 9, a: [7,4], b: [8,0] }] },
+      { id: '9-13', size: 9, tier: 5, colors: 9,
+        endpoints: [{ color: 0, a: [6,2], b: [0,2] }, { color: 1, a: [2,8], b: [3,5] }, { color: 2, a: [8,7], b: [3,8] }, { color: 3, a: [5,5], b: [6,4] }, { color: 4, a: [0,1], b: [2,0] }, { color: 5, a: [8,5], b: [2,5] }, { color: 6, a: [7,1], b: [4,1] }, { color: 7, a: [2,2], b: [6,0] }, { color: 8, a: [2,3], b: [1,8] }] },
+      { id: '9-14', size: 9, tier: 5, colors: 9,
+        endpoints: [{ color: 0, a: [7,5], b: [8,3] }, { color: 1, a: [2,6], b: [5,7] }, { color: 2, a: [5,5], b: [2,4] }, { color: 3, a: [6,3], b: [7,1] }, { color: 4, a: [0,7], b: [5,2] }, { color: 5, a: [8,7], b: [7,8] }, { color: 6, a: [0,8], b: [8,6] }, { color: 7, a: [2,2], b: [2,7] }, { color: 8, a: [4,4], b: [5,0] }] },
+      { id: '9-15', size: 9, tier: 5, colors: 9,
+        endpoints: [{ color: 0, a: [1,1], b: [3,5] }, { color: 1, a: [1,7], b: [2,5] }, { color: 2, a: [5,8], b: [8,7] }, { color: 3, a: [2,2], b: [5,3] }, { color: 4, a: [3,2], b: [3,8] }, { color: 5, a: [0,4], b: [5,1] }, { color: 6, a: [8,5], b: [7,7] }, { color: 7, a: [7,1], b: [8,6] }, { color: 8, a: [1,4], b: [4,5] }] },
+    ],
+    10: [
+      { id: '10-1', size: 10, tier: 1, colors: 11,
+        endpoints: [{ color: 0, a: [2,1], b: [1,2] }, { color: 1, a: [4,5], b: [2,4] }, { color: 2, a: [2,9], b: [2,2] }, { color: 3, a: [7,5], b: [9,2] }, { color: 4, a: [3,9], b: [8,4] }, { color: 5, a: [6,5], b: [0,4] }, { color: 6, a: [5,1], b: [8,9] }, { color: 7, a: [8,7], b: [6,9] }, { color: 8, a: [9,1], b: [8,0] }, { color: 9, a: [4,6], b: [2,7] }, { color: 10, a: [2,5], b: [6,6] }] },
+      { id: '10-2', size: 10, tier: 1, colors: 12,
+        endpoints: [{ color: 0, a: [9,3], b: [7,0] }, { color: 1, a: [1,1], b: [2,0] }, { color: 2, a: [5,9], b: [0,0] }, { color: 3, a: [3,4], b: [8,3] }, { color: 4, a: [6,5], b: [5,6] }, { color: 5, a: [6,0], b: [4,8] }, { color: 6, a: [7,8], b: [6,3] }, { color: 7, a: [4,5], b: [6,4] }, { color: 8, a: [8,5], b: [6,7] }, { color: 9, a: [2,4], b: [8,1] }, { color: 10, a: [0,8], b: [1,9] }, { color: 11, a: [9,7], b: [2,5] }] },
+      { id: '10-3', size: 10, tier: 1, colors: 10,
+        endpoints: [{ color: 0, a: [5,1], b: [2,0] }, { color: 1, a: [6,1], b: [1,2] }, { color: 2, a: [2,5], b: [7,7] }, { color: 3, a: [0,4], b: [5,5] }, { color: 4, a: [5,3], b: [2,7] }, { color: 5, a: [5,2], b: [5,9] }, { color: 6, a: [4,8], b: [0,8] }, { color: 7, a: [9,0], b: [8,5] }, { color: 8, a: [6,8], b: [4,7] }, { color: 9, a: [8,1], b: [8,9] }] },
+      { id: '10-4', size: 10, tier: 2, colors: 11,
+        endpoints: [{ color: 0, a: [1,0], b: [0,1] }, { color: 1, a: [4,0], b: [0,7] }, { color: 2, a: [0,8], b: [3,1] }, { color: 3, a: [5,0], b: [9,5] }, { color: 4, a: [4,4], b: [0,9] }, { color: 5, a: [2,6], b: [5,7] }, { color: 6, a: [7,2], b: [8,4] }, { color: 7, a: [3,8], b: [7,6] }, { color: 8, a: [7,8], b: [5,6] }, { color: 9, a: [6,0], b: [9,1] }, { color: 10, a: [9,9], b: [4,1] }] },
+      { id: '10-5', size: 10, tier: 2, colors: 12,
+        endpoints: [{ color: 0, a: [0,1], b: [4,5] }, { color: 1, a: [9,8], b: [0,8] }, { color: 2, a: [2,8], b: [0,4] }, { color: 3, a: [6,0], b: [5,1] }, { color: 4, a: [0,0], b: [2,5] }, { color: 5, a: [7,5], b: [9,2] }, { color: 6, a: [3,8], b: [0,2] }, { color: 7, a: [5,8], b: [9,4] }, { color: 8, a: [9,6], b: [8,8] }, { color: 9, a: [3,0], b: [9,0] }, { color: 10, a: [6,7], b: [4,8] }, { color: 11, a: [9,1], b: [6,6] }] },
+      { id: '10-6', size: 10, tier: 2, colors: 10,
+        endpoints: [{ color: 0, a: [3,7], b: [1,5] }, { color: 1, a: [1,7], b: [4,9] }, { color: 2, a: [1,1], b: [0,3] }, { color: 3, a: [4,5], b: [3,0] }, { color: 4, a: [2,2], b: [2,9] }, { color: 5, a: [9,8], b: [5,3] }, { color: 6, a: [5,6], b: [7,2] }, { color: 7, a: [2,5], b: [0,0] }, { color: 8, a: [6,1], b: [7,7] }, { color: 9, a: [5,7], b: [5,1] }] },
+      { id: '10-7', size: 10, tier: 3, colors: 10,
+        endpoints: [{ color: 0, a: [8,2], b: [0,4] }, { color: 1, a: [1,2], b: [9,5] }, { color: 2, a: [4,2], b: [2,7] }, { color: 3, a: [6,6], b: [8,8] }, { color: 4, a: [5,3], b: [1,8] }, { color: 5, a: [3,2], b: [0,6] }, { color: 6, a: [4,6], b: [9,7] }, { color: 7, a: [7,8], b: [9,6] }, { color: 8, a: [9,0], b: [6,1] }, { color: 9, a: [4,9], b: [1,6] }] },
+      { id: '10-8', size: 10, tier: 3, colors: 12,
+        endpoints: [{ color: 0, a: [0,3], b: [3,1] }, { color: 1, a: [6,0], b: [9,2] }, { color: 2, a: [2,9], b: [7,6] }, { color: 3, a: [9,4], b: [5,0] }, { color: 4, a: [5,7], b: [7,5] }, { color: 5, a: [2,4], b: [6,3] }, { color: 6, a: [8,6], b: [4,4] }, { color: 7, a: [7,8], b: [9,5] }, { color: 8, a: [1,1], b: [2,2] }, { color: 9, a: [0,4], b: [1,9] }, { color: 10, a: [2,7], b: [9,8] }, { color: 11, a: [3,0], b: [2,5] }] },
+      { id: '10-9', size: 10, tier: 3, colors: 10,
+        endpoints: [{ color: 0, a: [7,2], b: [0,0] }, { color: 1, a: [3,9], b: [7,6] }, { color: 2, a: [8,4], b: [6,0] }, { color: 3, a: [5,4], b: [2,5] }, { color: 4, a: [6,6], b: [2,6] }, { color: 5, a: [9,5], b: [6,9] }, { color: 6, a: [7,1], b: [7,8] }, { color: 7, a: [6,5], b: [2,3] }, { color: 8, a: [1,8], b: [4,6] }, { color: 9, a: [6,4], b: [0,5] }] },
+      { id: '10-10', size: 10, tier: 4, colors: 11,
+        endpoints: [{ color: 0, a: [5,4], b: [2,2] }, { color: 1, a: [5,0], b: [0,5] }, { color: 2, a: [7,9], b: [8,0] }, { color: 3, a: [2,5], b: [5,5] }, { color: 4, a: [8,9], b: [9,8] }, { color: 5, a: [4,0], b: [7,3] }, { color: 6, a: [8,5], b: [6,9] }, { color: 7, a: [1,3], b: [3,6] }, { color: 8, a: [0,1], b: [3,0] }, { color: 9, a: [6,4], b: [0,4] }, { color: 10, a: [0,6], b: [5,9] }] },
+      { id: '10-11', size: 10, tier: 4, colors: 10,
+        endpoints: [{ color: 0, a: [8,9], b: [6,0] }, { color: 1, a: [9,4], b: [8,0] }, { color: 2, a: [1,1], b: [6,3] }, { color: 3, a: [3,9], b: [7,7] }, { color: 4, a: [2,5], b: [3,7] }, { color: 5, a: [3,4], b: [1,8] }, { color: 6, a: [5,9], b: [3,0] }, { color: 7, a: [5,7], b: [5,5] }, { color: 8, a: [0,5], b: [5,6] }, { color: 9, a: [4,1], b: [1,3] }] },
+      { id: '10-12', size: 10, tier: 4, colors: 11,
+        endpoints: [{ color: 0, a: [6,1], b: [2,5] }, { color: 1, a: [3,6], b: [2,7] }, { color: 2, a: [7,5], b: [7,1] }, { color: 3, a: [8,5], b: [2,2] }, { color: 4, a: [8,9], b: [7,2] }, { color: 5, a: [2,6], b: [1,1] }, { color: 6, a: [0,8], b: [4,9] }, { color: 7, a: [1,3], b: [6,9] }, { color: 8, a: [5,6], b: [9,7] }, { color: 9, a: [4,3], b: [5,1] }, { color: 10, a: [7,7], b: [9,9] }] },
+      { id: '10-13', size: 10, tier: 5, colors: 10,
+        endpoints: [{ color: 0, a: [0,1], b: [1,9] }, { color: 1, a: [2,2], b: [5,2] }, { color: 2, a: [8,6], b: [5,0] }, { color: 3, a: [2,7], b: [6,9] }, { color: 4, a: [4,7], b: [9,7] }, { color: 5, a: [7,2], b: [5,4] }, { color: 6, a: [8,4], b: [8,8] }, { color: 7, a: [2,4], b: [0,0] }, { color: 8, a: [5,6], b: [2,0] }, { color: 9, a: [4,9], b: [5,5] }] },
+      { id: '10-14', size: 10, tier: 5, colors: 12,
+        endpoints: [{ color: 0, a: [0,6], b: [4,9] }, { color: 1, a: [1,0], b: [0,1] }, { color: 2, a: [8,2], b: [8,6] }, { color: 3, a: [9,0], b: [1,3] }, { color: 4, a: [8,8], b: [6,4] }, { color: 5, a: [0,4], b: [3,0] }, { color: 6, a: [4,4], b: [8,4] }, { color: 7, a: [7,8], b: [4,5] }, { color: 8, a: [2,5], b: [4,7] }, { color: 9, a: [6,1], b: [1,4] }, { color: 10, a: [0,8], b: [1,9] }, { color: 11, a: [9,5], b: [0,5] }] },
+      { id: '10-15', size: 10, tier: 5, colors: 11,
+        endpoints: [{ color: 0, a: [0,8], b: [1,9] }, { color: 1, a: [7,1], b: [0,5] }, { color: 2, a: [7,4], b: [9,0] }, { color: 3, a: [9,4], b: [0,6] }, { color: 4, a: [5,3], b: [1,3] }, { color: 5, a: [4,0], b: [0,3] }, { color: 6, a: [8,6], b: [5,4] }, { color: 7, a: [6,9], b: [2,6] }, { color: 8, a: [0,1], b: [1,0] }, { color: 9, a: [4,9], b: [0,7] }, { color: 10, a: [4,4], b: [8,8] }] },
+    ],
+  };
 
-  const LEVEL_TWO_SPECS = [
-    { tier: 3, style: 'row-snake', weights: [5, 4, 7, 3, 6, 8], variant: 0, reversePath: true },
-    { tier: 3, style: 'column-snake', weights: [6, 3, 7, 4, 8, 5], variant: 1, flipRows: true },
-    { tier: 3, style: 'row-snake', weights: [4, 8, 3, 7, 5, 6], variant: 2, flipCols: true },
-    { tier: 3, style: 'column-snake', weights: [7, 5, 3, 8, 4, 6], variant: 3, flipRows: true, reversePath: true },
-    { tier: 4, style: 'row-snake', weights: [6, 4, 8, 3, 7, 5], variant: 4, flipCols: true },
-    { tier: 4, style: 'column-snake', weights: [5, 7, 4, 8, 3, 6], variant: 0, flipRows: true, flipCols: true },
-    { tier: 4, style: 'row-snake', weights: [8, 3, 6, 4, 7, 5], variant: 1, reversePath: true },
-    { tier: 4, style: 'column-snake', weights: [4, 6, 8, 3, 7, 5], variant: 2, flipCols: true, reversePath: true },
-    { tier: 4, style: 'row-snake', weights: [7, 5, 4, 8, 3, 6], variant: 3, flipRows: true },
-    { tier: 4, style: 'column-snake', weights: [3, 8, 5, 6, 4, 7], variant: 4, flipRows: true, reversePath: true },
-    { tier: 5, style: 'row-snake', weights: [6, 8, 3, 7, 4, 5], variant: 0, flipRows: true, flipCols: true },
-    { tier: 5, style: 'column-snake', weights: [5, 4, 8, 3, 7, 6], variant: 1, reversePath: true },
-    { tier: 5, style: 'row-snake', weights: [8, 4, 5, 7, 3, 6], variant: 2, flipCols: true, reversePath: true },
-    { tier: 5, style: 'column-snake', weights: [7, 3, 6, 8, 4, 5], variant: 3, flipRows: true },
-    { tier: 5, style: 'row-snake', weights: [4, 7, 8, 3, 6, 5], variant: 4, flipRows: true, reversePath: true },
-    { tier: 5, style: 'column-snake', weights: [6, 5, 3, 8, 4, 7], variant: 2, flipRows: true, flipCols: true, reversePath: true },
-  ];
-
-  const SIX_BY_SIX_COMPLEX_PATH = [
-    [2, 3], [3, 3], [3, 2], [2, 2], [2, 1], [3, 1], [3, 0], [2, 0], [1, 0],
-    [0, 0], [0, 1], [1, 1], [1, 2], [0, 2], [0, 3], [1, 3], [1, 4], [0, 4],
-    [0, 5], [1, 5], [2, 5], [2, 4], [3, 4], [3, 5], [4, 5], [5, 5], [5, 4],
-    [4, 4], [4, 3], [5, 3], [5, 2], [4, 2], [4, 1], [5, 1], [5, 0], [4, 0],
-  ];
-
-  const SIX_BY_SIX_STAGE_TWO_CUTS = [
-    [5, 13, 19, 25, 31],
-    [7, 13, 19, 25, 31],
-    [8, 13, 19, 25, 31],
-    [5, 12, 18, 25, 31],
-    [5, 12, 19, 25, 31],
-    [7, 15, 20, 25, 31],
-    [9, 15, 20, 25, 31],
-    [8, 15, 20, 25, 31],
-    [5, 12, 17, 23, 30],
-    [5, 12, 17, 25, 31],
-    [5, 12, 19, 24, 31],
-    [5, 12, 20, 25, 31],
-    [8, 15, 20, 26, 31],
-    [5, 12, 17, 23, 31],
-    [5, 12, 20, 26, 31],
-    [6, 14, 20, 24, 30],
-  ];
-
-  const TEMPLATE_SPECS = [
-    ...LEVEL_ONE_SPECS.map((spec, index) => ({ ...spec, stage: 1, stageSlot: index + 1 })),
-    ...LEVEL_TWO_SPECS.map((spec, index) => ({ ...spec, stage: 2, stageSlot: index + 1 })),
-  ];
-
-  function range(length) {
-    return Array.from({ length }, (_, index) => index);
-  }
-
-  function keyOf(cell) {
-    return cell[0] + ',' + cell[1];
-  }
-
-  function buildSnakePath(size, orientation) {
-    const path = [];
-
-    if (orientation === 'vertical') {
-      for (let column = 0; column < size; column += 1) {
-        const rows = column % 2 === 0 ? range(size) : range(size).reverse();
-        for (const row of rows) {
-          path.push([row, column]);
-        }
-      }
-      return path;
-    }
-
-    for (let row = 0; row < size; row += 1) {
-      const columns = row % 2 === 0 ? range(size) : range(size).reverse();
-      for (const column of columns) {
-        path.push([row, column]);
-      }
-    }
-    return path;
-  }
-
-  function buildTraversal(size, style) {
-    if (style === 'column-snake') return buildSnakePath(size, 'vertical');
-    return buildSnakePath(size, 'horizontal');
-  }
-
-  function makeSegmentLengths(totalCells, weights, variant) {
-    const count = weights.length;
-    const minimum = totalCells >= count * 3 ? 3 : 2;
-    const lengths = new Array(count).fill(minimum);
-    const remaining = totalCells - count * minimum;
-    const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
-    let used = 0;
-
-    for (let index = 0; index < count; index += 1) {
-      const extra = Math.floor((remaining * weights[index]) / totalWeight);
-      lengths[index] += extra;
-      used += extra;
-    }
-
-    let leftover = remaining - used;
-    let offset = variant % count;
-    while (leftover > 0) {
-      lengths[offset] += 1;
-      leftover -= 1;
-      offset = (offset + 1) % count;
-    }
-
-    return variant % 2 === 1 ? lengths.reverse() : lengths;
-  }
-
-  function splitTraversal(path, lengths) {
-    const segments = [];
-    let cursor = 0;
-
-    for (const length of lengths) {
-      segments.push(path.slice(cursor, cursor + length));
-      cursor += length;
-    }
-
-    return segments;
-  }
-
-  function splitByCuts(path, cuts) {
-    const segments = [];
-    let cursor = 0;
-    for (const cut of cuts) {
-      segments.push(path.slice(cursor, cut));
-      cursor = cut;
-    }
-    segments.push(path.slice(cursor));
-    return segments;
-  }
-
-  function weightsForSize(spec, size) {
-    const weights = spec.weights.slice();
-    if (size <= 5 && weights.length > 4) {
-      let mergeIndex = 0;
-      let smallestPair = weights[0] + weights[1];
-      for (let index = 1; index < weights.length - 1; index += 1) {
-        const pairWeight = weights[index] + weights[index + 1];
-        if (pairWeight < smallestPair) {
-          smallestPair = pairWeight;
-          mergeIndex = index;
-        }
-      }
-      weights[mergeIndex] += weights[mergeIndex + 1];
-      weights.splice(mergeIndex + 1, 1);
-    }
-    return weights;
-  }
-
-  function transformPath(path, size, spec) {
-    let next = path.map(([row, column]) => [
-      spec.flipRows ? size - 1 - row : row,
-      spec.flipCols ? size - 1 - column : column,
-    ]);
-
-    if (spec.reversePath) {
-      next = next.slice().reverse();
-    }
-
-    return next;
-  }
-
-  function buildPuzzle(size, levelNumber, spec) {
-    let solution;
-
-    if (size === 6 && spec.stage === 2) {
-      const traversal = transformPath(SIX_BY_SIX_COMPLEX_PATH, size, spec);
-      const cuts = SIX_BY_SIX_STAGE_TWO_CUTS[(spec.stageSlot - 1) % SIX_BY_SIX_STAGE_TWO_CUTS.length];
-      solution = splitByCuts(traversal, cuts).map((path, color) => ({ color, path }));
-    } else {
-      const traversal = transformPath(buildTraversal(size, spec.style), size, spec);
-      const lengths = makeSegmentLengths(size * size, weightsForSize(spec, size), spec.variant || 0);
-      solution = splitTraversal(traversal, lengths).map((path, color) => ({ color, path }));
-    }
-
-    return {
-      id: size + '-' + levelNumber,
-      size,
-      stage: spec.stage || 1,
-      tier: spec.tier,
-      endpoints: solution.map(({ color, path }) => ({
-        color,
-        a: path[0],
-        b: path[path.length - 1],
-      })),
-      solution,
-    };
-  }
-
-  function buildPuzzleSet() {
-    const puzzles = {};
-
-    for (const size of [5, 6, 7, 8, 9, 10]) {
-      puzzles[size] = TEMPLATE_SPECS.map((spec, index) => buildPuzzle(size, index + 1, spec));
-    }
-
-    return puzzles;
-  }
-
-  function sameCell(a, b) {
-    return a[0] === b[0] && a[1] === b[1];
-  }
-
-  function isOrthogonalStep(a, b) {
-    return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) === 1;
-  }
-
-  function isBorderCell(cell, size) {
-    return cell[0] === 0 || cell[1] === 0 || cell[0] === size - 1 || cell[1] === size - 1;
-  }
-
-  function countTurns(path) {
-    let turns = 0;
-    for (let index = 2; index < path.length; index += 1) {
-      const dr1 = path[index - 1][0] - path[index - 2][0];
-      const dc1 = path[index - 1][1] - path[index - 2][1];
-      const dr2 = path[index][0] - path[index - 1][0];
-      const dc2 = path[index][1] - path[index - 1][1];
-      if (dr1 !== dr2 || dc1 !== dc2) turns += 1;
-    }
-    return turns;
-  }
-
-  function validatePuzzle(puzzle) {
-    const errors = [];
-    const seenCells = new Map();
-
-    if (!Array.isArray(puzzle.solution) || puzzle.solution.length === 0) {
-      return ['Missing solution paths'];
-    }
-
-    for (const { color, path } of puzzle.solution) {
-      if (!Array.isArray(path) || path.length < 2) {
-        errors.push('Color ' + color + ' does not have a valid path');
-        continue;
-      }
-
-      const colorCells = new Set();
-      for (const cell of path) {
-        const [row, column] = cell;
-        if (row < 0 || row >= puzzle.size || column < 0 || column >= puzzle.size) {
-          errors.push('Color ' + color + ' uses an out-of-bounds cell');
-          continue;
-        }
-
-        const key = keyOf(cell);
-        if (colorCells.has(key)) {
-          errors.push('Color ' + color + ' revisits cell ' + key);
-        }
-        colorCells.add(key);
-
-        if (seenCells.has(key)) {
-          errors.push('Cell ' + key + ' is reused by colors ' + seenCells.get(key) + ' and ' + color);
-        } else {
-          seenCells.set(key, color);
-        }
-      }
-
-      for (let index = 1; index < path.length; index += 1) {
-        if (!isOrthogonalStep(path[index - 1], path[index])) {
-          errors.push('Color ' + color + ' has a non-orthogonal step');
-        }
-      }
-
-      const puzzleEndpoint = puzzle.endpoints.find((entry) => entry.color === color);
-      if (!puzzleEndpoint) {
-        errors.push('Missing endpoint definition for color ' + color);
-        continue;
-      }
-
-      const matches =
-        (sameCell(puzzleEndpoint.a, path[0]) && sameCell(puzzleEndpoint.b, path[path.length - 1])) ||
-        (sameCell(puzzleEndpoint.a, path[path.length - 1]) && sameCell(puzzleEndpoint.b, path[0]));
-
-      if (!matches) {
-        errors.push('Endpoint mismatch for color ' + color);
-      }
-    }
-
-    if (seenCells.size !== puzzle.size * puzzle.size) {
-      errors.push('Puzzle does not cover all cells');
-    }
-
-    const turnCounts = puzzle.solution.map(({ path }) => countTurns(path));
-    const turningPaths = turnCounts.filter((turns) => turns > 0).length;
-    const interiorEndpoints = puzzle.endpoints.reduce((count, endpoint) => {
-      return count + (isBorderCell(endpoint.a, puzzle.size) ? 0 : 1) + (isBorderCell(endpoint.b, puzzle.size) ? 0 : 1);
-    }, 0);
-    const totalTurns = turnCounts.reduce((sum, turns) => sum + turns, 0);
-
-    if (puzzle.size <= 6) {
-      return errors;
-    }
-
-    const minimumTurningPaths = puzzle.size <= 5
-      ? Math.max(2, Math.floor(puzzle.solution.length * 0.4))
-      : Math.max(3, Math.floor(puzzle.solution.length * 0.6));
-    const minimumInteriorEndpoints = puzzle.size <= 5 ? 1 : 2;
-    const minimumTurns = puzzle.size <= 5
-      ? Math.max(2, puzzle.solution.length - 2)
-      : puzzle.solution.length;
-
-    const stageBoost = puzzle.stage === 2 && puzzle.size >= 8 ? 1 : 0;
-
-    if (turningPaths < minimumTurningPaths + stageBoost) {
-      errors.push('Puzzle is too straight-lined');
-    }
-    if (interiorEndpoints < minimumInteriorEndpoints + stageBoost) {
-      errors.push('Puzzle does not place enough endpoints away from the border');
-    }
-    if (totalTurns < minimumTurns + stageBoost * 2) {
-      errors.push('Puzzle does not have enough bends');
-    }
-
-    return errors;
-  }
-
-  function validatePuzzleSet(puzzles) {
-    const failures = [];
-
-    for (const size of Object.keys(puzzles)) {
-      for (const puzzle of puzzles[size]) {
-        const errors = validatePuzzle(puzzle);
-        if (errors.length > 0) {
-          failures.push({ id: puzzle.id, errors });
-        }
-      }
-    }
-
-    return failures;
-  }
-
-  const LINKGRID_PUZZLES = buildPuzzleSet();
-
-  global.LINKGRID_PUZZLES = LINKGRID_PUZZLES;
-  global.LINKGRID_VALIDATE_PUZZLES = validatePuzzleSet;
-
-  if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-      LINKGRID_PUZZLES,
-      validatePuzzle,
-      validatePuzzleSet,
-    };
-  }
-})(typeof globalThis !== 'undefined' ? globalThis : window);
+  global.LINKGRID_PUZZLES = PUZZLES;
+  if (typeof module !== 'undefined' && module.exports) module.exports = PUZZLES;
+})(typeof globalThis !== 'undefined' ? globalThis : this);

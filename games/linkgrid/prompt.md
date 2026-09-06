@@ -1,24 +1,42 @@
-# Linkgrid Prompt
+# Linkgrid
 
-## Game Summary
-Linkgrid is a classic connect-the-colors puzzle game. Connect matching color endpoints with non-overlapping orthogonal paths so that every board cell is filled.
+Connect every pair of dots and cover the whole board.
 
-## v1 Rules
-- Grid sizes: 5x5, 6x6, 7x7, 8x8, 9x9, 10x10
-- Open grids only (no walls/bridges/warps)
-- Classic mode only
-- No hints
-- Completion is solved/not solved only
+## How to play
+
+- Drag from a coloured dot to its twin. The route follows your finger or pointer
+  one cell at a time, up/down/left/right only.
+- A puzzle is solved when every pair is joined **and** every cell is covered.
+  Joining all the pairs is not enough.
+- Drag back along the route you are drawing to shorten it.
+- Grab a route part-way along to keep that much and redraw the rest.
+- Drawing across another colour takes the cell and erases that colour from there
+  on. Dots themselves can never be overwritten.
+- Tapping a dot without dragging leaves its route alone.
 
 ## Controls
-- Mouse/touch drag to draw paths
-- Drag backward on same color path to undo/backtrack
-- Keyboard:
-  - Arrow keys: move board cursor
-  - Space / Enter: start or extend path at cursor
-  - Escape: cancel active edit
 
-## UX
-- Soft pastel palette
-- Responsive desktop + mobile
-- Solved progress persisted in localStorage
+| | |
+| --- | --- |
+| Mouse / touch | Press, drag, release |
+| Arrow keys | Move the board cursor |
+| Space / Enter | Start a route, then finish it |
+| Esc | Cancel the route in progress |
+| U or Ctrl/⌘+Z | Undo the last route |
+| R | Restart the puzzle |
+
+## Content
+
+Six packs (5×5 to 10×10), fifteen puzzles each, five difficulty tiers per pack.
+Every puzzle has exactly one intended solution, uses the whole board, and is
+built to bend often and mostly away from the edges — see `GENERATION.md`.
+
+Solved puzzles are remembered in this browser only. Nothing is sent anywhere.
+
+## Working on it
+
+- `REQUIREMENTS.md` — rules, quality bar, accessibility, scope
+- `DESIGN.md` — file layout, engine model, UI
+- `GENERATION.md` — how puzzles are made, and what was tried and rejected
+- `node test/run.js` — full test suite; `test.html` runs most of it in a browser
+- `node tools/build.js` — regenerate the puzzle set
