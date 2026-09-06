@@ -42,6 +42,7 @@ Solved puzzles are remembered in this browser only. Nothing is sent anywhere.
 - `REQUIREMENTS.md` — rules, quality bar, accessibility, scope
 - `DESIGN.md` — file layout, engine model, UI
 - `GENERATION.md` — how puzzles are made, and what was tried and rejected
+- `RELATED-WORK.md` — the generator measured against the published literature
 - `node test/run.js` — full test suite (`--quick` skips the solver pass,
   `--sample` solves every tenth puzzle); `test.html` runs most of it in a browser
 - `node tools/pool.js <size>` then `node tools/build.js` — regenerate puzzles
