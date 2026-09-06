@@ -13,6 +13,21 @@
   var PACKS = globalThis.LINKGRID_PACKS || [];
   var STORAGE_KEY = 'linkgrid-progress-v2';
 
+  // Static hosting caches JS for four hours but HTML for ten minutes, so a
+  // deploy that changes what game.js expects from the page can otherwise pair
+  // new HTML with a stale script. index.html versions its script URLs; packs
+  // fetched later inherit that same version, so the set always moves together.
+  var ASSET_VERSION = (function () {
+    try {
+      var src = document.currentScript && document.currentScript.src;
+      var found = src && src.match(/[?&]v=([^&]*)/);
+      return found ? found[1] : '';
+    } catch (err) {
+      return '';
+    }
+  })();
+  var VERSION_QUERY = ASSET_VERSION ? '?v=' + ASSET_VERSION : '';
+
   function packs() { return globalThis.LINKGRID_PUZZLES || {}; }
 
   // Twelve hues, spaced far enough apart to stay tellable on a small board.
@@ -99,7 +114,7 @@
     if (loading[size]) return loading[size];
     loading[size] = new Promise(function (resolve, reject) {
       var tag = document.createElement('script');
-      tag.src = './puzzles/' + size + '.js';
+      tag.src = './puzzles/' + size + '.js' + VERSION_QUERY;
       tag.onload = function () {
         if (levelsFor(size).length) resolve(levelsFor(size));
         else reject(new Error('pack ' + size + ' loaded but is empty'));
@@ -695,7 +710,19 @@
   function boot() {
     collect();
     if (!Engine || !PACKS.length) {
-      el.crumb.textContent = 'Could not load the puzzles.';
+      // Almost always a half-stale cache: this page paired with an older
+      // script. Offer the fix rather than leaving a dead end.
+      el.crumb.textContent = 'This page did not load correctly';
+      el.packs.innerHTML =
+        '<p class="loading">Some of the game files are out of date in your ' +
+        'browser cache. Reloading fetches fresh copies.</p>';
+      var again = document.createElement('button');
+      again.type = 'button';
+      again.textContent = 'Reload';
+      again.addEventListener('click', function () {
+        location.replace(location.pathname + '?r=' + Date.now());
+      });
+      el.packs.appendChild(again);
       return;
     }
     wire();
