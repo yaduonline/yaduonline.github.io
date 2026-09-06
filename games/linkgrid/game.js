@@ -58,6 +58,7 @@
     progress: loadProgress(),
     pointerId: null,
     drawQueued: false,
+    boardRect: null,
   };
 
   // -------------------------------------------------------------------------
@@ -304,19 +305,33 @@
     draw();
   }
 
+  /** Write only when the value actually changed: every write dirties layout. */
+  function setText(node, value) {
+    if (node.textContent !== value) node.textContent = value;
+  }
+
   function updateStatus() {
     var game = state.game;
     if (!game) return;
     var connected = Engine.connectedCount(game);
     var filled = Engine.filledCount(game);
     var cells = game.size * game.size;
-    el.statConnected.textContent = connected + ' / ' + game.colors;
-    el.statFilled.textContent = filled + ' / ' + cells;
-    el.btnUndo.disabled = game.history.length === 0;
-    el.board.setAttribute('aria-label',
-      'Linkgrid board, ' + game.size + ' by ' + game.size + '. ' +
-      connected + ' of ' + game.colors + ' colours connected, ' +
-      filled + ' of ' + cells + ' cells filled.');
+
+    setText(el.statConnected, connected + ' / ' + game.colors);
+    setText(el.statFilled, filled + ' / ' + cells);
+
+    var nothingToUndo = game.history.length === 0;
+    if (el.btnUndo.disabled !== nothingToUndo) el.btnUndo.disabled = nothingToUndo;
+
+    // The board's label exists for assistive tech, which is not following a
+    // finger. Rewriting it mid-drag is pure churn, so it waits for the release.
+    // Keyboard play still updates it on every move.
+    if (state.pointerId === null) {
+      el.board.setAttribute('aria-label',
+        'Linkgrid board, ' + game.size + ' by ' + game.size + '. ' +
+        connected + ' of ' + game.colors + ' colours connected, ' +
+        filled + ' of ' + cells + ' cells filled.');
+    }
   }
 
   function announce(message) {
@@ -358,7 +373,9 @@
     if (!game) return;
     var cssSize = el.board.clientWidth;
     if (!cssSize) return;
-    var ratio = window.devicePixelRatio || 1;
+    // Phones report a device pixel ratio of 3, which makes the backing store
+    // nine times the area for no visible gain on flat colour. Two is plenty.
+    var ratio = Math.min(window.devicePixelRatio || 1, 2);
     var pixels = Math.round(cssSize * ratio);
     if (el.board.width !== pixels || el.board.height !== pixels) {
       el.board.width = pixels;
@@ -374,6 +391,7 @@
     requestAnimationFrame(function () {
       state.drawQueued = false;
       draw();
+      updateStatus();
     });
   }
 
@@ -483,7 +501,9 @@
   function cellFromEvent(event) {
     var game = state.game;
     if (!game) return null;
-    var rect = el.board.getBoundingClientRect();
+    // Measured once per drag. Reading layout inside the move handler forces a
+    // synchronous reflow every event, which is what made dragging feel heavy.
+    var rect = state.boardRect || (state.boardRect = el.board.getBoundingClientRect());
     if (!rect.width) return null;
     var size = rect.width / game.size;
     var c = Math.floor((event.clientX - rect.left) / size);
@@ -502,6 +522,7 @@
     state.cursor = cell;
     state.cursorVisible = false;
     state.pointerId = event.pointerId;
+    state.boardRect = null; // re-measure once for this drag
     try {
       el.board.setPointerCapture(event.pointerId);
     } catch (err) {
@@ -521,8 +542,7 @@
     if (!cell) return;
     if (Engine.extendTo(game, cell.r, cell.c)) {
       state.cursor = cell;
-      updateStatus();
-      requestDraw();
+      requestDraw(); // repaint and refresh the counters once for this frame
     }
   }
 
@@ -530,6 +550,7 @@
     var game = state.game;
     if (!game || event.pointerId !== state.pointerId) return;
     state.pointerId = null;
+    state.boardRect = null;
     try {
       el.board.releasePointerCapture(event.pointerId);
     } catch (err) {
@@ -542,6 +563,7 @@
     var game = state.game;
     if (!game) return;
     state.pointerId = null;
+    state.boardRect = null;
     Engine.cancel(game);
     updateStatus();
     requestDraw();
@@ -633,7 +655,6 @@
     } else {
       announce(describeCursor());
     }
-    updateStatus();
     requestDraw();
   }
 
