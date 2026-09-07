@@ -164,7 +164,15 @@ away.
 
 One canvas for the board, one small canvas for the next piece. Each frame:
 clear, grid lines, locked cells, ghost outline, active piece, and the clear
-flash if a row is vanishing. A single `requestAnimationFrame` loop drives both
+flash if a row is vanishing.
+
+Blocks are filled edge to edge rather than inset by a pixel, so the cells of a
+piece meet with no seam and the grid line beneath does not show through - a
+piece reads as one continuous shape. The individual blocks stay legible from an
+inner bevel instead: a light edge along the top and left, a darker one along the
+bottom and right. Delineation by shading, not by gaps.
+
+A single `requestAnimationFrame` loop drives both
 `tick` and the draw, with the delta clamped to 100ms so a backgrounded tab does
 not resume by dropping the piece through the floor.
 

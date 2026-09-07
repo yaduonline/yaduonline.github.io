@@ -116,9 +116,32 @@
   // Rendering
   // -------------------------------------------------------------------------
 
+  /**
+   * Draw one block of a piece.
+   *
+   * The cell is filled edge to edge, so blocks of the same piece meet with no
+   * seam and the grid line underneath does not show through - a piece reads as
+   * one continuous shape. The individual blocks are still legible because each
+   * carries an inner bevel: a light edge along the top and left, a darker one
+   * along the bottom and right. Delineation by shading rather than by gaps.
+   */
   function drawCell(target, x, y, size, color) {
+    var px = x * size;
+    var py = y * size;
+
     target.fillStyle = color;
-    target.fillRect(x * size, y * size, size - 1, size - 1);
+    target.fillRect(px, py, size, size);
+
+    // Thin at small block sizes, but never less than a pixel or it vanishes.
+    var bevel = Math.max(1, Math.round(size * 0.11));
+
+    target.fillStyle = 'rgba(255, 255, 255, 0.30)';
+    target.fillRect(px, py, size, bevel);
+    target.fillRect(px, py, bevel, size);
+
+    target.fillStyle = 'rgba(0, 0, 0, 0.17)';
+    target.fillRect(px, py + size - bevel, size, bevel);
+    target.fillRect(px + size - bevel, py, bevel, size);
   }
 
   function draw() {
