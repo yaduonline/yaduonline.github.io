@@ -922,6 +922,51 @@
     requestDraw();
   }
 
+  /**
+   * Activate a control on tap as well as click.
+   *
+   * The finish panel's buttons are reported as needing two presses on iOS,
+   * while every other button in the game - all of which exist in the DOM
+   * before they are touched - is fine. These three are the only ones inserted
+   * at the instant a touch ends, when the last route is drawn and the finger
+   * comes off the board, and a control that appears that way can miss the
+   * click from the tap that follows.
+   *
+   * So accept a touch's pointerup as an activation too, and dedupe: whichever
+   * of the two arrives first wins and the other is ignored. A pointerup only
+   * counts if the finger barely moved, so a scroll that happens to start on a
+   * button is not mistaken for a press.
+   */
+  function onActivate(button, handler) {
+    var TAP_SLOP = 10;
+    var RECENT_MS = 500;
+    var firedAt = 0;
+    var startX = 0;
+    var startY = 0;
+
+    function fire(event) {
+      var now = Date.now();
+      if (now - firedAt < RECENT_MS) return;
+      firedAt = now;
+      handler(event);
+    }
+
+    button.addEventListener('click', fire);
+
+    button.addEventListener('pointerdown', function (event) {
+      startX = event.clientX;
+      startY = event.clientY;
+    });
+
+    button.addEventListener('pointerup', function (event) {
+      // A mouse already gets a reliable click; this is for touch and pen.
+      if (event.pointerType === 'mouse') return;
+      if (Math.abs(event.clientX - startX) > TAP_SLOP) return;
+      if (Math.abs(event.clientY - startY) > TAP_SLOP) return;
+      fire(event);
+    });
+  }
+
   // -------------------------------------------------------------------------
   // Boot
   // -------------------------------------------------------------------------
@@ -968,15 +1013,17 @@
     el.btnUndo.addEventListener('click', undoMove);
     el.btnHint.addEventListener('click', useHint);
     el.btnSolution.addEventListener('click', revealSolution);
-    el.btnReplay.addEventListener('click', function () {
+    // The finish panel's buttons are wired through onActivate rather than a
+    // plain click listener - see the note on that function.
+    onActivate(el.btnReplay, function () {
       restartLevel();
       el.board.focus();
     });
-    el.btnLevels.addEventListener('click', function () {
+    onActivate(el.btnLevels, function () {
       renderLevels();
       setScreen('levels');
     });
-    el.btnNext.addEventListener('click', function () {
+    onActivate(el.btnNext, function () {
       var upcoming = nextLevel(state.size, state.levelId);
       if (upcoming) startLevel(upcoming);
     });
