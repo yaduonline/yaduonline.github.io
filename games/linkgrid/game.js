@@ -64,6 +64,7 @@
     hintsUsed: 0,
     solutionShown: false,
     helpBusy: false,
+    booted: false,
   };
 
   // -------------------------------------------------------------------------
@@ -219,11 +220,21 @@
 
     if (screen !== 'puzzle') hideFinish();
 
+    // Skipped during boot, where whenLayoutSettles handles it once the injected
+    // header has stopped moving the page around.
+    if (state.booted) scrollToApp();
+
     requestAnimationFrame(function () {
       var target = screen === 'puzzle'
         ? el.board
         : (screen === 'packs' ? el.packs : el.levels).querySelector('button');
-      if (target) target.focus();
+      if (!target) return;
+      // preventScroll: focusing must not undo the scroll positioning above.
+      try {
+        target.focus({ preventScroll: true });
+      } catch (err) {
+        target.focus();
+      }
     });
   }
 
@@ -259,6 +270,9 @@
     loadPack(size).then(function () {
       if (state.size !== size) return;
       renderLevels();
+      // The list was a one-line placeholder when the screen switched, so the
+      // page was too short to position against. Now it has its hundred chips.
+      scrollToApp();
     }, function () {
       el.levels.innerHTML = '<p class="loading">Could not load these puzzles. ' +
         'Check your connection and try again.</p>';
@@ -389,6 +403,76 @@
 
   function announce(message) {
     el.live.textContent = message;
+  }
+
+  /**
+   * Two deliberate choices in here, both learned the hard way.
+   *
+   * Instant, not smooth: smooth scrolling is a silent no-op in some embedded
+   * browsers - the call succeeds and nothing moves - and getting the player to
+   * the thing they need to see matters more than animating the trip. The
+   * distances are short anyway.
+   *
+   * Synchronous, not deferred: these run straight after a screen swap or after
+   * revealing the finish panel. Reading getBoundingClientRect forces the
+   * browser to lay that change out first, so the measurement is correct.
+   * Deferring to requestAnimationFrame instead would measure the old layout,
+   * and rAF does not fire at all in a page that is not being rendered.
+   */
+
+  function isFullyVisible(node) {
+    var rect = node.getBoundingClientRect();
+    var viewHeight = window.innerHeight || document.documentElement.clientHeight;
+    return rect.top >= 0 && rect.bottom <= viewHeight;
+  }
+
+  /**
+   * Put the game panel at the top of the viewport. The shared site header and
+   * nav are tall on a phone, and every screen here is the game, so the nav does
+   * not need to hold the top of the screen once play starts.
+   */
+  function scrollToApp() {
+    if (!el.app) return;
+    var top = el.app.getBoundingClientRect().top + window.pageYOffset - 8;
+    if (top < 0) top = 0;
+    if (Math.abs(window.pageYOffset - top) < 4) return;
+    window.scrollTo(0, top);
+  }
+
+  /** Scroll as little as possible to make something fully visible. */
+  function bringIntoView(node) {
+    if (!node || isFullyVisible(node)) return;
+    try {
+      node.scrollIntoView({ block: 'nearest' });
+    } catch (err) {
+      node.scrollIntoView();
+    }
+  }
+
+  /**
+   * The site header is fetched and injected after DOMContentLoaded, so the page
+   * grows underneath us. Anything that measures or scrolls on first load has to
+   * wait for that, or it lands in the wrong place.
+   */
+  function whenLayoutSettles(run) {
+    var header = document.getElementById('site-header');
+    if (!header || header.children.length) {
+      run();
+      return;
+    }
+    var done = false;
+    var observer = null;
+    function finish() {
+      if (done) return;
+      done = true;
+      if (observer) observer.disconnect();
+      requestAnimationFrame(function () { requestAnimationFrame(run); });
+    }
+    if (typeof MutationObserver === 'function') {
+      observer = new MutationObserver(finish);
+      observer.observe(header, { childList: true });
+    }
+    setTimeout(finish, 1200);
   }
 
   /** Does this colour's drawn route already match the reference, either way round? */
@@ -537,6 +621,9 @@
       ? 'Not counted as solved - play again to solve it yourself.'
       : describeSolve();
     el.finish.hidden = false;
+    // It sits below the board, so on a small screen it can land under the fold
+    // at exactly the moment it matters. Scroll the least amount that shows it.
+    bringIntoView(el.finish);
   }
 
   function hideFinish() {
@@ -841,7 +928,7 @@
 
   function collect() {
     [
-      'crumb', 'btnBack', 'puzzleActions', 'btnRestart', 'btnUndo',
+      'app', 'crumb', 'btnBack', 'puzzleActions', 'btnRestart', 'btnUndo',
       'screenPacks', 'screenLevels', 'screenPuzzle', 'packs', 'levels',
       'board', 'statConnected', 'statFilled', 'live', 'finish',
       'finishTitle', 'finishDetail', 'hintTally', 'btnHint', 'btnSolution',
@@ -928,6 +1015,12 @@
     wire();
     renderPacks();
     setScreen('packs');
+    whenLayoutSettles(function () {
+      // Only if the page is still where it loaded: never yank a player who has
+      // already scrolled, or fight the browser restoring a position on Back.
+      if (window.pageYOffset < 4) scrollToApp();
+      state.booted = true;
+    });
   }
 
   if (document.readyState === 'loading') {
