@@ -24,12 +24,18 @@ const CACHE_DIR = path.join(__dirname, '.pools');
  * build's wall time goes.
  */
 const BUDGET = {
-  5: { chains: 10, rounds: 500 },
-  6: { chains: 10, rounds: 500 },
-  7: { chains: 10, rounds: 500 },
-  8: { chains: 8, rounds: 500 },
-  9: { chains: 8, rounds: 450 },
-  10: { chains: 8, rounds: 400 },
+  // colorCounts reaches well below the old size-2..size+1 default. Every
+  // count below "size - 1" or so is only reachable by chance (mergeDown's
+  // shake is not guaranteed to find a legal merge down to a given k - see
+  // GENERATION.md), so the lower end relies on explorePool already retrying
+  // buildPartition up to 10 times per chain, across many chains, to turn a
+  // per-attempt chance of a few percent into several working seeds.
+  5: { chains: 12, rounds: 500, colorCounts: [2, 3, 4, 5, 6] },
+  6: { chains: 12, rounds: 500, colorCounts: [2, 3, 4, 5, 6, 7] },
+  7: { chains: 12, rounds: 500, colorCounts: [3, 4, 5, 6, 7, 8] },
+  8: { chains: 10, rounds: 500, colorCounts: [3, 4, 5, 6, 7, 8, 9] },
+  9: { chains: 10, rounds: 450, colorCounts: [4, 5, 6, 7, 8, 9, 10] },
+  10: { chains: 10, rounds: 400, colorCounts: [4, 5, 6, 7, 8, 9, 10, 11] },
 };
 
 function cachePath(size) {

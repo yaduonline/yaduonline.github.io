@@ -12,7 +12,7 @@
 | `solutions/<size>.js` | Reference solutions, compactly encoded. Loaded only by the tests. |
 | `tools/solver.js` | Exact solver and solution counter (Node). |
 | `tools/quality.js` | Bend metrics, quality gates, structural validation. |
-| `tools/routes.js` | Compact route encoding shared by the build and the tests. |
+| `tools/routes.js` | Compact route encoding shared by the build, the tests, and the game's hint loader. |
 | `tools/generate.js` | Partition construction and the difficulty search. |
 | `tools/pool.js` | CLI: explore one board size, cache the candidates. |
 | `tools/build.js` | CLI: band the pools into levels and emit the data files. |
@@ -75,7 +75,7 @@ puzzle is solved when every colour is connected and no cell is empty.
   progress without downloading six hundred puzzles. Opening a pack pulls in that
   one size's file via a script tag; a failed fetch leaves a readable message and
   the pack can be opened again.
-- **Puzzle list.** One hundred puzzles per pack, grouped into five difficulty
+- **Puzzle list.** One hundred puzzles per pack, grouped into ten difficulty
   sections with a solved count per section and a compact numbered chip per
   puzzle.
 - **Canvas.** The board area is `min(100%, 560px, 70vh)` with `aspect-ratio: 1`,
@@ -92,6 +92,23 @@ puzzle is solved when every colour is connected and no cell is empty.
   puzzle list. Nothing navigates on its own.
 - **Announcements.** A single visually hidden `role="status"` region carries all
   spoken feedback; the board's `aria-label` carries progress.
+
+## Hints
+
+`engine.js: applyRoute(game, color, route)` puts a known-correct route on the
+board, evicting whatever else is sitting on those cells, exactly as if the
+player had drawn it. It pushes an undo snapshot but deliberately does not
+increment `moves` - the move count records what the player did. It refuses
+(rather than corrupting the board) if a route would need a cell that is another
+colour's dot, which a genuine solution route never does.
+
+`game.js` keeps the help state (`hintsUsed`, `solutionShown`) per attempt and
+clears it whenever a puzzle is loaded or restarted. The answers arrive lazily:
+the first click on Hint or Show solution pulls in `tools/routes.js` and
+`solutions/<size>.js` via script tags carrying the same asset version as
+everything else, so a player who never asks for help never pays for the data,
+and the spoilers are not sitting in the page for anyone who opens devtools out
+of idle curiosity.
 
 ## Persistence
 
@@ -111,4 +128,5 @@ not also available as shape or text.
 - No hash routing: the browser Back button leaves the game rather than stepping
   between screens.
 - No animation beyond the redraw itself.
-- No hint or auto-solve, so the solution files are never loaded by the game.
+- No auto-solve beyond the explicit "show solution" button, and the solution
+  files are still not part of the initial page load - see Hints below.

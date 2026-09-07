@@ -112,22 +112,36 @@ difficulty range rather than a handful of hard ones.
 
 ## Difficulty levels
 
-The hardest puzzle of the previous release is the calibration anchor: player
-feedback placed it at "difficulty 2 to 3", so it is pinned to the level 2 /
-level 3 boundary (`LEGACY_MAX` in `tools/build.js`, measured with the same
-solver setting). Below it the two easy levels split the range geometrically;
-above it the three hard levels step geometrically up to the 99th percentile of
-what the search reached. Twenty puzzles are taken from each band, spread evenly
-across it.
+Ten levels, ten puzzles each - up from the original five levels of twenty. The
+hardest puzzle of the very first release is still the calibration anchor:
+player feedback placed it at "difficulty 2 to 3" out of 5, i.e. 0.4 of the way
+up that ladder, so it is pinned to the same fractional position on whatever
+ladder length is in use (`LEGACY_ANCHOR_FRACTION` in `tools/build.js` - level 4
+of 10). Below it, levels split the range geometrically from the pool's 5th
+percentile up to the anchor; above it, they step geometrically from the anchor
+up to the 99th percentile of what the search reached, so the top level is
+exactly as hard as the board allows rather than an arbitrary multiple.
 
-Puzzles from the previous release are merged into the pool and keep their ids,
-so a player's solved markers survive the expansion; they land wherever their
-measured difficulty puts them, which is levels 1 to 3.
+Puzzles from every earlier release are merged into the pool and keep their
+ids, so solved markers survive each expansion. Rebinning a fixed set of
+already-shipped puzzles into a finer ladder can leave some new band holding
+more of them than that band's quota - `spread()` picks a representative sample
+across the excess for that band, and the rest are simply not shipped this time
+(their solved marker becomes inert, not broken: the game already treats an
+unknown id as absent).
 
-How much headroom exists above the old ceiling depends entirely on the board.
-A 5×5 has 25 cells and almost no room for a solver to get lost, so its ladder is
-compressed; a 10×10 spans more than an order of magnitude. Difficulty levels are
-therefore relative within a board size, and the game presents them that way.
+How much headroom exists for ten *distinct* levels depends entirely on the
+board. A 5×5 has 25 cells and very little room for a solver to get lost: even
+after widening the search dramatically (11,648 candidates from one afternoon's
+compute), its hardest reachable puzzle is 68 search nodes against the original
+release's 38 - real, but only 1.8x. The middle of its ladder is consequently
+compressed (levels 6-9 sit at 40, 41, 43, 44 search nodes - each a genuinely
+different puzzle, but not by much). A 10×10 has no such problem: widening the same search to 4-11 colours reached
+1,726,926 search nodes against the original's 152,674, and its shipped level 10
+sits around 930,000 - the hardest puzzles in the game by a wide margin, and
+typically only 7 colours across 100 cells. Difficulty levels are relative within a
+board size for exactly this reason, and the game presents them that way rather
+than implying a 5×5 level 10 means what a 10×10 level 10 means.
 
 ## The solver
 
@@ -148,11 +162,73 @@ trusted), `noSelfTouch`, `collect`, and `prune`.
 
 ## Colour counts
 
-Chains run at N−2, N−1, N and N+1 colours for an N×N board. Fewer colours means
-longer routes and more freedom, which is the single biggest lever on difficulty.
+Fewer colours means longer routes and more freedom, which is the single biggest
+lever on difficulty. The starting partition is one route per row, and the
+transfer move cannot reduce that count, so reaching fewer colours needs a
+second mechanism: `mergeDown` joins two routes whose *only* point of contact is
+one end each - the condition under which the merged route is still induced.
+Straight rows never qualify, so the partition is annealed loose first, and
+annealed again whenever the merges run dry.
 
-The starting partition is one route per row, and the transfer move cannot reduce
-the count, so counts below N need a second mechanism: `mergeDown` joins two
-routes whose *only* point of contact is one end each — the condition under which
-the merged route is still induced. Straight rows never qualify, so the partition
-is annealed loose first, and annealed again whenever the merges run dry.
+### The floor was an artifact, not a wall - but only partly moved
+
+RELATED-WORK.md flagged a specific limitation after the first release: Chartrand
+et al. proved the induced path partition number of any grid is **2**, so a
+generator's colour floor of roughly `N-3` is a property of its own move set,
+not of the problem. That prompted two changes, both measured rather than
+assumed:
+
+**mergeDown's shake was fighting itself.** Its "shake the partition and look
+again" step used the same bend-rewarding weights as everything else, on the
+theory that a well-shaped partition should also be easy to work with. Measured
+head to head at a fixed budget, it is close to the opposite: a route shaped for
+interesting bends rarely ends with a clean, single-contact tip sitting next to
+another route's tip, so the bend objective actively suppresses the merges being
+searched for. Shaking with a plain random walk instead - no bend reward, only a
+floor against collapsing to near-zero length - found a legal path to a given
+low `k` 5 to 15x more often at the sizes that matter:
+
+| size | target k | old shake (default weights) | new shake (plain walk) |
+| --- | --- | --- | --- |
+| 9×9  | 4 | 0 / 40 | 5 / 40 |
+| 9×9  | 5 | 2 / 40 | 11 / 40 |
+| 10×10 | 4 | 0 / 40 | 4 / 40 |
+| 10×10 | 5 | 2 / 40 | 11 / 40 |
+
+Many small shakes also beat few large ones: cutting the per-shake iteration
+count roughly 400x while raising the shake budget correspondingly found merges
+that a smaller number of thorough shakes never did, for the same total work.
+
+**The theoretical floor still is not reliably reached at scale.** Even with
+the better shake, `k=2` and `k=3` succeed maybe 5-30% of the time on an 8x8
+board and essentially never (0-1 in 30) on a 10x10 - and that is *per attempt*,
+with each attempt costing 100-500ms. This is worth being honest about: nothing
+here approaches Chartrand's construction, which presumably reaches `k=2`
+deterministically. What is shipped instead is a wider *search*, at colour
+counts from roughly `N-6` up through the old range, relying on `explorePool`'s
+existing retries (already up to 10 attempts per chain, many chains) to turn a
+low per-attempt success rate into several working seeds per size. The measured
+gain from that wider search is real (see below) and came almost entirely from
+having more colour counts to search across, not from reliably operating at the
+theoretical minimum - the very lowest counts tried usually contributed only a
+handful of candidates each, sometimes zero.
+
+## Measured results
+
+Search-node ceiling before and after widening the colour search, measured with
+the same solver setting the tiers use (`prune: 'basic'`):
+
+| size | old ceiling (15-per-size release) | new ceiling | ratio |
+| --- | --- | --- | --- |
+| 5×5   | 38     | 68     | 1.8x |
+| 6×6   | 103    | 233    | 2.3x |
+| 7×7   | 292    | 1,082  | 3.7x |
+| 8×8   | 2,711  | 5,181  | 1.9x |
+| 9×9   | 19,969 | 62,691 | 3.1x |
+| 10×10 | 152,674 | 1,726,926 | 11.3x |
+
+The gain is genuine but uneven, and does not track colour count monotonically -
+7x7's new ceiling of 1,082 came from a 7-colour puzzle, not from its lowest
+tried count of 4. Difficulty at these sizes is driven at least as much by the
+specific bend structure the basin hop happens to find as by how few colours it
+used to find it.

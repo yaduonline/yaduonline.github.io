@@ -9,8 +9,8 @@ board must end up covered.
 - Browser only, vanilla HTML/CSS/JS, no dependencies, no build step for the game
   itself. Puzzle data is generated offline by Node scripts under `tools/`.
 - Shared site shell: `/style.css` and `/inc/include.js` (header and footer).
-- Board sizes 5×5 through 10×10, one hundred puzzles each: twenty at each of
-  five difficulty levels.
+- Board sizes 5×5 through 10×10, one hundred puzzles each: ten at each of
+  ten difficulty levels.
 - Open square grids only: no walls, bridges, warps or non-square cells.
 
 ## Rules
@@ -54,18 +54,20 @@ those in row or column 0 or N−1.
 
 ## Difficulty
 
-- Five levels per board size, twenty puzzles each. Level 1 is the gentlest,
-  level 5 the hardest.
+- Ten levels per board size, ten puzzles each. Level 1 is the gentlest,
+  level 10 the hardest.
 - Levels are assigned from *measured* difficulty, not assumed: how much search a
   solver still needs after the deductions a player would also make. See
   `GENERATION.md`.
 - Difficulty is relative **within a board size**. A 5×5 has far less room to
-  hide a hard puzzle than a 10×10, so a 5×5 level 5 is not a 10×10 level 5.
-- Calibration anchor: the hardest puzzle of the previous fifteen-per-size
-  release sits on the level 2 / level 3 boundary, so the earlier ceiling is now
-  the middle of the ladder.
-- Puzzles carried over from that release keep their ids, so solved markers
-  survive the expansion.
+  hide a hard puzzle than a 10×10, so a 5×5 level 10 is not a 10×10 level 10.
+- Calibration anchor: the hardest puzzle of the original fifteen-per-size
+  release sits at 4/10 of the way up the ladder (level 4), the same
+  fractional position it held at 2/5 on the original five-level scale — so
+  the original ceiling keeps roughly the same *felt* difficulty even as the
+  ladder gets finer.
+- Puzzles carried over from earlier releases keep their ids, so solved markers
+  survive both this expansion and the one before it.
 
 ## Input
 
@@ -92,6 +94,30 @@ those in row or column 0 or N−1.
 - Solved puzzles persist in `localStorage` under `linkgrid-progress-v2`.
 - Storage failures (private browsing, disabled storage) degrade to a session
   that simply does not persist, never to a broken game.
+
+## Hints
+
+- Up to **five hints** per attempt, or the **full solution**.
+- A hint fills in one whole colour: the shortest route not already correct, so
+  it gives away as little as possible while still unblocking something.
+- Hints are per attempt, not per player. Loading a puzzle — or restarting it —
+  clears any help taken and restores the full allowance.
+- Solving with hints still counts as solved, and the end-of-puzzle panel says so
+  ("9 moves, with 3 hints").
+- Revealing the full solution does **not** count as solved. The board fills in,
+  the panel says "Solution shown", and the puzzle stays unsolved in the pack.
+- The answers are not shipped with the page. `solutions/<size>.js` and the
+  decoder are fetched only when a player first asks for help, so nobody
+  downloads spoilers they never asked for.
+
+## Finishing a puzzle
+
+- The end-of-puzzle panel sits **below** the board, never over it: the finished
+  board is the thing worth looking at, and covering it to ask "what next?"
+  interrupts the player rather than rewarding them.
+- The board stays live after a win. Undoing back into an unsolved state simply
+  hides the panel again.
+- The panel does not steal keyboard focus.
 
 ## Out of scope
 

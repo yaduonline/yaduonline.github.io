@@ -19,8 +19,18 @@ const { encode } = require('./routes.js');
 const { readCache } = require('./pool.js');
 
 const ALL_SIZES = [5, 6, 7, 8, 9, 10];
-const TIERS = 5;
-const PER_TIER = 20;
+// Ten difficulty levels, ten puzzles each: the same total per size (100) as
+// the previous five-levels-of-twenty release, just sliced finer now that the
+// colour floor (see GENERATION.md) gives the hard end enough room to support
+// the extra levels distinctly rather than clustering them together.
+const TIERS = 10;
+const PER_TIER = 10;
+// Where the previous release's hardest puzzle sits on the new ladder, as a
+// fraction of the way up it. It was pinned to the tier 2/3 boundary out of 5
+// tiers (0.4 of the way up) on the theory that was roughly where player
+// feedback placed it; that fraction, not the absolute tier index, is what
+// carries over when the tier count changes.
+const LEGACY_ANCHOR_FRACTION = 0.4;
 
 /**
  * `--sizes 5,6` limits the build to some board sizes. Only for iterating
@@ -47,23 +57,46 @@ function percentile(sorted, q) {
 }
 
 /**
- * Tier boundaries for one size, in search nodes.
+ * Tier boundaries for one size, in search nodes. Returns `TIERS - 1` edges;
+ * `tierOf` below turns a search-node count into a tier using them.
  *
- * `b2` is the anchor above. Below it the two easy tiers split the range
- * geometrically; above it the three hard tiers step geometrically up to what
- * the search actually reached, so tier 5 is as hard as the board allows.
+ * The anchor sits at LEGACY_ANCHOR_FRACTION of the way up the ladder, at the
+ * value of the previous release's hardest puzzle for this size. Below the
+ * anchor, edges step geometrically from the 5th percentile of the pool up to
+ * it; above, they step geometrically from the anchor up to the hardest the
+ * search actually reached, so the top tier is exactly as hard as the board
+ * allows rather than an arbitrary multiple.
  */
 function tierEdges(size, nodes) {
   const sorted = nodes.slice().sort((a, b) => a - b);
   const low = Math.max(1, percentile(sorted, 0.05));
-  const b2 = LEGACY_MAX[size];
-  const high = Math.max(percentile(sorted, 0.99), b2 * 1.2);
+  const anchor = LEGACY_MAX[size];
+  const high = Math.max(percentile(sorted, 0.99), anchor * 1.2);
 
-  const b1 = Math.round(Math.sqrt(low * b2));
-  const ratio = high / b2;
-  const b3 = Math.round(b2 * Math.pow(ratio, 1 / 3));
-  const b4 = Math.round(b2 * Math.pow(ratio, 2 / 3));
-  return [b1, b2, b3, b4];
+  const totalEdges = TIERS - 1;
+  // 0-based index of the anchor within the edges array, keeping it at the
+  // same fractional position regardless of how many tiers there are.
+  const anchorIndex = Math.min(
+    totalEdges - 1,
+    Math.max(0, Math.round(TIERS * LEGACY_ANCHOR_FRACTION) - 1)
+  );
+
+  const edges = new Array(totalEdges);
+  edges[anchorIndex] = anchor;
+
+  const belowCount = anchorIndex; // edges strictly below the anchor
+  const belowRatio = anchor / low;
+  for (let i = 0; i < belowCount; i++) {
+    edges[i] = Math.round(low * Math.pow(belowRatio, (i + 1) / (belowCount + 1)));
+  }
+
+  const aboveCount = totalEdges - anchorIndex - 1; // edges strictly above
+  const aboveRatio = high / anchor;
+  for (let i = 0; i < aboveCount; i++) {
+    edges[anchorIndex + 1 + i] = Math.round(anchor * Math.pow(aboveRatio, (i + 1) / (aboveCount + 1)));
+  }
+
+  return edges;
 }
 
 function tierOf(nodes, edges) {
@@ -75,6 +108,9 @@ function tierOf(nodes, edges) {
 function spread(list, count) {
   if (count <= 0) return [];
   if (list.length <= count) return list.slice();
+  // A single pick has no "spread" to compute (count - 1 would be zero); the
+  // middle of the list is as representative a single choice as any other.
+  if (count === 1) return [list[Math.floor((list.length - 1) / 2)]];
   const out = [];
   for (let i = 0; i < count; i++) {
     out.push(list[Math.round((i * (list.length - 1)) / (count - 1))]);
@@ -124,9 +160,19 @@ function selectForSize(size, log) {
       .filter((c) => tierOf(c.stats.searchNodes, edges) === tier)
       .sort((a, b) => a.stats.searchNodes - b.stats.searchNodes);
 
-    // Puzzles from the previous release keep their place, so a player's solved
-    // markers survive the expansion.
-    const keep = band.filter((c) => c.id);
+    // Puzzles from earlier releases keep their place, so a player's solved
+    // markers survive. But a tier boundary computed for one tier count does
+    // not line up with the bands a puzzle was originally sorted into under a
+    // different tier count - rebinning 100 puzzles that were evenly split
+    // across 5 old tiers into 10 new ones can easily leave some new tiers
+    // holding more legacy puzzles than PER_TIER allows. When that happens,
+    // spread() keeps a representative sample across the excess rather than
+    // an arbitrary prefix, and the rest are dropped from this build: their
+    // solved markers go unused (the game already treats an unknown id as
+    // simply absent) rather than distorting the tier's size.
+    const keepAll = band.filter((c) => c.id)
+      .sort((a, b) => a.stats.searchNodes - b.stats.searchNodes);
+    const keep = spread(keepAll, Math.min(keepAll.length, PER_TIER));
     const rest = band.filter((c) => !c.id);
     const picked = keep.concat(spread(rest, PER_TIER - keep.length));
     if (picked.length < PER_TIER) {

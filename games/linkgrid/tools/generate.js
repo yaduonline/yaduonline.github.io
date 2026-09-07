@@ -235,6 +235,27 @@ function joinPaths(a, b, aAtHead, bAtHead) {
 }
 
 /**
+ * Weights used for mergeDown's own internal shakes, not for the puzzle's final
+ * bend quality. Measured directly: shaking with the bend-scoring weights (which
+ * reward interior bends and penalise corner imbalance) actively fights finding
+ * a legal merge, because a route shaped for interesting bends rarely has a
+ * clean, single-contact end sitting next to another route's end. A plain
+ * random walk - no bend reward, only a floor against collapsing to near-zero
+ * length - finds merges 5 to 15x more often at the sizes and colour counts
+ * that matter (measured on 9x9 and 10x10; see GENERATION.md).
+ */
+const MERGE_SHAKE_WEIGHTS = {
+  interiorBend: 0,
+  borderBend: 0,
+  bendCap: 1,
+  straightPenalty: 0,
+  shortPenalty: 60,
+  lengthPenalty: 0,
+  cornerBalance: 0,
+  startTemperature: 1,
+};
+
+/**
  * Reduce a partition to `k` routes by merging neighbours.
  *
  * Two routes may merge only when their sole point of contact is one end each -
@@ -242,18 +263,22 @@ function joinPaths(a, b, aAtHead, bAtHead) {
  * qualify, so the caller warms the partition up with a short anneal first, and
  * this function anneals again whenever it runs out of legal merges.
  *
- * Returns null if `k` could not be reached.
+ * Returns null if `k` could not be reached. Reaching a low `k` is not
+ * reliable from any single call - see buildPartition, which is what actually
+ * retries across seeds.
  */
 function mergeDown(n, start, k, rng, options = {}) {
+  const maxStall = options.maxStall === undefined ? 2000 * n : options.maxStall;
   const adj = adjacency(n);
   let paths = start.map((p) => p.slice());
   const owner = new Int32Array(n * n).fill(-1);
   const reindex = () => paths.forEach((path, i) => path.forEach((cell) => (owner[cell] = i)));
   reindex();
 
-  const warmup = options.warmupIterations || 400 * n * n;
+  const warmup = options.warmupIterations || n * n;
+  const shakeWeights = options.mergeWeights || MERGE_SHAKE_WEIGHTS;
 
-  for (let stall = 0; paths.length > k && stall < 12; ) {
+  for (let stall = 0; paths.length > k && stall < maxStall; ) {
     const options_ = [];
     for (let i = 0; i < paths.length; i++) {
       const a = paths[i];
@@ -277,11 +302,13 @@ function mergeDown(n, start, k, rng, options = {}) {
     }
 
     if (!options_.length) {
-      // Nothing can merge yet; shake the partition and look again.
+      // Nothing can merge yet; shake the partition and look again. Many small
+      // shakes reach a workable configuration far more often than few large
+      // ones, because a small shake is cheap enough to retry when unlucky.
       paths = anneal(n, paths.length, rng, {
-        ...options,
         start: paths,
         iterations: warmup,
+        weights: shakeWeights,
         flat: true,
       });
       reindex();
@@ -304,8 +331,15 @@ function mergeDown(n, start, k, rng, options = {}) {
 
 /**
  * Build a partition with exactly `k` routes, whatever `k` is relative to `n`.
- * Above the grid size the starting rows are split; below it they are annealed
- * loose and then merged.
+ *
+ * At or above the grid size the starting rows are split, which always
+ * succeeds. Below it, reaching `k` by merging is a matter of luck - some
+ * random seeds land on a mergeable shape almost immediately, others never do
+ * within any reasonable shake budget - so a single call here often returns
+ * null even when `k` is achievable. Callers that need a low `k` reliably
+ * (explorePool) already retry across many seeds; this function does not retry
+ * on its own, so that a caller who wants exactly one fast attempt still gets
+ * one.
  */
 function buildPartition(n, k, rng, options = {}) {
   if (k >= n) return anneal(n, k, rng, options);
@@ -501,4 +535,5 @@ module.exports = {
   explorePool,
   fingerprintOf,
   DEFAULT_WEIGHTS,
+  MERGE_SHAKE_WEIGHTS,
 };

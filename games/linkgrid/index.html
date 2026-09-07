@@ -45,6 +45,9 @@
     .bar h2 { margin: 0; font-size: 1.15rem; }
     #crumb { margin: 2px 0 0; color: var(--muted); font-size: 0.88rem; }
     .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    /* Let the puzzle-only buttons wrap alongside Back instead of as one block.
+       The [hidden] rule above still beats this when the group is hidden. */
+    #puzzleActions { display: contents; }
 
     #app button {
       font: inherit;
@@ -123,20 +126,25 @@
     }
     #board:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
 
-    .overlay {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      place-content: center;
-      gap: 10px;
-      justify-items: center;
-      padding: 20px;
-      border-radius: 12px;
-      background: rgba(247, 243, 234, 0.93);
-      text-align: center;
+    .finish {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px 14px;
+      margin: 12px auto 0;
+      width: min(100%, 560px, 70vh);
+      padding: 11px 14px;
+      border: 1px solid #9dc0ad;
+      border-radius: 10px;
+      background: #e9f4ed;
     }
-    .overlay h3 { margin: 0; font-size: 1.3rem; color: var(--ok); }
-    .overlay p { margin: 0; color: var(--muted); }
+    .finish-text { display: flex; flex-direction: column; gap: 1px; }
+    .finish strong { font-size: 1.02rem; color: var(--ok); }
+    .finish span { font-size: 0.84rem; color: var(--muted); }
+    /* A revealed solution is not a win, and should not look like one. */
+    .finish.revealed { border-color: #cdbb93; background: #f6f1e3; }
+    .finish.revealed strong { color: #87681d; }
 
     .stats {
       display: flex;
@@ -163,6 +171,10 @@
     @media (max-width: 640px) {
       #app { margin: 8px auto; padding: 10px; border-radius: 12px; }
       .board-area { width: min(100%, 92vw, 62vh); }
+      /* Five controls in the bar now; keep them off the board's back. */
+      #app button { padding: 7px 10px; font-size: 0.93rem; }
+      .actions { gap: 6px; }
+      .finish { width: min(100%, 92vw, 62vh); }
     }
   </style>
 </head>
@@ -178,6 +190,8 @@
       <div class="actions">
         <button id="btnBack" type="button" hidden>Back</button>
         <span id="puzzleActions" class="actions" hidden>
+          <button id="btnHint" type="button">Hint</button>
+          <button id="btnSolution" type="button">Show solution</button>
           <button id="btnUndo" type="button">Undo</button>
           <button id="btnRestart" type="button">Restart</button>
         </span>
@@ -196,20 +210,26 @@
       <div class="board-area">
         <canvas id="board" width="560" height="560" tabindex="0" role="application"
                 aria-label="Linkgrid board"></canvas>
-        <div id="overlay" class="overlay" role="dialog" aria-label="Puzzle solved" hidden>
-          <h3>Solved</h3>
-          <p><span id="overlayMoves"></span></p>
-          <div class="actions">
-            <button id="btnNext" type="button">Next puzzle</button>
-            <button id="btnReplay" type="button">Play again</button>
-            <button id="btnLevels" type="button">All puzzles</button>
-          </div>
+      </div>
+
+      <!-- Sits under the board rather than over it, so a finished puzzle stays
+           fully visible and the board stays usable. -->
+      <div id="finish" class="finish" hidden>
+        <div class="finish-text">
+          <strong id="finishTitle">Solved</strong>
+          <span id="finishDetail"></span>
+        </div>
+        <div class="actions">
+          <button id="btnNext" type="button">Next puzzle</button>
+          <button id="btnReplay" type="button">Play again</button>
+          <button id="btnLevels" type="button">All puzzles</button>
         </div>
       </div>
 
       <div class="stats">
         <span>Connected <b id="statConnected">0 / 0</b></span>
         <span>Filled <b id="statFilled">0 / 0</b></span>
+        <span id="hintTally" hidden></span>
       </div>
 
       <p class="help">
@@ -225,8 +245,8 @@
   <div id="site-footer"></div>
 
   <script src="/inc/include.js"></script>
-  <script src="./engine.js?v=4"></script>
-  <script src="./puzzles/index.js?v=4"></script>
-  <script src="./game.js?v=4"></script>
+  <script src="./engine.js?v=5"></script>
+  <script src="./puzzles/index.js?v=5"></script>
+  <script src="./game.js?v=5"></script>
 </body>
 </html>

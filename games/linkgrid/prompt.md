@@ -14,6 +14,16 @@ Connect every pair of dots and cover the whole board.
   on. Dots themselves can never be overwritten.
 - Tapping a dot without dragging leaves its route alone.
 
+## Stuck?
+
+- **Hint** fills in one colour for you — the shortest route you have not got
+  right yet. Five per attempt.
+- **Show solution** fills in the whole board, and that one does not count as
+  solved.
+- Both reset when you reload or restart the puzzle, so a fresh attempt gets a
+  fresh five.
+- Solving with hints still counts. The end panel tells you how many you used.
+
 ## Controls
 
 | | |
@@ -27,7 +37,7 @@ Connect every pair of dots and cover the whole board.
 
 ## Content
 
-Six packs (5×5 to 10×10), one hundred puzzles each: twenty at each of five
+Six packs (5×5 to 10×10), one hundred puzzles each: ten at each of ten
 difficulty levels. Every puzzle has exactly one intended solution, uses the
 whole board, and is built to bend often and mostly away from the edges — see
 `GENERATION.md`.

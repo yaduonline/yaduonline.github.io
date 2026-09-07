@@ -60,21 +60,43 @@
 
     check('puzzle set covers 5x5 through 10x10',
       sizes.join(',') === '5,6,7,8,9,10', 'sizes were ' + sizes.join(','));
-    check('every size ships 100 puzzles',
-      sizes.every(function (s) { return puzzles[s].length === 100; }),
-      sizes.map(function (s) { return s + ':' + puzzles[s].length; }).join(' '));
 
-    var tierCountProblem = null;
+    // The exact tier count and puzzles-per-tier are tuning knobs in
+    // tools/build.js, not something this suite should hardcode. Instead it
+    // derives what "consistent" means from the data itself: every size must
+    // agree on how many tiers there are and how many puzzles sit in each,
+    // and every size's total must equal tiers x perTier.
+    var tierCounts = {};
+    allLevels.forEach(function (level) {
+      tierCounts[level.tier] = (tierCounts[level.tier] || 0) + 1;
+    });
+    var tiers = Object.keys(tierCounts).map(Number).sort(function (a, b) { return a - b; });
+    var tierMax = tiers.length ? tiers[tiers.length - 1] : 0;
+    var perTier = tiers.length ? puzzles[sizes[0]].filter(function (level) {
+      return level.tier === tiers[0];
+    }).length : 0;
+
+    check('difficulty tiers are numbered 1..N with no gaps',
+      tiers.every(function (t, i) { return t === i + 1; }),
+      'tiers were ' + tiers.join(','));
+
+    var countProblem = null;
     sizes.forEach(function (size) {
-      for (var tier = 1; tier <= 5; tier++) {
+      var total = puzzles[size].length;
+      if (total !== tierMax * perTier && !countProblem) {
+        countProblem = size + 'x' + size + ' has ' + total + ' puzzles, expected ' +
+          tierMax + ' tiers x ' + perTier + ' = ' + (tierMax * perTier);
+      }
+      for (var tier = 1; tier <= tierMax && !countProblem; tier++) {
         var inTier = puzzles[size].filter(function (level) { return level.tier === tier; });
-        if (inTier.length !== 20 && !tierCountProblem) {
-          tierCountProblem = size + 'x' + size + ' tier ' + tier + ' has ' + inTier.length;
+        if (inTier.length !== perTier) {
+          countProblem = size + 'x' + size + ' tier ' + tier + ' has ' + inTier.length +
+            ' puzzles, expected ' + perTier;
         }
       }
     });
-    check('every size has 20 puzzles at each of the five difficulties',
-      tierCountProblem === null, tierCountProblem || '');
+    check('every size has the same puzzle count at every difficulty',
+      countProblem === null, countProblem || '');
 
     var manifestProblem = null;
     sizes.forEach(function (size) {
@@ -101,7 +123,7 @@
       var problems = Engine.validateLevel(level);
       if (problems.length) badLevel = level.id + ': ' + problems.join('; ');
       if (level.colors !== level.endpoints.length) badLevel = level.id + ': colors field mismatch';
-      if (!(level.tier >= 1 && level.tier <= 5)) badLevel = level.id + ': tier out of range';
+      if (!(level.tier >= 1 && level.tier <= tierMax)) badLevel = level.id + ': tier out of range';
     });
     check('every level is well formed', badLevel === null, badLevel || '');
 
@@ -160,10 +182,10 @@
         return total / inTier.length;
       };
       var one = meanFor(1);
-      var five = meanFor(5);
-      if (!(five > one) && !orderingProblem) {
+      var hardest = meanFor(tierMax);
+      if (!(hardest > one) && !orderingProblem) {
         orderingProblem = size + 'x' + size + ': tier 1 mean route ' + one.toFixed(1) +
-          ', tier 5 mean route ' + five.toFixed(1);
+          ', tier ' + tierMax + ' mean route ' + hardest.toFixed(1);
       }
     });
     check('harder tiers have longer routes', orderingProblem === null, orderingProblem || '');
@@ -308,6 +330,46 @@
     check('winding route reaches its far dot', Engine.isConnected(g, 1) === true);
     check('full board with every pair joined is solved', Engine.isSolved(g) === true,
       'filled ' + Engine.filledCount(g) + ' of 9');
+
+    // ------------------------------------------------- rules: applyRoute (hints)
+    g = Engine.createGame(solvable);
+    check('applyRoute lays down a known route',
+      Engine.applyRoute(g, 0, [[0, 0], [1, 0], [2, 0]]) === true &&
+      Engine.isConnected(g, 0) === true,
+      'path ' + JSON.stringify(g.paths[0]));
+    check('applyRoute is undoable', Engine.undo(g) === true && g.paths[0].length === 0);
+
+    // A hint must be able to overwrite whatever the player had drawn there.
+    // Colour 1 wanders onto (1,0), a cell colour 0's real route needs. It
+    // cannot be sent through (0,0) - that is colour 0's dot - so it goes the
+    // long way round.
+    g = Engine.createGame(solvable);
+    Engine.grab(g, 0, 2);
+    Engine.stepTo(g, 0, 1);
+    Engine.stepTo(g, 1, 1);
+    Engine.stepTo(g, 1, 0);
+    Engine.release(g);
+    check('colour 1 is sitting on a cell colour 0 needs', Engine.ownerAt(g, 1, 0) === 1,
+      'owner is ' + Engine.ownerAt(g, 1, 0));
+    check('applyRoute evicts the colour in the way',
+      Engine.applyRoute(g, 0, [[0, 0], [1, 0], [2, 0]]) === true &&
+      Engine.ownerAt(g, 1, 0) === 0);
+    check('the evicted colour keeps its own dots',
+      Engine.ownerAt(g, 0, 2) === 1 && Engine.ownerAt(g, 2, 1) === 1);
+    check('the evicted colour is trimmed, not erased', g.paths[1].length > 0,
+      'length ' + g.paths[1].length);
+
+    check('applyRoute refuses a route through another colour dot',
+      Engine.applyRoute(g, 0, [[0, 0], [0, 1], [0, 2]]) === false);
+
+    // Revealing every route in turn must solve the puzzle, which is what the
+    // "show solution" button relies on.
+    g = Engine.createGame(solvable);
+    Engine.applyRoute(g, 0, [[0, 0], [1, 0], [2, 0]]);
+    Engine.applyRoute(g, 1, [[0, 2], [0, 1], [1, 1], [1, 2], [2, 2], [2, 1]]);
+    check('revealing every route solves the puzzle', Engine.isSolved(g) === true);
+    check('a revealed route does not inflate the move count', g.moves === 0,
+      'moves ' + g.moves);
 
     // --------------------------------------------------------- restart clears
     Engine.restart(g);

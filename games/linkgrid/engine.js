@@ -330,6 +330,54 @@
     return filledCount(game) === game.size * game.size;
   }
 
+  /**
+   * Lay down a known-correct route for one colour, clearing whatever is in the
+   * way. This is how a hint reveals an answer: the route ends up on the board
+   * exactly as if the player had drawn it, so it counts towards completion and
+   * can be undone or redrawn afterwards.
+   *
+   * Returns false rather than corrupting the board if the route would need a
+   * cell that is another colour's dot - impossible for a genuine solution
+   * route, since routes are disjoint, but worth failing loudly on.
+   *
+   * Deliberately does not increment `moves`: the move count is a record of what
+   * the player did, and this is the engine doing it for them.
+   */
+  function applyRoute(game, color, route) {
+    if (!game.paths[color] || !route || route.length < 2) return false;
+    if (game.active) cancel(game);
+
+    var i;
+    for (i = 0; i < route.length; i++) {
+      var occupant = ownerAt(game, route[i][0], route[i][1]);
+      if (occupant !== EMPTY && occupant !== color &&
+          isEndpoint(game, occupant, route[i][0], route[i][1])) {
+        return false;
+      }
+    }
+
+    var before = snapshot(game);
+
+    // Evict the colours currently sitting on cells this route needs.
+    for (i = 0; i < route.length; i++) {
+      var r = route[i][0];
+      var c = route[i][1];
+      var other = ownerAt(game, r, c);
+      if (other === EMPTY || other === color) continue;
+      var at = indexInPath(game.paths[other], r, c);
+      if (at >= 0) truncatePath(game, other, at);
+    }
+
+    truncatePath(game, color, 0);
+    for (i = 0; i < route.length; i++) {
+      game.owner[route[i][0] * game.size + route[i][1]] = color;
+      game.paths[color].push([route[i][0], route[i][1]]);
+    }
+
+    game.history.push(before);
+    return true;
+  }
+
   /** Apply a full solution (used by tests). */
   function applySolution(game, solution) {
     restart(game);
@@ -362,6 +410,7 @@
     connectedCount: connectedCount,
     filledCount: filledCount,
     isSolved: isSolved,
+    applyRoute: applyRoute,
     applySolution: applySolution,
   };
 

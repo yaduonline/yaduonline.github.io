@@ -149,13 +149,15 @@ still not research.
 
 **Colour counts.** Chartrand et al. showed that the induced path partition number
 of a grid `P_m × P_n` is **2** — every square grid can be split into just two
-non-self-touching paths. My generator's floor is around `N − 3` colours on an
-`N × N` board, because the starting partition is one route per row and the
-transfer move cannot reduce the count; `mergeDown` recovers a few by joining
-routes that touch at exactly one pair of ends, and then runs dry. So the colour
-floor in `tools/generate.js` is an artifact of my move set, not a property of the
-space. A generator that could reach low `k` would produce much harder puzzles
-than anything I shipped. That is a real, known-in-the-literature limitation.
+non-self-touching paths. This was flagged here as a limitation of my move set
+rather than the space, and I later acted on it: the mergeDown shake was found
+to be actively fighting itself (its bend-rewarding weights suppress exactly the
+merges being searched for; a plain random walk finds them 5–15x more often —
+see GENERATION.md), and the colour search was widened accordingly. The measured
+gain is real — search-node ceilings rose 1.8x to 3.7x across board sizes — but
+`k=2` still succeeds essentially never at 10×10, so the theoretical floor
+remains unreached. The improvement came from searching a wider range, not from
+closing the gap to Chartrand's result.
 
 **Uniqueness checking.** I use exhaustive DFS. SAT with a cardinality encoding
 and a blocking clause is the standard, and near-certainly faster at 10×10 and

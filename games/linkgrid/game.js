@@ -12,6 +12,8 @@
   // the first time that board size is opened.
   var PACKS = globalThis.LINKGRID_PACKS || [];
   var STORAGE_KEY = 'linkgrid-progress-v2';
+  // Help available per attempt: five hints, or the whole answer.
+  var MAX_HINTS = 5;
 
   // Static hosting caches JS for four hours but HTML for ten minutes, so a
   // deploy that changes what game.js expects from the page can otherwise pair
@@ -59,6 +61,9 @@
     pointerId: null,
     drawQueued: false,
     boardRect: null,
+    hintsUsed: 0,
+    solutionShown: false,
+    helpBusy: false,
   };
 
   // -------------------------------------------------------------------------
@@ -127,6 +132,46 @@
     return loading[size];
   }
 
+  function addScript(src) {
+    return new Promise(function (resolve, reject) {
+      var tag = document.createElement('script');
+      tag.src = src + VERSION_QUERY;
+      tag.onload = resolve;
+      tag.onerror = function () { reject(new Error('could not load ' + src)); };
+      document.head.appendChild(tag);
+    });
+  }
+
+  var solutionLoads = {};
+  var solutionsLoaded = {};
+
+  /**
+   * Fetch the answers for one board size, plus the decoder for their compact
+   * format. Neither ships with the page: a player who never asks for help
+   * never downloads the spoilers.
+   */
+  function loadSolutions(size) {
+    if (solutionLoads[size]) return solutionLoads[size];
+    var needed = [];
+    if (!globalThis.LinkgridRoutes) needed.push(addScript('./tools/routes.js'));
+    if (!solutionsLoaded[size]) {
+      needed.push(addScript('./solutions/' + size + '.js').then(function () {
+        solutionsLoaded[size] = true;
+      }));
+    }
+    solutionLoads[size] = Promise.all(needed);
+    solutionLoads[size].catch(function () { delete solutionLoads[size]; });
+    return solutionLoads[size];
+  }
+
+  /** Decoded reference routes for the puzzle on screen, or null. */
+  function currentRoutes() {
+    var all = globalThis.LINKGRID_SOLUTIONS;
+    var encoded = all && all[state.levelId];
+    if (!encoded || !globalThis.LinkgridRoutes) return null;
+    return encoded.map(globalThis.LinkgridRoutes.decodeRoute);
+  }
+
   /** Position of a puzzle within its own difficulty tier, 1-based. */
   function indexInTier(size, level) {
     var within = levelsFor(size).filter(function (other) { return other.tier === level.tier; });
@@ -172,7 +217,7 @@
         : state.size + ' by ' + state.size;
     }
 
-    if (screen !== 'puzzle') hideOverlay();
+    if (screen !== 'puzzle') hideFinish();
 
     requestAnimationFrame(function () {
       var target = screen === 'puzzle'
@@ -277,9 +322,13 @@
     state.levelId = level.id;
     state.game = Engine.createGame(level);
     state.cursor = { r: level.endpoints[0].a[0], c: level.endpoints[0].a[1] };
-    hideOverlay();
+    // Loading a puzzle clears any help taken on it before.
+    state.hintsUsed = 0;
+    state.solutionShown = false;
+    hideFinish();
     setScreen('puzzle');
     layout();
+    updateHelpControls();
     updateStatus();
     draw();
   }
@@ -287,8 +336,12 @@
   function restartLevel() {
     if (!state.game) return;
     Engine.restart(state.game);
-    hideOverlay();
+    // A restart is a fresh attempt, so the hint allowance comes back with it.
+    state.hintsUsed = 0;
+    state.solutionShown = false;
+    hideFinish();
     announce('Board cleared.');
+    updateHelpControls();
     updateStatus();
     draw();
   }
@@ -296,7 +349,7 @@
   function undoMove() {
     if (!state.game) return;
     if (Engine.undo(state.game)) {
-      hideOverlay();
+      hideFinish();
       announce('Undid the last route.');
     } else {
       announce('Nothing to undo.');
@@ -338,30 +391,156 @@
     el.live.textContent = message;
   }
 
-  function finishMove(result) {
-    updateStatus();
-    draw();
-    if (result && result.solved) {
-      markSolved(state.size, state.levelId);
-      renderPacks();
-      renderLevels();
-      showOverlay();
-      announce('Solved in ' + state.game.moves + ' moves.');
+  /** Does this colour's drawn route already match the reference, either way round? */
+  function routeMatches(game, color, route) {
+    var path = game.paths[color];
+    if (!path || path.length !== route.length) return false;
+    var forward = true;
+    var backward = true;
+    for (var i = 0; i < route.length; i++) {
+      var j = route.length - 1 - i;
+      if (path[i][0] !== route[i][0] || path[i][1] !== route[i][1]) forward = false;
+      if (path[i][0] !== route[j][0] || path[i][1] !== route[j][1]) backward = false;
+    }
+    return forward || backward;
+  }
+
+  /**
+   * Which colour to give away. The shortest route that is not already correct:
+   * it spoils the least while still unblocking something.
+   */
+  function pickHintColor(game, routes) {
+    var best = -1;
+    for (var color = 0; color < routes.length; color++) {
+      if (routeMatches(game, color, routes[color])) continue;
+      if (best === -1 || routes[color].length < routes[best].length) best = color;
+    }
+    return best;
+  }
+
+  function setHelpBusy(busy) {
+    state.helpBusy = busy;
+    updateHelpControls();
+  }
+
+  function updateHelpControls() {
+    var left = MAX_HINTS - state.hintsUsed;
+    var noMore = state.solutionShown || left <= 0 || state.helpBusy;
+    el.btnHint.textContent = state.helpBusy ? 'Loading…'
+      : (left > 0 ? 'Hint (' + left + ')' : 'No hints left');
+    el.btnHint.disabled = noMore;
+    el.btnSolution.disabled = state.solutionShown || state.helpBusy;
+
+    if (state.hintsUsed > 0) {
+      el.hintTally.hidden = false;
+      el.hintTally.textContent = 'Hints ' + state.hintsUsed + ' / ' + MAX_HINTS;
+    } else {
+      el.hintTally.hidden = true;
     }
   }
 
-  function showOverlay() {
-    var upcoming = nextLevel(state.size, state.levelId);
-    el.btnNext.hidden = !upcoming;
-    el.overlayMoves.textContent = state.game.moves + (state.game.moves === 1 ? ' move' : ' moves');
-    el.overlay.hidden = false;
-    requestAnimationFrame(function () {
-      (upcoming ? el.btnNext : el.btnReplay).focus();
+  function useHint() {
+    var game = state.game;
+    if (!game || state.solutionShown || state.helpBusy) return;
+    if (state.hintsUsed >= MAX_HINTS) {
+      announce('No hints left for this puzzle. Restarting gives you five more.');
+      return;
+    }
+
+    setHelpBusy(true);
+    loadSolutions(state.size).then(function () {
+      var routes = currentRoutes();
+      if (!routes) throw new Error('no solution data for ' + state.levelId);
+      var color = pickHintColor(game, routes);
+      if (color === -1) {
+        announce('Every route is already correct.');
+        setHelpBusy(false);
+        return;
+      }
+      if (!Engine.applyRoute(game, color, routes[color])) {
+        announce('That hint could not be applied.');
+        setHelpBusy(false);
+        return;
+      }
+      state.hintsUsed++;
+      setHelpBusy(false);
+      announce('Hint ' + state.hintsUsed + ' of ' + MAX_HINTS +
+        ': filled in colour ' + (color + 1) + '.');
+      finishMove({ solved: Engine.isSolved(game) });
+    }).catch(function () {
+      setHelpBusy(false);
+      announce('Could not load the hint. Check your connection and try again.');
     });
   }
 
-  function hideOverlay() {
-    el.overlay.hidden = true;
+  function revealSolution() {
+    var game = state.game;
+    if (!game || state.solutionShown || state.helpBusy) return;
+
+    setHelpBusy(true);
+    loadSolutions(state.size).then(function () {
+      var routes = currentRoutes();
+      if (!routes) throw new Error('no solution data for ' + state.levelId);
+      Engine.restart(game);
+      for (var color = 0; color < routes.length; color++) {
+        Engine.applyRoute(game, color, routes[color]);
+      }
+      state.solutionShown = true;
+      setHelpBusy(false);
+      updateStatus();
+      draw();
+      showFinish(true);
+      announce('Full solution shown. This one is not counted as solved.');
+    }).catch(function () {
+      setHelpBusy(false);
+      announce('Could not load the solution. Check your connection and try again.');
+    });
+  }
+
+  function finishMove(result) {
+    updateStatus();
+    draw();
+    var solved = !!(result && result.solved);
+
+    if (solved && !state.solutionShown) {
+      markSolved(state.size, state.levelId);
+      renderPacks();
+      renderLevels();
+      showFinish(false);
+      announce('Solved. ' + describeSolve() + '.');
+    } else if (!solved) {
+      // The board stays editable after a win, so if they undo into an
+      // unsolved state the panel gets out of the way again.
+      hideFinish();
+    }
+  }
+
+  function describeSolve() {
+    var moves = state.game.moves + (state.game.moves === 1 ? ' move' : ' moves');
+    if (state.hintsUsed === 0) return moves + ', no hints';
+    return moves + ', with ' + state.hintsUsed +
+      (state.hintsUsed === 1 ? ' hint' : ' hints');
+  }
+
+  /**
+   * Show the end-of-puzzle panel. It sits below the board and never covers it,
+   * and deliberately does not steal focus: the puzzle is finished, but looking
+   * at the finished board is the point, and the player may still want to poke
+   * at it.
+   */
+  function showFinish(revealed) {
+    var upcoming = nextLevel(state.size, state.levelId);
+    el.btnNext.hidden = !upcoming;
+    el.finish.classList.toggle('revealed', !!revealed);
+    el.finishTitle.textContent = revealed ? 'Solution shown' : 'Solved';
+    el.finishDetail.textContent = revealed
+      ? 'Not counted as solved - play again to solve it yourself.'
+      : describeSolve();
+    el.finish.hidden = false;
+  }
+
+  function hideFinish() {
+    el.finish.hidden = true;
   }
 
   // -------------------------------------------------------------------------
@@ -514,7 +693,7 @@
 
   function onPointerDown(event) {
     var game = state.game;
-    if (!game || !el.overlay.hidden) return;
+    if (!game) return;
     var cell = cellFromEvent(event);
     if (!cell) return;
 
@@ -596,8 +775,6 @@
     var game = state.game;
     if (!game) return;
 
-    if (!el.overlay.hidden) return;
-
     if (event.key === 'Escape') {
       if (Engine.cancel(game)) announce('Cancelled.');
       state.cursorVisible = true;
@@ -666,8 +843,9 @@
     [
       'crumb', 'btnBack', 'puzzleActions', 'btnRestart', 'btnUndo',
       'screenPacks', 'screenLevels', 'screenPuzzle', 'packs', 'levels',
-      'board', 'statConnected', 'statFilled', 'live', 'overlay',
-      'overlayMoves', 'btnNext', 'btnReplay', 'btnLevels',
+      'board', 'statConnected', 'statFilled', 'live', 'finish',
+      'finishTitle', 'finishDetail', 'hintTally', 'btnHint', 'btnSolution',
+      'btnNext', 'btnReplay', 'btnLevels',
     ].forEach(function (name) {
       el[name] = document.getElementById(name);
     });
@@ -701,8 +879,9 @@
     });
     el.btnRestart.addEventListener('click', restartLevel);
     el.btnUndo.addEventListener('click', undoMove);
+    el.btnHint.addEventListener('click', useHint);
+    el.btnSolution.addEventListener('click', revealSolution);
     el.btnReplay.addEventListener('click', function () {
-      hideOverlay();
       restartLevel();
       el.board.focus();
     });
