@@ -50,6 +50,7 @@
     #puzzleActions { display: contents; }
 
     #app button {
+      touch-action: manipulation; /* no double-tap-zoom delay on the controls */
       font: inherit;
       font-weight: 600;
       color: var(--btn-ink);
@@ -59,7 +60,12 @@
       padding: 8px 13px;
       cursor: pointer;
     }
-    #app button:hover:not(:disabled) { background: #d8e5e0; }
+    /* Hover only where a pointer can actually hover. On iOS an unguarded
+       :hover rule makes the first tap apply the hover state instead of
+       activating the control, so buttons appear to need pressing twice. */
+    @media (hover: hover) and (pointer: fine) {
+      #app button:hover:not(:disabled) { background: #d8e5e0; }
+    }
     #app button:disabled { opacity: 0.45; cursor: default; }
     #app button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
@@ -245,8 +251,8 @@
   <div id="site-footer"></div>
 
   <script src="/inc/include.js"></script>
-  <script src="./engine.js?v=9"></script>
-  <script src="./puzzles/index.js?v=9"></script>
-  <script src="./game.js?v=9"></script>
+  <script src="./engine.js?v=10"></script>
+  <script src="./puzzles/index.js?v=10"></script>
+  <script src="./game.js?v=10"></script>
 </body>
 </html>
