@@ -15,9 +15,22 @@
 
   var TRACKS = [
     {
+      // The one track with no bends in it at all. `createTrack` derives its
+      // `steering` flag from that, and the game gives it the arcade control
+      // scheme: left and right change lane outright, no steering required.
+      id: 'sprint',
+      name: 'Airfield Sprint',
+      description: 'Dead straight. Left and right change lane outright — start here.',
+      scenery: 'meadow',
+      trafficDensity: 1.1,
+      sections: [
+        { length: 4600, curve: 0 },
+      ],
+    },
+    {
       id: 'coast',
       name: 'Coast Run',
-      description: 'Long straights, two easy sweepers. A good place to learn.',
+      description: 'Two easy sweepers. Hold a lean through them and you keep the speed.',
       scenery: 'coast',
       trafficDensity: 0.8,
       sections: [
@@ -31,7 +44,7 @@
     {
       id: 'ridge',
       name: 'Ridge Pass',
-      description: 'Alternating bends with short straights between them.',
+      description: 'Alternating bends with short straights to unwind in between.',
       scenery: 'forest',
       trafficDensity: 1,
       sections: [
@@ -66,7 +79,7 @@
     {
       id: 'desert',
       name: 'Desert Mile',
-      description: 'Wide open and fast, with two long committed curves.',
+      description: 'Wide open and fast, with two long curves that need holding.',
       scenery: 'desert',
       trafficDensity: 0.55,
       sections: [

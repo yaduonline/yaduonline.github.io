@@ -23,12 +23,32 @@
   var DRAG = 14;
   var OFFROAD_DRAG = 130;           // grass is slow
 
-  // How hard a bend throws a car sideways. Scaled by speed squared, which is
-  // what makes taking a corner flat-out actually cost you.
-  var CORNER_PUSH = 0.00028;
-  var GRIP = 3.4;                   // how quickly a car pulls back to its lane
+  var GRIP = 3.4;                   // how quickly a car snaps to a lane, on a straight
+
+  // Steering, used on tracks that bend. `heading` is the angle of a car's
+  // travel measured against the road's forward axis, so a car pointing exactly
+  // down the map has heading 0 whatever the road underneath it is doing.
+  //
+  // The consequence worth knowing: holding a line through a bend of curvature
+  // c means holding a heading of atan(c). The sharpest corner in the game is
+  // 0.45, so about 24 degrees, and MAX_HEADING leaves room to over-steer past
+  // that without letting anyone spin the car round.
+  var STEER_RATE = 1.6;             // rad/s while left or right is held
+  var STEER_RETURN = 0.5;           // rad/s the wheel unwinds when released
+  var MAX_HEADING = 0.6;            // rad, about 34 degrees
+  var AI_STEER_GAIN = 0.011;        // rad of correction per unit off the line
+  var AI_STEER_DAMP = 0.055;        // ...damped by how fast we are already crossing
 
   var COLLISION_BUMP = 0.55;        // speed kept by the car behind after a shunt
+  // Closing speed below which touching the car in front is a nudge rather than
+  // a shunt. Without this, sitting behind slower traffic is a limit cycle: you
+  // catch it, get thrown down to 55% of its speed, chase it back up, catch it
+  // again - and average out slower than the car you are stuck behind.
+  var NUDGE_SPEED = 32;
+
+  function clamp(value, low, high) {
+    return value < low ? low : value > high ? high : value;
+  }
 
   /** Lateral centre of a lane, in world units from the road centre line. */
   function laneCenter(lane) {
@@ -88,11 +108,17 @@
       return table[i0] * (1 - frac) + table[i0 + 1] * frac;
     }
 
+    // Derived, not declared: a track that never turns cannot need steering, and
+    // deriving it means the flag can never fall out of step with the sections.
+    var bends = false;
+    for (var b = 0; b < sections.length; b++) if (sections[b].curve) bends = true;
+
     return {
       id: spec.id,
       name: spec.name,
       description: spec.description || '',
       length: total,
+      steering: bends,
       trafficDensity: spec.trafficDensity === undefined ? 1 : spec.trafficDensity,
       scenery: spec.scenery || 'meadow',
       /** Lateral offset of the road's centre line at this point. */
@@ -114,6 +140,8 @@
       lane: options.lane,
       targetLane: options.lane,
       lateral: 0,                         // drift from the lane centre
+      heading: 0,                         // steering angle, on tracks that bend
+      steerInput: 0,                      // -1, 0 or 1, the player's hands
       y: options.y || 0,
       speed: options.speed || 0,
       topSpeed: options.topSpeed || MAX_SPEED,
@@ -249,16 +277,56 @@
       car.speed -= DRAG * dt;
     }
 
-    if (car.offRoad) car.speed -= OFFROAD_DRAG * dt;
+    // Grass costs you most of your speed but must not stop you dead: a car at a
+    // standstill has no way back onto the road, because steering only moves you
+    // if you are moving. Scaling with speed leaves a crawl to limp back on.
+    if (car.offRoad) car.speed -= OFFROAD_DRAG * (car.speed / car.topSpeed) * dt;
     car.speed = Math.max(0, Math.min(car.speed, car.topSpeed));
-    car.y += car.speed * dt;
 
-    // A bend throws the car towards the outside of the corner; the faster you
-    // are going, the more it costs. Steering back is what `GRIP` models.
+    if (state.track.steering) driveSteered(state, car, dt);
+    else driveOnRails(car, dt);
+
+    // Off the tarmac?
+    var edge = ROAD_WIDTH / 2 + SHOULDER;
+    var x = carX(car);
+    car.offRoad = Math.abs(x) > edge - car.width / 2;
+    if (Math.abs(x) > edge + LANE_WIDTH) {
+      // Never let a car leave the world entirely. Hitting the limit also
+      // scrubs off any steering still pointing that way, so a car cannot pin
+      // itself against the edge and sit there.
+      var side = Math.sign(x);
+      var clamped = side * (edge + LANE_WIDTH);
+      car.lateral += clamped - x;
+      if (Math.sign(car.heading) === side) car.heading = 0;
+    }
+  }
+
+  /**
+   * Movement on a track that bends: the car goes where it is pointed.
+   *
+   * In road space the centre line itself slides sideways as you travel, at
+   * `curve` units across per unit along. So the car's drift relative to the
+   * road is the difference between where it is pointing and where the road is
+   * going - which is why holding a line through a bend means holding a heading
+   * rather than holding a lane, and why letting go runs you off the outside.
+   */
+  function driveSteered(state, car, dt) {
+    // Forward progress costs the cosine of the steering angle: point the car
+    // across the road and you stop covering ground down it.
+    car.y += car.speed * Math.cos(car.heading) * dt;
     var curve = state.track.curveAt(car.y);
-    var push = -curve * car.speed * car.speed * CORNER_PUSH;
-    car.lateral += push * dt;
-    // Move towards the target lane, then let grip settle the residual drift.
+    car.lateral += car.speed *
+      (Math.sin(car.heading) - curve * Math.cos(car.heading)) * dt;
+    normaliseLane(car);
+  }
+
+  /**
+   * Movement on a dead straight track, where lane changes are the whole of the
+   * steering and are meant to feel instant. Kinematic rather than physical, so
+   * a car crawling out of a shunt can still pull over.
+   */
+  function driveOnRails(car, dt) {
+    car.y += car.speed * dt;
     if (car.targetLane !== car.lane) {
       var dir = car.targetLane > car.lane ? 1 : -1;
       car.lateral += dir * LANE_WIDTH * Math.min(1, GRIP * dt);
@@ -269,16 +337,61 @@
     } else {
       car.lateral -= car.lateral * Math.min(1, GRIP * dt);
     }
+  }
 
-    // Off the tarmac?
-    var edge = ROAD_WIDTH / 2 + SHOULDER;
-    var x = carX(car);
-    car.offRoad = Math.abs(x) > edge - car.width / 2;
-    if (Math.abs(x) > edge + LANE_WIDTH) {
-      // Never let a car leave the world entirely.
-      var clamped = Math.sign(x) * (edge + LANE_WIDTH);
-      car.lateral += clamped - x;
+  /**
+   * Keep `lane` as the lane the car is actually nearest to, carrying the
+   * remainder in `lateral`. Free steering would otherwise let `lateral` grow
+   * without bound, and every collision and AI check reads position through
+   * `carX`, which is `laneCenter(lane) + lateral`.
+   */
+  function normaliseLane(car) {
+    while (car.lateral > LANE_WIDTH / 2 && car.lane < LANES - 1) {
+      car.lane++;
+      car.lateral -= LANE_WIDTH;
     }
+    while (car.lateral < -LANE_WIDTH / 2 && car.lane > 0) {
+      car.lane--;
+      car.lateral += LANE_WIDTH;
+    }
+    car.targetLane = car.lane;
+  }
+
+  // -------------------------------------------------------------------------
+  // Steering
+  // -------------------------------------------------------------------------
+
+  /** The player's hands: -1 left, 0 straight, 1 right. */
+  function setSteer(state, input) {
+    state.player.steerInput = input < 0 ? -1 : input > 0 ? 1 : 0;
+  }
+
+  function steerPlayer(car, dt) {
+    if (car.steerInput) {
+      car.heading += car.steerInput * STEER_RATE * dt;
+    } else {
+      // The wheel returns to centre on its own, but slowly: a long bend still
+      // has to be held, and a tap still buys a lasting change of direction.
+      var back = STEER_RETURN * dt;
+      if (Math.abs(car.heading) <= back) car.heading = 0;
+      else car.heading -= Math.sign(car.heading) * back;
+    }
+    car.heading = clamp(car.heading, -MAX_HEADING, MAX_HEADING);
+  }
+
+  /**
+   * Everyone who is not the player. Aims at the centre of `targetLane`,
+   * damped by how fast the car is already crossing the road so it settles
+   * instead of weaving.
+   */
+  function autoSteer(state, car, dt) {
+    var curve = state.track.curveAt(car.y);
+    var error = laneCenter(car.targetLane) - carX(car);
+    var crossing = car.speed * (Math.sin(car.heading) - curve * Math.cos(car.heading));
+    var correction = clamp(error * AI_STEER_GAIN - crossing * AI_STEER_DAMP, -0.5, 0.5);
+    var desired = clamp(Math.atan(curve) + correction, -MAX_HEADING, MAX_HEADING);
+    var rate = STEER_RATE * 1.5 * dt;   // steadier hands than a thumb on glass
+    car.heading += clamp(desired - car.heading, -rate, rate);
   }
 
   // -------------------------------------------------------------------------
@@ -376,14 +489,23 @@
         var sameLine = lateralGap < (a.width + b.width) / 4;
 
         if (sameLine) {
-          // Rear-end: push apart along the road and slow the car behind.
+          // Rear-end: push apart along the road. You cannot drive through the
+          // car in front, so at the very least you inherit its speed.
           behind.y -= dy * 0.6;
           ahead.y += dy * 0.4;
-          if (behind.speed > ahead.speed) {
-            behind.speed = ahead.speed * COLLISION_BUMP;
-            behind.crashCooldown = Math.max(behind.crashCooldown, 0.35);
+          var closing = behind.speed - ahead.speed;
+          if (closing > 0) {
+            behind.speed = ahead.speed;
+            if (closing > NUDGE_SPEED) {
+              // A real shunt: bounced, and briefly unable to get back on the
+              // power. Anything gentler is just tucking in behind.
+              behind.speed = ahead.speed * COLLISION_BUMP;
+              behind.crashCooldown = Math.max(behind.crashCooldown, 0.35);
+              if (report) {
+                state.events.push({ type: 'crash', a: behind.id, b: ahead.id, severity: 'rear' });
+              }
+            }
           }
-          if (report) state.events.push({ type: 'crash', a: behind.id, b: ahead.id, severity: 'rear' });
         } else {
           // Side-swipe: shove them apart across the road.
           var dir = carX(a) < carX(b) ? -1 : 1;
@@ -442,6 +564,14 @@
       tc.throttle = tc.speed < tc.topSpeed ? 1 : 0;
     }
 
+    if (state.track.steering) {
+      for (var h = 0; h < state.cars.length; h++) {
+        var driver = state.cars[h];
+        if (driver === state.player) steerPlayer(driver, dt);
+        else autoSteer(state, driver, dt);
+      }
+    }
+
     for (var c = 0; c < state.cars.length; c++) driveCar(state, state.cars[c], dt);
 
     resolveCollisions(state);
@@ -472,6 +602,8 @@
   /** Ask the player's car to change lane. Refused if the lane is occupied. */
   function requestLane(state, dir) {
     var car = state.player;
+    // On a track that bends, the way across the road is to steer across it.
+    if (state.track.steering) return false;
     if (state.status !== 'racing' || car.finished) return false;
     if (car.lane !== car.targetLane) return false;
     var lane = car.targetLane + dir;
@@ -503,6 +635,13 @@
     step: step,
     drainEvents: drainEvents,
     requestLane: requestLane,
+    setSteer: setSteer,
+    steerPlayer: steerPlayer,
+    autoSteer: autoSteer,
+    normaliseLane: normaliseLane,
+    MAX_HEADING: MAX_HEADING,
+    STEER_RATE: STEER_RATE,
+    STEER_RETURN: STEER_RETURN,
   };
 
   global.RacingEngine = api;

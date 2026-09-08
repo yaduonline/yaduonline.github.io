@@ -25,13 +25,17 @@ road gets the whole viewport and the controls have to earn their strip of it.
 
 | Rule | Behaviour |
 | --- | --- |
+| Steering | On a track that bends, the road turns and the car does not. Left and right are the wheel, held for as long as you want the car turning; letting go unwinds it slowly. Failing to steer runs you off the outside of the corner. |
+| Lane changes | On a bending track there is no such thing: getting across the road is a steering manoeuvre and it takes time. That is fine. |
+| The straight track | Exactly one track has no bends. There, left and right change lane outright and the change should feel instant. |
 | Collisions | **Every** pair of cars collides, whatever kind they are. Player into rival, rival into player, either into traffic, rival into rival. |
 | Rear-end | The car behind is thrown down to a fraction of the car ahead's speed and cannot accelerate for a moment. |
 | Side-swipe | Both cars are shoved apart across the road and both lose speed. |
-| Lane changes | Refused if the target lane is occupied, off the road, or a change is already under way. |
+| Lane requests | On the straight track, refused if the target lane is occupied, off the road, or a change is already under way. |
+| Following | Catching a slower car gently means inheriting its speed, not losing a chunk of your own. Only a real impact is a crash. |
 | Opponent AI | Looks ahead over every car including the player, pulls out when there is a gap, and slows rather than ramming when boxed in. |
 | Cornering | A bend pushes a car towards the outside; the faster it is going the more it costs. Grip pulls it back. |
-| Off road | The verge is much slower than the tarmac, and no car can leave the world. |
+| Off road | The verge is much slower than the tarmac, but never brings a car to a standstill — steering only works while moving, so a stopped car off the road could never get back on. No car can leave the world. |
 | Frame clamp | A single step is capped, so a backgrounded tab cannot teleport cars through each other. |
 | Finishers clear off | A car that has crossed the line stops being an obstacle and rolls on. It must never park across a lane just past the finish. |
 | A way through | Traffic never seals all four lanes across one stretch of road. Dense enough to fill every lane is not a challenge, it is a wall. |
@@ -39,6 +43,9 @@ road gets the whole viewport and the controls have to earn their strip of it.
 ## Tracks
 
 - More than one track, each with a name and a one-line description.
+- Exactly one of them is dead straight, offered first, and is the place to start.
+- Whether a track needs steering follows from whether it bends. It is not a
+  separate switch that could disagree with the sections.
 - A track is a list of `{ length, curve }` sections. Curves are eased in and out
   so a bend arrives smoothly rather than as a kink.
 - Curve magnitude stays within about ±0.45: beyond that the road leaves the
@@ -61,6 +68,8 @@ road gets the whole viewport and the controls have to earn their strip of it.
   shows how far through the race the player is.
 - Touch devices get an on-screen control pad. Devices with a fine pointer get a
   line of keyboard hints instead, and no pad.
+- The hints and the pad's labels say which of the two control schemes is in play.
+- The player's car visibly points where it is steering.
 - Enough road is always visible ahead to react to what is coming, whatever the
   shape of the viewport.
 - The result is shown without hiding the finish: the player should be able to

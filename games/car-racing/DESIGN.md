@@ -45,6 +45,56 @@ Each section's curve is eased with `curve × sin(πt)` across the section, so a
 bend starts and ends at zero curvature. Without that, the road kinks at every
 section boundary.
 
+## Steering, and the two control schemes
+
+The road bends; the car does not follow it on its own. That is the game on four
+of the five tracks, and it needs one piece of geometry.
+
+A car has a `heading`: the angle of its travel measured against the map's
+forward axis, so a car pointing straight down the screen has heading 0 whatever
+the road under it is doing. In road space the centre line itself slides sideways
+as you travel, at `curve` units across per unit along, so the car's drift
+relative to the road is the difference between where it is pointing and where
+the road is going:
+
+```
+y       += speed · cos(heading) · dt
+lateral += speed · (sin(heading) − curve · cos(heading)) · dt
+```
+
+Setting that second line to zero gives the whole feel of the game:
+
+> **holding a line through a bend means holding a heading of `atan(curve)`.**
+
+The sharpest corner shipped is 0.45, so about 24°. `MAX_HEADING` is 0.6 rad
+(34°), which leaves room to over-steer past the sharpest corner without letting
+anyone spin the car. The first line is not decoration either: point the car
+across the road and the cosine takes your forward progress away, so over-steering
+costs lap time on its own.
+
+The numbers around it:
+
+| | | |
+| --- | --- | --- |
+| `STEER_RATE` | 1.6 rad/s | held. A quarter-second press is about 23° — one corner's worth. |
+| `STEER_RETURN` | 0.5 rad/s | released. Slow enough that a long bend still has to be held, fast enough that you are not fighting the car afterwards. |
+| `MAX_HEADING` | 0.6 rad | 34°, against 24° needed for the sharpest corner. |
+
+**Two schemes, one physics.** `createTrack` derives `steering` from whether any
+section curves — derived rather than declared, so the flag cannot fall out of
+step with the sections. On a steering track every car runs the heading model:
+the player's from input, everyone else's from `autoSteer`, a damped proportional
+controller aiming at the centre of its target lane. On the straight track there
+is nothing to point at, so cars run `driveOnRails` instead — the kinematic
+lane-snap, which is what makes a lane change on that track feel instant, and
+which works even for a car crawling out of a shunt. `requestLane` refuses
+outright on a track that bends.
+
+`normaliseLane` keeps `lane` as the lane a car is actually nearest to, carrying
+the remainder in `lateral`. Free steering would otherwise let `lateral` grow
+without bound, and every collision and AI check reads position through `carX`,
+which is `laneCenter(lane) + lateral`.
+
 ## Simulation
 
 ```
@@ -95,6 +145,21 @@ until the clock ran out.
 Collision resolution runs **two passes** per step. Separating one pair can push a
 car into a third, and with a single pass bunched traffic ends up visibly
 interpenetrating. Only the first pass reports events, so one shunt is one crash.
+
+### Nudging versus shunting
+
+A rear-end used to throw the car behind down to 55% of the speed of the car in
+front, always. Sitting behind slower traffic was then a limit cycle: catch it,
+get thrown down, chase it back up, catch it again — and average out *slower than
+the car you were stuck behind*. A test run took three minutes to cover a track
+that should take thirty-five seconds.
+
+So the response is graded by closing speed. Below `NUDGE_SPEED` you simply
+inherit the speed of the car in front — you cannot drive through it, but tucking
+in behind is not a crash and raises no event, so the screen does not shake for
+it. Above it, the old bounce and a brief cooldown off the power. Being held up
+now costs you exactly what it should: the speed of whatever is in your way,
+until you get past it.
 
 ### Classifying a collision
 
@@ -149,8 +214,9 @@ fixed, because the camera moves and a fixed margin behind the player runs out
 mid-screen, ending the road in mid air.
 
 Cars are drawn far to near so nearer ones overlap correctly, and each is rotated
-by `atan(curveAt × 0.55)` so it leans into a bend instead of sliding round it
-facing up the screen.
+by its actual `heading` — seeing your own car point across the road is the whole
+feedback loop for steering. On the straight track there is no heading to draw, so
+a car leans a token amount towards the lane it is moving to.
 
 ### The camera at the finish
 
@@ -210,8 +276,9 @@ the cascade and silently kills whichever one it duplicates.
 
 ## Persistence
 
-Best time per track in `localStorage['car-racing-best-v1']`, as an object keyed
-by track id. Nothing else is stored and nothing leaves the device.
+Best time per track in `localStorage['car-racing-best-v2']`, as an object keyed
+by track id. The key was bumped when steering landed: times set when the car
+followed the road on its own are not comparable to times set driving it. Nothing else is stored and nothing leaves the device.
 
 ## Cache busting
 

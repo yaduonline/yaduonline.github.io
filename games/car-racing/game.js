@@ -12,7 +12,7 @@
   var Vehicles = globalThis.RacingVehicles;
   var Tracks = globalThis.RacingTracks;
 
-  var STORAGE_KEY = 'car-racing-best-v1';
+  var STORAGE_KEY = 'car-racing-best-v2';
 
   // The camera looks a long way up the road; the player sits low on screen so
   // there is room to read the traffic ahead.
@@ -47,7 +47,7 @@
   var trafficSeq = 0;
   var shake = 0;
   var blink = 0;
-  var held = { accel: false, brake: false };
+  var held = { accel: false, brake: false, steer: 0 };
 
   // -------------------------------------------------------------------------
   // Persistence
@@ -221,8 +221,13 @@
       if (sy < -200 || sy > view.h + 200) continue;
       var sx = screenX(Engine.carX(car), car.y, view);
 
-      // Tilt into the bend: the road's slope at this point, plus any drift.
-      var heading = Math.atan(track.curveAt(car.y) * 0.55);
+      // On a bending track the car really has a heading, so draw it. Seeing
+      // your own car point across the road is the whole feedback loop for
+      // steering. On the straight track there is nothing to point at, so fall
+      // back to a token lean towards whichever lane the car is moving to.
+      var heading = track.steering
+        ? car.heading
+        : (car.targetLane - car.lane) * 0.12;
 
       Vehicles.drawVehicle(ctx, car.type, sx, sy, scale, {
         heading: heading,
@@ -391,6 +396,15 @@
     trafficSeq = 0;
     shake = 0;
     cameraFrac = PLAYER_SCREEN_FRAC;
+    held.steer = 0;
+    held.accel = false;
+    held.brake = false;
+
+    el.hints.textContent = track.steering
+      ? 'Arrows or WASD — hold left/right to steer through the bends, up accelerates, down brakes'
+      : 'Arrows or WASD — left/right change lane, up accelerates, down brakes';
+    el.btnLeft.setAttribute('aria-label', track.steering ? 'Steer left' : 'Move left');
+    el.btnRight.setAttribute('aria-label', track.steering ? 'Steer right' : 'Move right');
 
     el.trackName.textContent = spec.name;
     el.menu.hidden = true;
@@ -463,6 +477,7 @@
     if (race) {
       race.player.throttle = held.accel ? 1 : 0;
       race.player.braking = held.brake;
+      Engine.setSteer(race, held.steer);
       // Coasting still creeps forward, which keeps the game moving on touch.
       if (!held.accel && !held.brake && race.status === 'racing') {
         race.player.throttle = 0.35;
@@ -490,9 +505,21 @@
   // Input
   // -------------------------------------------------------------------------
 
-  function steer(dir) {
+  /**
+   * Left and right mean different things depending on the track.
+   *
+   * On the one dead straight track they are lane buttons: press, and the car
+   * moves over. On a track that bends they are the wheel, held for as long as
+   * you want the car turning, because following the road is the game there.
+   */
+  function steer(dir, down) {
     if (!race) return;
-    Engine.requestLane(race, dir);
+    if (track && track.steering) {
+      if (down) held.steer = dir;
+      else if (held.steer === dir) held.steer = 0;
+    } else if (down) {
+      Engine.requestLane(race, dir);
+    }
   }
 
   function bindHold(button, onDown, onUp) {
@@ -506,23 +533,11 @@
     });
   }
 
-  function bindTap(button, action) {
-    var fired = 0;
-    function fire(event) {
-      var now = Date.now();
-      if (now - fired < 250) return;
-      fired = now;
-      event.preventDefault();
-      action();
-    }
-    button.addEventListener('pointerdown', fire);
-  }
-
   function onKeyDown(event) {
     if (!race) return;
     var key = event.key;
-    if (key === 'ArrowLeft' || key === 'a') { event.preventDefault(); steer(-1); }
-    else if (key === 'ArrowRight' || key === 'd') { event.preventDefault(); steer(1); }
+    if (key === 'ArrowLeft' || key === 'a') { event.preventDefault(); steer(-1, true); }
+    else if (key === 'ArrowRight' || key === 'd') { event.preventDefault(); steer(1, true); }
     else if (key === 'ArrowUp' || key === 'w') { event.preventDefault(); held.accel = true; }
     else if (key === 'ArrowDown' || key === 's') { event.preventDefault(); held.brake = true; }
   }
@@ -531,6 +546,8 @@
     var key = event.key;
     if (key === 'ArrowUp' || key === 'w') held.accel = false;
     if (key === 'ArrowDown' || key === 's') held.brake = false;
+    if (key === 'ArrowLeft' || key === 'a') steer(-1, false);
+    if (key === 'ArrowRight' || key === 'd') steer(1, false);
   }
 
   // -------------------------------------------------------------------------
@@ -583,8 +600,14 @@
     ctx = el.canvas.getContext('2d');
     best = loadBest();
 
-    bindTap(el.btnLeft, function () { steer(-1); });
-    bindTap(el.btnRight, function () { steer(1); });
+    // Bound as holds, not taps: on a bending track the button is the wheel and
+    // has to stay down. On the straight track only the press is acted on.
+    bindHold(el.btnLeft,
+      function () { steer(-1, true); },
+      function () { steer(-1, false); });
+    bindHold(el.btnRight,
+      function () { steer(1, true); },
+      function () { steer(1, false); });
     bindHold(el.btnAccel,
       function () { held.accel = true; },
       function () { held.accel = false; });

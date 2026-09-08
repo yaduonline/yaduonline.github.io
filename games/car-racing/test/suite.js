@@ -207,6 +207,37 @@
       Math.abs(E.carX(left) - E.carX(right)) > gapBefore);
     check('a side-swipe costs both cars speed', left.speed < 120 && right.speed < 120);
 
+    // Catching slower traffic gently should not cost you a chunk of speed. It
+    // used to: you would be thrown down to 55% of its speed, chase it back up,
+    // catch it again, and average out slower than the car you were stuck behind.
+    s = soloRace();
+    var slow = E.addTraffic(s, { id: 'slow2', type: 'sedan', lane: 1, y: 120, speed: 80, length: 92, width: 54 });
+    s.player.lane = 1; s.player.targetLane = 1; s.player.y = 30; s.player.speed = 95;
+    E.resolveCollisions(s);
+    var nudgeEvents = E.drainEvents(s);
+    check('gently catching the car in front is not a crash',
+      nudgeEvents.length === 0, JSON.stringify(nudgeEvents));
+    check('you inherit its speed rather than losing yours',
+      Math.abs(s.player.speed - slow.speed) < 1e-9,
+      'player ' + s.player.speed + ' vs ' + slow.speed);
+
+    s = soloRace();
+    slow = E.addTraffic(s, { id: 'slow3', type: 'sedan', lane: 1, y: 120, speed: 80, length: 92, width: 54 });
+    s.player.lane = 1; s.player.targetLane = 1; s.player.y = 30; s.player.speed = 180;
+    E.resolveCollisions(s);
+    check('but running into it hard still is a crash',
+      E.drainEvents(s).some(function (e) { return e.severity === 'rear'; }));
+    check('and costs real speed', s.player.speed < slow.speed);
+
+    // Held up behind slower traffic, you should end up doing its speed, not less.
+    s = soloRace();
+    E.addTraffic(s, { id: 'block', type: 'suv', lane: 1, y: 400, speed: 73, length: 104, width: 60 });
+    s.player.lane = 1; s.player.targetLane = 1;
+    for (var q = 0; q < 60 * 40; q++) { s.player.throttle = 1; E.step(s, 1 / 60); E.drainEvents(s); }
+    var covered = s.player.y / 40;
+    check('being stuck behind traffic costs its speed, not more',
+      covered > 66, 'averaged ' + covered.toFixed(1) + ' against its 73');
+
     // The regression in full: drive the player at a stopped opponent and check
     // that it never ends up in front of it.
     s = soloRace();
@@ -287,11 +318,11 @@
 
     s = soloRace(RIGHT);
     s.player.y = 1900; s.player.speed = 180; s.player.throttle = 1;
-    var driftBefore = s.player.lateral;
+    var driftBefore = E.carX(s.player);
     simulate(s, 1);
-    check('a bend pushes the car to the outside of the corner',
-      s.player.lateral < driftBefore,
-      'drift ' + s.player.lateral.toFixed(2));
+    check('a bend pushes an unsteered car to the outside of the corner',
+      E.carX(s.player) < driftBefore - 20,
+      'drift ' + (E.carX(s.player) - driftBefore).toFixed(2));
 
     s = soloRace();
     s.player.lateral = 5000;                     // teleported off the world
@@ -374,6 +405,179 @@
     check('the player is not the fastest car on paper by much',
       s.racers.every(function (r) { return r.topSpeed <= s.player.topSpeed; }));
 
+    // -------------------------------------------------------------- steering
+
+    check('a track with no bends needs no steering', !STRAIGHT.steering);
+    check('a track with a bend needs steering', RIGHT.steering);
+    check('exactly one shipped track is dead straight',
+      T.TRACKS.filter(function (spec) {
+        return !spec.sections.some(function (sec) { return sec.curve; });
+      }).length === 1);
+    check('the straight track is offered first', !T.TRACKS[0].sections.some(
+      function (sec) { return sec.curve; }));
+
+    // Holding a heading of atan(curve) is what keeps a car on its line.
+    s = soloRace(RIGHT);
+    s.player.y = 1900; s.player.speed = 150; s.player.throttle = 0;
+    var holdX = E.carX(s.player);
+    for (var st = 0; st < 60; st++) {
+      s.player.heading = Math.atan(RIGHT.curveAt(s.player.y));
+      E.step(s, 1 / 60);
+    }
+    check('holding the right heading holds the line through a bend',
+      Math.abs(E.carX(s.player) - holdX) < 12,
+      'moved ' + (E.carX(s.player) - holdX).toFixed(1));
+
+    // Steering input.
+    s = soloRace(RIGHT);
+    s.player.speed = 150;
+    E.setSteer(s, 1);
+    simulate(s, 0.25);
+    check('holding right turns the car right', s.player.heading > 0.2,
+      'heading ' + s.player.heading.toFixed(3));
+    var turned = s.player.heading;
+    simulate(s, 3);
+    check('the steering angle is capped', s.player.heading <= E.MAX_HEADING + 1e-9,
+      'heading ' + s.player.heading);
+    check('a capped car is still steering hard', s.player.heading > 0.5);
+
+    var beforeRelease = s.player.heading;
+    E.setSteer(s, 0);
+    simulate(s, 0.4);
+    check('letting go unwinds the wheel', s.player.heading < beforeRelease - 0.1,
+      'heading ' + s.player.heading.toFixed(3) + ' from ' + beforeRelease.toFixed(3));
+    check('but not instantly - a long bend still has to be held',
+      s.player.heading > 0.1, 'heading ' + s.player.heading.toFixed(3));
+    simulate(s, 4);
+    check('the wheel comes back to centre eventually',
+      Math.abs(s.player.heading) < 1e-9, 'heading ' + s.player.heading);
+
+    s = soloRace(RIGHT);
+    s.player.speed = 150;
+    E.setSteer(s, -1);
+    simulate(s, 0.25);
+    check('holding left turns the car left', s.player.heading < -0.2);
+
+    // Steering moves the car across the road, and costs forward progress.
+    s = soloRace(RIGHT);
+    s.player.y = 100; s.player.speed = 150; s.player.throttle = 0;
+    var acrossBefore = E.carX(s.player);
+    E.setSteer(s, 1);
+    simulate(s, 1.2);
+    check('steering actually moves the car across the road',
+      E.carX(s.player) > acrossBefore + 40,
+      'moved ' + (E.carX(s.player) - acrossBefore).toFixed(1));
+    check('the lane follows the car across the road', s.player.lane > 1,
+      'lane ' + s.player.lane);
+    check('lane and lateral stay consistent with the position',
+      Math.abs(E.carX(s.player) - (E.laneCenter(s.player.lane) + s.player.lateral)) < 1e-9);
+
+    var straightRun = soloRace();
+    straightRun.player.speed = 150; straightRun.player.throttle = 0;
+    var cornerRun = soloRace(RIGHT);
+    cornerRun.player.speed = 150; cornerRun.player.throttle = 0;
+    cornerRun.player.y = 100;
+    E.setSteer(cornerRun, 1);
+    simulate(straightRun, 1);
+    simulate(cornerRun, 1);
+    check('cornering costs forward progress',
+      cornerRun.player.y - 100 < straightRun.player.y,
+      cornerRun.player.y.toFixed(1) + ' vs ' + straightRun.player.y.toFixed(1));
+
+    // Control scheme by track.
+    s = soloRace(RIGHT);
+    s.player.speed = 150;
+    check('lane changes are refused on a track that bends', !E.requestLane(s, 1));
+    s = soloRace();
+    check('lane changes still work on the straight track', E.requestLane(s, 1));
+
+    s = soloRace();
+    s.player.speed = 0;
+    check('a stopped car can still pull over on the straight track',
+      E.requestLane(s, 1));
+    simulate(s, 1);
+    check('and it gets there', s.player.lane === 2, 'lane ' + s.player.lane);
+
+    // Off the road you must still be able to get back on.
+    s = soloRace(RIGHT);
+    s.player.lane = 0; s.player.targetLane = 0;
+    s.player.lateral = -E.LANE_WIDTH;
+    s.player.speed = 150; s.player.throttle = 1;
+    simulate(s, 6);
+    check('the grass is slow but never brings a car to a stop',
+      s.player.offRoad ? s.player.speed > 20 : true,
+      'speed ' + s.player.speed.toFixed(1));
+    // Steer back the way a player would: aim for the line, then settle on it.
+    for (var rec = 0; rec < 60 * 8; rec++) {
+      var aim = Math.atan(RIGHT.curveAt(s.player.y)) - E.carX(s.player) * 0.004;
+      var off = aim - s.player.heading;
+      E.setSteer(s, Math.abs(off) < 0.02 ? 0 : (off > 0 ? 1 : -1));
+      E.step(s, 1 / 60);
+    }
+    check('a car that ran wide can steer back onto the road', !s.player.offRoad,
+      'x ' + E.carX(s.player).toFixed(1) + ', speed ' + s.player.speed.toFixed(1));
+    check('and recovers its speed once back on the tarmac', s.player.speed > 140,
+      'speed ' + s.player.speed.toFixed(1));
+
+    // The opponents have to drive the bends too.
+    s = E.createRace({ track: RIGHT, racers: [] });
+    s.status = 'racing'; s.countdown = 0;
+    var bot = car({ id: 'bot', kind: 'racer', lane: 2, y: 0, speed: 150 });
+    bot.skill = 0.9; bot.topSpeed = 170;
+    s.cars.push(bot); s.racers.push(bot);
+    s.player.lane = 0; s.player.targetLane = 0; s.player.y = -3000;
+    var botLane = E.laneCenter(2);
+    simulate(s, 12);
+    check('an opponent steers to stay in its lane through a bend',
+      Math.abs(E.carX(bot) - botLane) < 30 && !bot.offRoad,
+      'off line by ' + (E.carX(bot) - botLane).toFixed(1));
+    check('an opponent keeps its speed up through a bend', bot.speed > 140,
+      'speed ' + bot.speed.toFixed(1));
+
+    // A whole curving race, driven by a controller that only uses the same
+    // input the player has.
+    var curved = T.TRACKS.filter(function (spec) {
+      return spec.sections.some(function (sec) { return sec.curve; });
+    });
+    curved.forEach(function (spec) {
+      var built = E.createTrack(spec);
+      var run = E.createRace({ track: built, racers: [] });
+      run.status = 'racing'; run.countdown = 0;
+      var offRoadTicks = 0;
+      var ticks = 0;
+      for (var i = 0; i < 60 * 400 && run.status !== 'finished'; i++) {
+        run.player.throttle = 1;
+        // Steer towards the heading that holds the lane, one notch at a time -
+        // no more authority than a thumb on the left or right button.
+        var want = Math.atan(built.curveAt(run.player.y)) -
+          E.carX(run.player) * 0.004;
+        var diff = want - run.player.heading;
+        E.setSteer(run, Math.abs(diff) < 0.02 ? 0 : (diff > 0 ? 1 : -1));
+        E.step(run, 1 / 60);
+        E.drainEvents(run);
+        if (run.player.offRoad) offRoadTicks++;
+        ticks++;
+      }
+      check(spec.name + ' can be driven to the finish with left and right alone',
+        run.status === 'finished',
+        'still ' + run.status + ' after ' + (ticks / 60).toFixed(0) + 's');
+      check(spec.name + ' can be driven without living on the grass',
+        offRoadTicks / Math.max(1, ticks) < 0.1,
+        (100 * offRoadTicks / Math.max(1, ticks)).toFixed(0) + '% off road');
+    });
+
+    // ...and that steering is genuinely required: not touching it runs you off.
+    var lazy = E.createRace({ track: E.createTrack(T.TRACKS[2]), racers: [] });
+    lazy.status = 'racing'; lazy.countdown = 0;
+    var lazyOff = 0;
+    for (var z = 0; z < 60 * 40; z++) {
+      lazy.player.throttle = 1;
+      E.step(lazy, 1 / 60);
+      if (lazy.player.offRoad) lazyOff++;
+    }
+    check('never touching the wheel on a bending track runs you off the road',
+      lazyOff > 60, 'off road for ' + (lazyOff / 60).toFixed(1) + 's');
+
     // --------------------------------------------------------------- artwork
 
     var vehicleIds = Object.keys(V.VEHICLES);
@@ -412,13 +616,15 @@
 
     // ------------------------------------------------------ a whole race run
 
-    s = E.createRace({ track: E.createTrack(T.TRACKS[1]) });
-    var crashed = 0;
+    var straightSpec = T.TRACKS.filter(function (spec) {
+      return !spec.sections.some(function (sec) { return sec.curve; });
+    })[0];
+    s = E.createRace({ track: E.createTrack(straightSpec) });
     var laps = 0;
     for (var k = 0; k < 60 * 200 && s.status !== 'finished'; k++) {
       s.player.throttle = 1;
       E.step(s, 1 / 60);
-      E.drainEvents(s).forEach(function (e) { if (e.type === 'crash') crashed++; });
+      E.drainEvents(s);
       laps++;
     }
     check('a full race finishes in a sensible time', s.status === 'finished',
