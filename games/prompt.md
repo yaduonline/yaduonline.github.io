@@ -21,7 +21,9 @@ This `games/` folder contains simple, self-contained HTML games that can be play
 - **No Authentication**: No login, user accounts, or session management.
 - **No Advertisements**: Clean, ad-free gaming experience.
 - **Offline Playable**: Copy the `games/` folder to any computer and open game files directly in a browser to play.
-- **Responsive and Mobile-Friendly**: Games should work seamlessly on desktop and mobile devices, adapting layout and controls appropriately.
+- **Full Screen by Default**: Every game hides the site header and footer (`#site-header, #site-footer { display: none !important; }`) and gives the viewport to the game. None of them offers an expand/collapse toggle — full screen is the state, not a mode.
+- **A Way Back**: Because the site nav is hidden, every game carries its own link to `/games/` — an `←` in whatever bar the game already has, reachable at every point in play, not just from a menu. Keep it distinct from any in-game "back" that goes up one level within the game.
+- **Responsive and Mobile-Friendly**: Games should work seamlessly on desktop and mobile devices, adapting layout and controls appropriately. A bar that fits on a desktop will not fit on a phone: drop the controls that exist for developing the game rather than playing it.
 - **Controls**: Support keyboard (arrow keys, space, etc.), mouse clicks, and touch gestures for full cross-device playability.
 - **Accessibility**: Basic keyboard and screen reader support where feasible.
 - **Performance**: Lightweight code with minimal resource usage.

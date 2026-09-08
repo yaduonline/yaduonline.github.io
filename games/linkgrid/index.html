@@ -76,9 +76,31 @@
       --board-cursor: #7fb3a4; --board-shadow: rgba(0, 0, 0, 0.45);
     }
 
+    .title-row { display: flex; align-items: center; gap: 6px; }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      flex: none;
+      border-radius: 8px;
+      font-size: 17px;
+      text-decoration: none;
+      color: var(--muted);
+    }
+
+    .back-link:hover { background: var(--btn); color: var(--ink); }
+
     #app * { box-sizing: border-box; }
     /* `hidden` must beat the display rules below, which are more specific. */
     #app [hidden] { display: none !important; }
+
+    /* Full screen by default, like the other games. The link in the bar keeps a
+       way back to the list; the Back button beside it goes up one level inside
+       the game, which is a different destination. */
+    #site-header, #site-footer { display: none !important; }
 
     #app {
       width: min(920px, calc(100vw - 20px));
@@ -246,9 +268,14 @@
 
   <main id="app">
     <div class="bar">
-      <div>
-        <h2>Linkgrid</h2>
-        <p id="crumb">Choose a board size</p>
+      <div class="title-row">
+        <a class="back-link" href="/games/" title="Back to games" aria-label="Back to games">
+          <span aria-hidden="true">←</span>
+        </a>
+        <div>
+          <h2>Linkgrid</h2>
+          <p id="crumb">Choose a board size</p>
+        </div>
       </div>
       <div class="actions">
         <button id="btnBack" type="button" hidden>Back</button>
@@ -308,8 +335,8 @@
   <div id="site-footer"></div>
 
   <script src="/inc/include.js?v=2"></script>
-  <script src="./engine.js?v=12"></script>
-  <script src="./puzzles/index.js?v=12"></script>
-  <script src="./game.js?v=12"></script>
+  <script src="./engine.js?v=13"></script>
+  <script src="./puzzles/index.js?v=13"></script>
+  <script src="./game.js?v=13"></script>
 </body>
 </html>

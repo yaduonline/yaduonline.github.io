@@ -104,6 +104,23 @@
     }
     #hud[hidden] { display: none; }
 
+    /* A way out mid-race. Without it the only exit was to finish, then take
+       Change track, then Games. */
+    .hud-back {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      flex: none;
+      margin-right: -4px;
+      border-radius: 7px;
+      font-size: 16px;
+      text-decoration: none;
+      color: var(--ink-dim);
+    }
+    .hud-back:hover { background: var(--btn); color: var(--ink); }
+
     .readout { display: flex; flex-direction: column; line-height: 1.15; }
     .readout-label {
       font-size: 9px; letter-spacing: 0.11em; text-transform: uppercase;
@@ -295,6 +312,9 @@
 
   <div id="app">
     <div id="hud" hidden>
+      <a class="hud-back" href="/games/" title="Back to games" aria-label="Back to games">
+        <span aria-hidden="true">←</span>
+      </a>
       <div class="readout">
         <span class="readout-label">Speed</span>
         <span class="readout-value"><span id="speed">0</span> <span class="unit">km/h</span></span>
@@ -349,9 +369,9 @@
   <div id="site-footer"></div>
 
   <script src="/inc/include.js?v=2"></script>
-  <script src="./engine.js?v=19"></script>
-  <script src="./vehicles.js?v=19"></script>
-  <script src="./tracks.js?v=19"></script>
-  <script src="./game.js?v=19"></script>
+  <script src="./engine.js?v=20"></script>
+  <script src="./vehicles.js?v=20"></script>
+  <script src="./tracks.js?v=20"></script>
+  <script src="./game.js?v=20"></script>
 </body>
 </html>

@@ -33,7 +33,29 @@
             --empty: #2b2723;
         }
 
+        /* Full screen by default, like the other games. The link in the top bar
+           keeps a way back to the list. */
+        #site-header, #site-footer { display: none !important; }
+
         body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; background: var(--page); color: var(--page-ink); }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            margin-right: 10px;
+            border-radius: 6px;
+            font-size: 17px;
+            text-decoration: none;
+            color: var(--page-ink);
+            opacity: 0.75;
+        }
+
+        .back-link:hover { opacity: 1; background: rgba(128, 128, 128, 0.16); }
+
+        .title-row { display: flex; align-items: center; }
         main { max-width: 480px; margin: 12px auto; padding: 10px; }
         .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
         .topbar h2 { margin: 0; font-size: 1.2rem; }
@@ -67,7 +89,12 @@
     <div id="site-header"></div>
     <main>
         <div class="topbar">
-            <h2>2048</h2>
+            <div class="title-row">
+                <a class="back-link" href="/games/" title="Back to games" aria-label="Back to games">
+                    <span aria-hidden="true">←</span>
+                </a>
+                <h2>2048</h2>
+            </div>
             <div class="scores">
                 <div class="score-box">Score<br><span id="score">0</span></div>
                 <div class="score-box">Best<br><span id="best">0</span></div>

@@ -454,9 +454,9 @@
   }
 
   /**
-   * Put the game panel at the top of the viewport. The shared site header and
-   * nav are tall on a phone, and every screen here is the game, so the nav does
-   * not need to hold the top of the screen once play starts.
+   * Put the game panel at the top of the viewport. The site chrome is hidden
+   * here now, so this mostly guards against a scroll position left over from a
+   * taller screen, or one the browser restores on Back.
    */
   function scrollToApp() {
     if (!el.app) return;

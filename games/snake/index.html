@@ -17,17 +17,13 @@
             overflow: hidden;
         }
 
-        body.fullscreen #site-header,
-        body.fullscreen #site-footer {
-            display: none;
-        }
-
-        body.fullscreen #game-view {
-            height: 100vh;
-        }
+        /* Full screen is the default now rather than a button, matching the
+           other games. The link in the meta bar keeps a way back to the list. */
+        #site-header, #site-footer { display: none !important; }
 
         #game-view {
             flex: 1;
+            height: 100dvh;
             display: flex;
             flex-direction: column;
             align-items: stretch;
@@ -45,6 +41,21 @@
             gap: 4px;
             user-select: none;
         }
+
+        #back-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            margin-right: 4px;
+            border-radius: 6px;
+            font-size: 16px;
+            text-decoration: none;
+            color: #c8d3dd;
+        }
+
+        #back-link:hover { background: rgba(255, 255, 255, 0.12); }
 
         .meta-item {
             display: flex;
@@ -115,23 +126,6 @@
             display: block;
         }
 
-        /* ── Expand button ── */
-        #expand-btn {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            background: rgba(49,66,82,0.85);
-            color: #d8e0e8;
-            border: 1px solid #4a5e6e;
-            border-radius: 5px;
-            padding: 4px 8px;
-            font-size: 16px;
-            cursor: pointer;
-            z-index: 10;
-        }
-
-        #expand-btn:hover { background: rgba(74,94,110,0.9); }
-
         /* ── Dark mode overrides ── */
         body.dark { background: #1a1e28; }
         body.dark #meta-bar { background: #27364f; }
@@ -143,8 +137,6 @@
         body.dark #sound-btn:hover,
         body.dark #restart-btn:hover { background: #3d5478; }
         body.dark #game-canvas-wrap { background: #141820; }
-        body.dark #expand-btn { background: rgba(39,54,79,0.85); color: #c8d0e0; border-color: #3d5478; }
-        body.dark #expand-btn:hover { background: rgba(61,84,120,0.9); }
     </style>
 </head>
 <body>
@@ -157,6 +149,9 @@
 
     <div id="game-view">
         <div id="meta-bar">
+            <a id="back-link" href="/games/" title="Back to games" aria-label="Back to games">
+                <span aria-hidden="true">←</span>
+            </a>
             <div class="meta-item">
                 <span class="meta-label">Score</span>
                 <span class="meta-value" id="score-display">0</span>
@@ -177,7 +172,6 @@
         </div>
         <div id="game-canvas-wrap">
             <canvas id="game-canvas"></canvas>
-            <button id="expand-btn" title="Toggle fullscreen">⛶</button>
         </div>
     </div>
 
@@ -214,7 +208,7 @@
             FOOD:    '#bf5a3a',           // earthy terracotta
             CHERRY:  '#9e3a58',           // muted rose
             GOLDEN:  '#a87020',           // warm amber
-            OVERLAY: 'rgba(50,40,30,0.65)',
+            OVERLAY: 'rgba(238,234,225,0.80)',   // light wash; the text over it is dark
             TEXT:    '#3a3530',           // warm near-black
             LABEL:   '#8a7a68',           // warm mid-brown
             DANGER:  '#bf4040',           // soft red
@@ -1066,10 +1060,6 @@
         resetGame();
     });
 
-    document.getElementById('expand-btn').addEventListener('click', () => {
-        document.body.classList.toggle('fullscreen');
-        setTimeout(resizeCanvas, 50);
-    });
 
     // ─────────────────────────────────────────────
     //  INIT

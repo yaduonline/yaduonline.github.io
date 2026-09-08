@@ -64,6 +64,10 @@
     }
 
     /* ── Reset & Layout ───────────────────────────────────────────────── */
+    /* Full screen by default, like the other games. The link in the HUD keeps a
+       way back to the list. */
+    #site-header, #site-footer { display: none !important; }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; overflow: hidden; }
     body { background: var(--lf-bg); color: var(--lf-ink); font-family: system-ui, sans-serif; }
@@ -87,6 +91,13 @@
       font-size: 13px;
       user-select: none;
     }
+    #back-link {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; margin-right: 4px; border-radius: 6px;
+      font-size: 16px; text-decoration: none; color: var(--lf-ink);
+    }
+    #back-link:hover { background: var(--lf-btn); }
+
     .hud-item { display: flex; flex-direction: column; align-items: center; }
     .hud-label { font-size: 10px; color: var(--lf-ink-dim); text-transform: uppercase; letter-spacing: .05em; }
     .hud-value { font-size: 15px; font-weight: 600; color: var(--lf-ink); min-width: 36px; text-align: center; }
@@ -97,6 +108,20 @@
     }
     .hud-btn:hover { background: var(--lf-btn-hover); }
     .hud-btn:disabled { opacity: .55; cursor: default; }
+
+    /* The bar was already at the edge of fitting on a phone; the back link took
+       the last of the room and pushed Export Log off. */
+    /* The bar was already at the edge of fitting on a phone; the back link took
+       the last of the room. The debug controls and the tick counter are for
+       working on the game, not playing it, so they are the ones to go. */
+    @media (max-width: 480px) {
+      #hud { gap: 8px; padding: 0 8px; }
+      .hud-item { padding: 0; }
+      #hud-buttons { gap: 6px; }
+      .hud-btn { padding: 4px 7px; font-size: 11px; }
+      #back-link { margin-right: 0; width: 24px; }
+      #btn-debug, #btn-export-log, #hud-tick-item { display: none; }
+    }
 
     /* ── Canvas area ──────────────────────────────────────────────────── */
     #canvas-wrap {
@@ -143,6 +168,9 @@
 
   <div id="game-wrap">
     <div id="hud">
+      <a id="back-link" href="/games/" title="Back to games" aria-label="Back to games">
+        <span aria-hidden="true">←</span>
+      </a>
       <div class="hud-item">
         <span class="hud-label">Territory</span>
         <span class="hud-value" id="hud-territory">0%</span>
@@ -151,7 +179,7 @@
         <span class="hud-label">Players</span>
         <span class="hud-value" id="hud-players">4/4</span>
       </div>
-      <div class="hud-item">
+      <div class="hud-item" id="hud-tick-item">
         <span class="hud-label">Tick</span>
         <span class="hud-value" id="hud-tick">0</span>
       </div>
@@ -161,7 +189,6 @@
         <button class="hud-btn" id="btn-stop">Pause</button>
         <button class="hud-btn" id="btn-difficulty">Diff: Normal</button>
         <button class="hud-btn" id="btn-restart">Restart</button>
-        <button class="hud-btn" id="btn-expand">&#x26f6;</button>
       </div>
     </div>
 
@@ -1731,17 +1758,6 @@
     } else {
       startGame();
     }
-  });
-  document.getElementById('btn-expand').addEventListener('click', () => {
-    const hdr = document.getElementById('site-header');
-    const ftr = document.getElementById('site-footer');
-    const btn = document.getElementById('btn-expand');
-    const hidden = hdr.style.display === 'none';
-    hdr.style.display = hidden ? '' : 'none';
-    ftr.style.display = hidden ? '' : 'none';
-    btn.textContent   = hidden ? '\u26f6' : '\u2715';
-    resizeCamera();
-    if (G && G.phase === 'running') render();
   });
 
   window.addEventListener('resize', () => {
