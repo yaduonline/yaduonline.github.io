@@ -257,6 +257,42 @@ by its actual `heading` — seeing your own car point across the road is the who
 feedback loop for steering. On the straight track there is no heading to draw, so
 a car leans a token amount towards the lane it is moving to.
 
+### Roadside scenery
+
+Scenery here is not decoration, it is the speed. A pseudo-top-down view has no
+perspective and no horizon, so the only thing telling you that you are moving is
+objects crossing the frame. Lane dashes and traffic give you some of that, but on
+an empty straight they give almost nothing — and the verge used to be a flat fill
+with a four-pixel post every 120 units in a colour barely distinct from the
+ground, so the game read as stationary at 570 units a second.
+
+Three layers, in rising order of contrast:
+
+1. **Ground bands** — transverse stripes, drawn as sheared quads spanning the
+   full width with the road ribbon painted over them. Cheap, and unlike the props
+   they are continuous, so there is never a stretch with nothing going past.
+2. **Props** — trees, rocks, buildings, cacti, lamp posts, scattered across the
+   verge. Placement is a hash of the slot index rather than `Math.random`, so a
+   tree stays where it is instead of flickering into a different one each frame.
+3. **Edge markers** — red-and-white posts right against the tarmac. The
+   strongest of the three: they are where the eye already is, evenly spaced so
+   the *rate* is readable, and white against every ground colour.
+
+Two things about props are viewport-dependent, and both matter. They are only
+scattered as far out as the screen actually reaches — seeding them into world
+space that is never drawn just thins out the verge you can see. And the number
+per slot follows the width of the visible verge, because one per side fills a
+phone's narrow strip but leaves a desktop window looking empty. Each prop gets
+its own band across the verge so they do not clump, and the band nearest the road
+is biased towards it, since what passes closest to the eye is what sells the
+speed.
+
+Each scenery names a ground colour, a band colour, a marker pair and a weighted
+prop table, so a track's environment is data. The prop drawings themselves are
+shared: a tree is a tree whether it is a coast palm or a ridge conifer, and every
+one carries a drop shadow — against a flat fill, the shadow is most of what makes
+a shape read as an object rather than a stain.
+
 ### The camera at the finish
 
 The result panel is anchored to the bottom of the stage, which while racing is

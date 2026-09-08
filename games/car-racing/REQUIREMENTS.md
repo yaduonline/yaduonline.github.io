@@ -84,6 +84,11 @@ road gets the whole viewport and the controls have to earn their strip of it.
 - The player's car visibly points where it is steering.
 - Enough road is always visible ahead to react to what is coming, whatever the
   shape of the viewport.
+- **The game must read as moving even on an empty straight.** There is no
+  perspective in a top-down view, so the only cue that you are moving at all is
+  things crossing the frame. Lane dashes and traffic cannot carry that alone —
+  the ground beside the road has to be visibly going past, at every viewport
+  width, on every track.
 - The result is shown without hiding the finish: the player should be able to
   see where they crossed the line.
 - Best time per track is remembered locally.
