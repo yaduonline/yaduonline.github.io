@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tahoe 2024 - Photos</title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=2">
+    <script>/* Apply the saved theme before first paint, so a dark-theme visitor never gets a flash of white. "system" stores nothing and lets the CSS media query decide. */(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
 </head>
 <body>
     <div id="site-header"></div>
@@ -18,7 +19,7 @@
     </main>
 
     <div id="site-footer"></div>
-    <script src="/inc/include.js"></script>
+    <script src="/inc/include.js?v=2"></script>
     <script src="gallery.js"></script>
 </body>
 </html>

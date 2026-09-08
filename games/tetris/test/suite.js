@@ -182,8 +182,15 @@
       if (g.piece && g.piece.type === 'O') stillFree++;
     }
     check('moving buys time before the lock', stillFree > 5, 'survived ' + stillFree + ' steps');
+    // Ask the board, not the current piece. The piece that spawns after ours
+    // locks is drawn from the bag, so roughly one run in seven it was another
+    // O and this read as "never locked" - a flake in the test, not the engine.
+    var oLanded = g.grid.some(function (row) {
+      return row.some(function (c) { return c === 'O'; });
+    });
     check('but the piece cannot be stalled forever',
-      !(g.piece && g.piece.type === 'O') || g.lockResets >= E.MAX_LOCK_RESETS);
+      oLanded || g.lockResets >= E.MAX_LOCK_RESETS,
+      'landed=' + oLanded + ', resets=' + g.lockResets);
 
     // ------------------------------------------------------------ ghost/end
     g = fresh();

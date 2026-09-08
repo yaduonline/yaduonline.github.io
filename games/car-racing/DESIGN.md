@@ -335,14 +335,20 @@ with air, which is the kind of bug players notice and cannot describe.
 
 ## Palette
 
-The page chrome uses the same tokens as Tetris (`--bg: #f4f5f7`, `--panel: #fff`,
-`--ink: #1f242b`, `--muted: #6b7480`, `--edge: #d8dce2`, `--accent: #3f5b56`).
-The two are the site's full-viewport games, so they are the two places a jump in
-theme is most obvious, and the site itself is light — see `games/prompt.md`.
+The page chrome uses the same tokens as Tetris (`--bg`, `--panel`, `--ink`,
+`--ink-dim`, `--edge`, `--btn`, `--accent`), in the three states `style.css`
+defines: bare `:root` is light, the media query covers a dark browser unless
+light was picked explicitly, and `[data-theme="dark"]` lets an explicit choice
+win. The two are the site's full-viewport games, so they are the two places a
+jump in theme would be most obvious — see `games/prompt.md`.
 
-This shell was originally dark, which made arriving at the track picker from
-`/games/` feel like landing on a different site. The road stayed dark, because
-tarmac is dark: that is canvas content, not the page.
+This shell was originally dark in both, which made arriving at the track picker
+from `/games/` feel like landing on a different site. It now follows whatever
+the visitor picked in the header.
+
+The road does not. Tarmac is dark because tarmac is dark: that is canvas
+content, not the page, and it stays the same in either theme — as does the
+scenery, which is the world rather than the interface.
 
 One trap worth naming, since it bit twice here. `#app button` is an id selector,
 so a rule like `.track` or `#btnAccel` loses to it and silently does nothing —

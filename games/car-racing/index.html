@@ -5,21 +5,63 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Car Racing</title>
   <meta name="description" content="Top-down racing: pick a track, pass the traffic, beat three opponents." />
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/style.css?v=2" />
+  <script>/* Apply the saved theme before first paint, so a dark-theme visitor never gets a flash of white. "system" stores nothing and lets the CSS media query decide. */(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
   <style>
     /* The same palette Tetris uses. Both are full-viewport arcade games that
        hide the site chrome, so they are the two places a jump in theme would be
-       most obvious - and the site itself is light. The road is dark because
-       tarmac is dark; that is canvas content, not the page. */
+       most obvious - and the site follows the visitor's choice, so this does
+       too, in the same three states style.css defines: bare :root is light, the
+       media query covers a dark browser unless light was picked explicitly, and
+       the [data-theme="dark"] block lets an explicit choice win.
+
+       The road stays as it is either way. Tarmac is dark because tarmac is
+       dark; that is canvas content, not the page. */
     :root {
       --bg: #f4f5f7;
+      --bg-rgb: 244, 245, 247;
       --panel: #ffffff;
       --ink: #1f242b;
       --ink-dim: #6b7480;
       --edge: #d8dce2;
       --btn: #eceff3;
       --btn-edge: #ccd2da;
+      --btn-hover: #e0e5ea;
       --accent: #3f5b56;
+      --go-bg: #dbe8e0; --go-edge: #a8c4b6; --go-ink: #2c4a40;
+      --brake-bg: #f0dfdb; --brake-edge: #d3b0a8; --brake-ink: #6b3f37;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #16191d;
+        --bg-rgb: 22, 25, 29;
+        --panel: #1e2228;
+        --ink: #e3e7ea;
+        --ink-dim: #a2a9b2;
+        --edge: #333942;
+        --btn: #262b32;
+        --btn-edge: #3a414a;
+        --btn-hover: #313841;
+        --accent: #7fb3a4;
+        --go-bg: #23423a; --go-edge: #356054; --go-ink: #b6dccc;
+        --brake-bg: #43292a; --brake-edge: #6a4340; --brake-ink: #e7bdb4;
+      }
+    }
+
+    :root[data-theme="dark"] {
+      --bg: #16191d;
+      --bg-rgb: 22, 25, 29;
+      --panel: #1e2228;
+      --ink: #e3e7ea;
+      --ink-dim: #a2a9b2;
+      --edge: #333942;
+      --btn: #262b32;
+      --btn-edge: #3a414a;
+      --btn-hover: #313841;
+      --accent: #7fb3a4;
+      --go-bg: #23423a; --go-edge: #356054; --go-ink: #b6dccc;
+      --brake-bg: #43292a; --brake-edge: #6a4340; --brake-ink: #e7bdb4;
     }
 
     /* Full screen is the default now rather than a button: the road wants the
@@ -145,7 +187,7 @@
     #app button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
     #app button:active { transform: scale(0.97); }
     @media (hover: hover) and (pointer: fine) {
-      #app button:hover { background: #e0e5ea; }
+      #app button:hover { background: var(--btn-hover); }
     }
 
     #controls button {
@@ -159,8 +201,8 @@
        at a glance without the saturated primaries the games here avoid.
        Two ids, because a single one loses to `#app button` above - which is why
        these two buttons had looked identical to the arrows all along. */
-    #app #btnAccel { background: #dbe8e0; border-color: #a8c4b6; color: #2c4a40; }
-    #app #btnBrake { background: #f0dfdb; border-color: #d3b0a8; color: #6b3f37; }
+    #app #btnAccel { background: var(--go-bg); border-color: var(--go-edge); color: var(--go-ink); }
+    #app #btnBrake { background: var(--brake-bg); border-color: var(--brake-edge); color: var(--brake-ink); }
 
     /* A keyboard is likely: hide the touch pad and explain the keys instead. */
     #hints { display: none; }
@@ -232,7 +274,7 @@
       overflow: visible;
       gap: 10px;
       padding: 44px 16px calc(22px + env(safe-area-inset-bottom, 0px));
-      background: linear-gradient(to top, rgba(244, 245, 247, 0.97) 58%, rgba(244, 245, 247, 0));
+      background: linear-gradient(to top, rgba(var(--bg-rgb), 0.97) 58%, rgba(var(--bg-rgb), 0));
       align-items: center;
       justify-content: flex-end;
       text-align: center;
@@ -306,10 +348,10 @@
 
   <div id="site-footer"></div>
 
-  <script src="/inc/include.js"></script>
-  <script src="./engine.js?v=18"></script>
-  <script src="./vehicles.js?v=18"></script>
-  <script src="./tracks.js?v=18"></script>
-  <script src="./game.js?v=18"></script>
+  <script src="/inc/include.js?v=2"></script>
+  <script src="./engine.js?v=19"></script>
+  <script src="./vehicles.js?v=19"></script>
+  <script src="./tracks.js?v=19"></script>
+  <script src="./game.js?v=19"></script>
 </body>
 </html>

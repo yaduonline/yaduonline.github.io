@@ -21,13 +21,41 @@
     T: '#a6566e',
   };
 
-  var THEME = {
-    well: '#ffffff',
-    line: '#e6e8ec',
-    edge: '#cfd4da',
-    ghost: 'rgba(33, 37, 41, 0.16)',
-    flash: '#ffffff',
-  };
+  /**
+   * Board colours, read from CSS rather than fixed here, so the canvas follows
+   * the site's theme along with everything else. A white well painted into a
+   * dark page is the one part of a game that a stylesheet cannot reach.
+   *
+   * The piece colours above are deliberately not themed: they are the game, and
+   * they read on either background.
+   */
+  var THEME = {};
+
+  function readTheme() {
+    var css = getComputedStyle(document.documentElement);
+    function token(name, fallback) {
+      var value = css.getPropertyValue(name).trim();
+      return value || fallback;
+    }
+    THEME.well = token('--well', '#ffffff');
+    THEME.line = token('--well-line', '#e6e8ec');
+    THEME.edge = token('--well-edge', '#cfd4da');
+    THEME.ghost = token('--ghost', 'rgba(33, 37, 41, 0.16)');
+    THEME.flash = token('--flash', '#ffffff');
+  }
+
+  /**
+   * The theme can change under us two ways: the visitor picks one (which stamps
+   * data-theme on <html>), or their browser flips while "system" is selected.
+   */
+  function watchTheme(onChange) {
+    if (window.MutationObserver) {
+      new MutationObserver(onChange).observe(document.documentElement,
+        { attributes: true, attributeFilter: ['data-theme'] });
+    }
+    var query = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+    if (query && query.addEventListener) query.addEventListener('change', onChange);
+  }
 
   // A cap only so the board cannot get absurd on a large monitor. It sits far
   // above anything a phone will ask for, so it never binds on mobile - unlike
@@ -434,7 +462,14 @@
     });
   }
 
+  function applyTheme() {
+    readTheme();
+    draw();
+  }
+
   function boot() {
+    readTheme();
+    watchTheme(applyTheme);
     collect();
     if (!Engine || !el.board) return;
 

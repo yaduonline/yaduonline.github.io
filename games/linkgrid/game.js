@@ -39,13 +39,40 @@
     '#7b6fd0', '#a462c4', '#cf5fa2', '#a3714a',
   ];
 
-  var THEME = {
-    boardFill: '#e7e3d8',
-    gridLine: '#d3cec0',
-    dotRing: '#fbf8f1',
-    cursor: '#3f5b56',
-    shadow: 'rgba(63, 74, 77, 0.14)',
-  };
+  /**
+   * Board colours, read from CSS rather than fixed here, so the canvas follows
+   * the site's theme along with everything else. The path palette above is
+   * deliberately not themed: those colours are how you tell one path from
+   * another, and they read on either background.
+   */
+  var THEME = {};
+
+  function readTheme() {
+    var css = getComputedStyle(document.documentElement);
+    function token(name, fallback) {
+      var value = css.getPropertyValue(name).trim();
+      return value || fallback;
+    }
+    THEME.boardFill = token('--board', '#e7e3d8');
+    THEME.gridLine = token('--board-line', '#d3cec0');
+    THEME.dotRing = token('--board-ring', '#fbf8f1');
+    THEME.cursor = token('--board-cursor', '#3f5b56');
+    THEME.shadow = token('--board-shadow', 'rgba(63, 74, 77, 0.14)');
+  }
+
+  /**
+   * The theme can change under us two ways: the visitor picks one (which stamps
+   * data-theme on <html>), or their browser flips while "system" is selected.
+   */
+  function watchTheme(onChange) {
+    if (window.MutationObserver) {
+      new MutationObserver(onChange).observe(document.documentElement,
+        { attributes: true, attributeFilter: ['data-theme'] });
+    }
+    var query = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+    if (query && query.addEventListener) query.addEventListener('change', onChange);
+  }
+
 
   var el = {};
   var ctx = null;
@@ -1042,6 +1069,8 @@
   }
 
   function boot() {
+    readTheme();
+    watchTheme(function () { readTheme(); draw(); });
     collect();
     if (!Engine || !PACKS.length) {
       // Almost always a half-stale cache: this page paired with an older

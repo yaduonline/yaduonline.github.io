@@ -4,12 +4,69 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Loopfront - Yadnyesh Joshi</title>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css?v=2">
+  <script>/* Apply the saved theme before first paint, so a dark-theme visitor never gets a flash of white. "system" stores nothing and lets the CSS media query decide. */(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
   <style>
+    /* ── Theme ────────────────────────────────────────────────────────────
+       This game used to be dark only, which made it the odd one out on a light
+       site. Three states now, matching style.css: bare :root is light, the
+       media query covers a dark browser unless light was picked explicitly,
+       and the [data-theme="dark"] block lets an explicit choice win. The dark
+       side is the palette the game always had.
+
+       The four player colours are not themed - they are how you tell the
+       territories apart, and they read on either ground. */
+    :root {
+      --lf-bg: #eef1f5;
+      --lf-board: #e4e8ee;
+      --lf-minimap: #dfe4ea;
+      --lf-hud: #ffffff;
+      --lf-ink: #26303c;
+      --lf-ink-dim: #66788c;
+      --lf-btn: #eceff3;
+      --lf-btn-edge: #ccd4de;
+      --lf-btn-hover: #dfe5ec;
+      --lf-panel: rgba(238, 241, 245, 0.88);
+      --lf-scrim: rgba(226, 231, 238, 0.78);
+      --lf-title: #7a5c22;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --lf-bg: #1b2030;
+        --lf-board: #1b2030;
+        --lf-minimap: #111826;
+        --lf-hud: #27364f;
+        --lf-ink: #c8d0e0;
+        --lf-ink-dim: #7a8fa8;
+        --lf-btn: #2f4260;
+        --lf-btn-edge: #3d5478;
+        --lf-btn-hover: #3a5278;
+        --lf-panel: rgba(27, 32, 48, 0.85);
+        --lf-scrim: rgba(12, 14, 26, 0.72);
+        --lf-title: #e0d0b0;
+      }
+    }
+
+    :root[data-theme="dark"] {
+      --lf-bg: #1b2030;
+      --lf-board: #1b2030;
+      --lf-minimap: #111826;
+      --lf-hud: #27364f;
+      --lf-ink: #c8d0e0;
+      --lf-ink-dim: #7a8fa8;
+      --lf-btn: #2f4260;
+      --lf-btn-edge: #3d5478;
+      --lf-btn-hover: #3a5278;
+      --lf-panel: rgba(27, 32, 48, 0.85);
+      --lf-scrim: rgba(12, 14, 26, 0.72);
+      --lf-title: #e0d0b0;
+    }
+
     /* ── Reset & Layout ───────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; overflow: hidden; }
-    body { background: #1b2030; color: #c8d0e0; font-family: system-ui, sans-serif; }
+    body { background: var(--lf-bg); color: var(--lf-ink); font-family: system-ui, sans-serif; }
 
     #game-wrap {
       display: flex;
@@ -25,20 +82,20 @@
       gap: 20px;
       height: 48px;
       padding: 0 16px;
-      background: #27364f;
+      background: var(--lf-hud);
       flex-shrink: 0;
       font-size: 13px;
       user-select: none;
     }
     .hud-item { display: flex; flex-direction: column; align-items: center; }
-    .hud-label { font-size: 10px; color: #7a8fa8; text-transform: uppercase; letter-spacing: .05em; }
-    .hud-value { font-size: 15px; font-weight: 600; color: #c8d0e0; min-width: 36px; text-align: center; }
+    .hud-label { font-size: 10px; color: var(--lf-ink-dim); text-transform: uppercase; letter-spacing: .05em; }
+    .hud-value { font-size: 15px; font-weight: 600; color: var(--lf-ink); min-width: 36px; text-align: center; }
     #hud-buttons { margin-left: auto; display: flex; gap: 8px; }
     .hud-btn {
-      background: #2f4260; border: 1px solid #3d5478; color: #c8d0e0;
+      background: var(--lf-btn); border: 1px solid var(--lf-btn-edge); color: var(--lf-ink);
       padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;
     }
-    .hud-btn:hover { background: #3a5278; }
+    .hud-btn:hover { background: var(--lf-btn-hover); }
     .hud-btn:disabled { opacity: .55; cursor: default; }
 
     /* ── Canvas area ──────────────────────────────────────────────────── */
@@ -46,7 +103,7 @@
       position: relative;
       flex: 1;
       overflow: hidden;
-      background: #1b2030;
+      background: var(--lf-board);
     }
     #game { display: block; width: 100%; height: 100%; }
 
@@ -55,9 +112,9 @@
       position: absolute;
       bottom: 12px;
       right: 12px;
-      border: 1px solid #3d5478;
+      border: 1px solid var(--lf-btn-edge);
       border-radius: 3px;
-      background: rgba(27,32,48,0.85);
+      background: var(--lf-panel);
     }
 
     /* ── Overlay ──────────────────────────────────────────────────────── */
@@ -68,17 +125,17 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: rgba(12,14,26,0.72);
+      background: var(--lf-scrim);
       gap: 14px;
     }
     #overlay.hidden { display: none; }
-    #overlay h2 { font-size: 32px; color: #e0d0b0; }
-    #overlay p  { font-size: 15px; color: #9ab0c8; max-width: 340px; text-align: center; line-height: 1.5; }
+    #overlay h2 { font-size: 32px; color: var(--lf-title); }
+    #overlay p  { font-size: 15px; color: var(--lf-ink-dim); max-width: 340px; text-align: center; line-height: 1.5; }
     #overlay .stats-grid {
       display: grid; grid-template-columns: repeat(2, auto);
-      gap: 4px 20px; font-size: 13px; color: #c8d0e0;
+      gap: 4px 20px; font-size: 13px; color: var(--lf-ink);
     }
-    #overlay .stats-grid span.lbl { color: #7a8fa8; }
+    #overlay .stats-grid span.lbl { color: var(--lf-ink-dim); }
   </style>
 </head>
 <body>
@@ -122,7 +179,7 @@
   </div>
 
   <div id="site-footer"></div>
-  <script src="/inc/include.js"></script>
+  <script src="/inc/include.js?v=2"></script>
 
   <script>
   /* ===================================================================
@@ -175,10 +232,41 @@
       { base: '#a87ab4', name: 'Plum'  },  // 3 — cpu 3
     ],
     USER_ACCENT: '#ffffff',
+    // (Board and minimap fills are not here: they come from CSS via
+    // themeToken, so the canvas follows the site's theme like everything else.)
     DEBUG_MAX_LOG_LINES: 120000,
     DEBUG_TICK_SNAPSHOT_INTERVAL: 10,
     DEBUG_SCALE_STEP_CELLS: 20,
   });
+
+  /**
+   * Board colours come from CSS so the canvas follows the site's theme. Cached,
+   * because these are read on every frame and getComputedStyle is not free; the
+   * cache is dropped when the theme actually changes, which is either the
+   * visitor picking one (data-theme on <html>) or their browser flipping while
+   * "system" is selected.
+   */
+  let themeCache = Object.create(null);
+
+  function themeToken(name, fallback) {
+    let value = themeCache[name];
+    if (value === undefined) {
+      value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      value = value || fallback;
+      themeCache[name] = value;
+    }
+    return value;
+  }
+
+  (function watchTheme() {
+    const drop = () => { themeCache = Object.create(null); };
+    if (window.MutationObserver) {
+      new MutationObserver(drop).observe(document.documentElement,
+        { attributes: true, attributeFilter: ['data-theme'] });
+    }
+    const query = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+    if (query && query.addEventListener) query.addEventListener('change', drop);
+  })();
 
   const WORLD_SIZE = CONFIG.MAP_CELLS * CONFIG.CELL_SIZE;
 
@@ -912,7 +1000,7 @@
     const ctx = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height;
 
-    ctx.fillStyle = '#1b2030';
+    ctx.fillStyle = themeToken('--lf-board', '#1b2030');
     ctx.fillRect(0, 0, W, H);
 
     const scale = camera.screenW / camera.vw;
@@ -1145,7 +1233,7 @@
     const N    = CONFIG.MAP_CELLS;
     const sc   = mpx / N;
 
-    mctx.fillStyle = '#111826';
+    mctx.fillStyle = themeToken('--lf-minimap', '#111826');
     mctx.fillRect(0, 0, mpx, mpx);
 
     for (let cy = 0; cy < N; cy++) {

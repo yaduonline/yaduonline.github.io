@@ -4,17 +4,44 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2048 - Yadnyesh Joshi Games</title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=2">
+    <script>/* Apply the saved theme before first paint, so a dark-theme visitor never gets a flash of white. "system" stores nothing and lets the CSS media query decide. */(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
     <style>
-        body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; background: #f7f5f2; color: #333; }
+        /* Three states, matching style.css. Only the page, the board frame and
+           the empty cell are themed: the numbered tiles are 2048's own palette
+           and read the same either way. */
+        :root {
+            --page: #f7f5f2;
+            --page-ink: #333333;
+            --board: #cdc1b4;
+            --empty: #eee4da;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --page: #16191d;
+                --page-ink: #e3e7ea;
+                --board: #3a352f;
+                --empty: #2b2723;
+            }
+        }
+
+        :root[data-theme="dark"] {
+            --page: #16191d;
+            --page-ink: #e3e7ea;
+            --board: #3a352f;
+            --empty: #2b2723;
+        }
+
+        body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; background: var(--page); color: var(--page-ink); }
         main { max-width: 480px; margin: 12px auto; padding: 10px; }
         .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
         .topbar h2 { margin: 0; font-size: 1.2rem; }
         .scores { display: flex; gap: 8px; }
         .score-box { background:#bbada0;color:#fff;border-radius:6px;padding:8px 12px; text-align:center; min-width:80px; }
-        .grid { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:6px; background:#cdc1b4; padding:8px; border-radius:10px; touch-action: none; }
+        .grid { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:6px; background:var(--board); padding:8px; border-radius:10px; touch-action: none; }
         .cell { width:100%; aspect-ratio:1 / 1; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:3.5rem; line-height:1.05; color:#776e65; text-align:center; white-space:normal; word-break:break-word; padding:4px; }
-        .cell[data-value="0"] { background:#eee4da; color:transparent; }
+        .cell[data-value="0"] { background:var(--empty); color:transparent; }
         .cell[data-value="2"] { background:#eee4da; color:#776e65; }
         .cell[data-value="4"] { background:#ede0c8; }
         .cell[data-value="8"] { background:#f2b179; color:#f9f6f2; }
@@ -54,7 +81,7 @@
         <div class="banner" id="banner"></div>
     </main>
     <div id="site-footer"></div>
-    <script src="/inc/include.js"></script>
+    <script src="/inc/include.js?v=2"></script>
 
     <script>
         const SIZE = 4;

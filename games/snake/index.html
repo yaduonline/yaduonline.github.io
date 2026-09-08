@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Snake</title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=2">
+    <script>/* Apply the saved theme before first paint, so a dark-theme visitor never gets a flash of white. "system" stores nothing and lets the CSS media query decide. */(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
     <style>
         body {
             margin: 0;
@@ -73,7 +74,7 @@
             flex-shrink: 0;
         }
 
-        #sound-btn, #theme-btn, #restart-btn {
+        #sound-btn, #restart-btn {
             margin-left: auto;
             background: #314252;
             color: #d8e0e8;
@@ -91,11 +92,11 @@
             padding: 2px 8px;
         }
 
-        #theme-btn, #restart-btn {
+        #restart-btn {
             margin-left: 6px;
         }
 
-        #sound-btn:hover, #theme-btn:hover, #restart-btn:hover {
+        #sound-btn:hover, #restart-btn:hover {
             background: #4a5e6e;
         }
 
@@ -138,10 +139,8 @@
         body.dark .meta-value { color: #c8d0e0; }
         body.dark .meta-sep { background: #3a4d68; }
         body.dark #sound-btn,
-        body.dark #theme-btn,
         body.dark #restart-btn { background: #2f4260; color: #c8d0e0; border-color: #3d5478; }
         body.dark #sound-btn:hover,
-        body.dark #theme-btn:hover,
         body.dark #restart-btn:hover { background: #3d5478; }
         body.dark #game-canvas-wrap { background: #141820; }
         body.dark #expand-btn { background: rgba(39,54,79,0.85); color: #c8d0e0; border-color: #3d5478; }
@@ -150,21 +149,11 @@
 </head>
 <body>
     <div id="site-header"></div>
-    <script>
-        // Inline site header (matches /inc/header.html pattern used by other pages)
-        fetch('/inc/header.html').then(r => r.text()).then(h => {
-            const el = document.createElement('div');
-            el.id = 'site-header';
-            el.innerHTML = h;
-            document.body.insertBefore(el, document.body.firstChild);
-        }).catch(() => {});
-        fetch('/inc/footer.html').then(r => r.text()).then(f => {
-            const el = document.createElement('div');
-            el.id = 'site-footer';
-            el.innerHTML = f;
-            document.body.appendChild(el);
-        }).catch(() => {});
-    </script>
+    <!-- The header and footer are filled by /inc/include.js at the bottom of
+         this page, the same as every other page. This used to also fetch them
+         inline and append its own copies, so the page carried two headers and
+         two footers - and, once the theme control landed, two toggle buttons,
+         only one of which was ever wired up. -->
 
     <div id="game-view">
         <div id="meta-bar">
@@ -184,7 +173,6 @@
             </div>
             <div class="meta-sep"></div>
             <button id="sound-btn" title="Toggle sound">🔇</button>
-            <button id="theme-btn" title="Toggle light/dark mode">🌙</button>
             <button id="restart-btn" title="Restart game">Restart</button>
         </div>
         <div id="game-canvas-wrap">
@@ -217,7 +205,6 @@
     const CHERRY_APPLE_INTERVAL   = 5;    // every Nth apple eaten
 
     // ── Colour palettes (light default, dark optional) ──────────────
-    const LS_THEME_KEY = 'snake_theme';
     const PALETTES = {
         light: {
             BG:      '#f0ece4',           // warm linen canvas
@@ -524,13 +511,28 @@
         }
     }
 
+    /**
+     * The theme is the site's, not this game's. Snake used to carry its own
+     * moon button and its own storage key, which meant it could disagree with
+     * every other page. It now reads whatever the site is showing: an explicit
+     * choice stamped on <html>, or failing that the browser's preference.
+     */
+    function siteTheme() {
+        const stamped = document.documentElement.getAttribute('data-theme');
+        if (stamped === 'dark' || stamped === 'light') return stamped;
+        return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark' : 'light';
+    }
+
     function applyTheme(t) {
         theme = t;
         pal   = PALETTES[t];
         document.body.classList.toggle('dark', t === 'dark');
-        const btn = document.getElementById('theme-btn');
-        if (btn) btn.textContent = t === 'dark' ? '☀️' : '🌙';
-        localStorage.setItem(LS_THEME_KEY, t);
+    }
+
+    function followSiteTheme() {
+        applyTheme(siteTheme());
+        if (typeof state !== 'undefined' && state) render(state, lastT);
     }
 
     // ─────────────────────────────────────────────
@@ -1060,11 +1062,6 @@
         getAudioCtx();
     });
 
-    document.getElementById('theme-btn').addEventListener('click', () => {
-        applyTheme(theme === 'light' ? 'dark' : 'light');
-        render(state, lastT);
-    });
-
     document.getElementById('restart-btn').addEventListener('click', () => {
         resetGame();
     });
@@ -1078,13 +1075,23 @@
     //  INIT
     // ─────────────────────────────────────────────
     window.addEventListener('resize', resizeCanvas);
-    applyTheme(localStorage.getItem(LS_THEME_KEY) || 'light');
+    applyTheme(siteTheme());
+    // The site control stamps data-theme on <html>; "system" stamps nothing and
+    // leaves the browser preference to decide. Watch both.
+    if (window.MutationObserver) {
+        new MutationObserver(followSiteTheme).observe(document.documentElement,
+            { attributes: true, attributeFilter: ['data-theme'] });
+    }
+    if (window.matchMedia) {
+        const q = window.matchMedia('(prefers-color-scheme: dark)');
+        if (q.addEventListener) q.addEventListener('change', followSiteTheme);
+    }
     // Small delay so header/footer fetch has time to affect layout
     setTimeout(resizeCanvas, 50);
     // Load best score into meta bar on init
     updateMetaBar(state);
     </script>
     <div id="site-footer"></div>
-    <script src="/inc/include.js"></script>
+    <script src="/inc/include.js?v=2"></script>
 </body>
 </html>

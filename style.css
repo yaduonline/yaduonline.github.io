@@ -1,3 +1,60 @@
+/* ---------------------------------------------------------------------------
+   Theme
+   ---------------------------------------------------------------------------
+   Three states, not two. An explicit choice stamps data-theme="light" or
+   "dark" on <html>; the default, "system", stamps nothing at all and leaves
+   prefers-color-scheme to decide. So the bare :root below is the light
+   palette, the media query re-defines the tokens for a dark OS unless light
+   was explicitly chosen, and the [data-theme="dark"] block re-defines them
+   again so an explicit dark choice wins on a light OS.
+
+   Everything else in this file, and in the games, styles through these tokens.
+   A colour whose only definition sits inside the media query never applies in
+   the un-stamped state, which is the classic way to end up with one theme's
+   text on the other theme's background.
+   --------------------------------------------------------------------------- */
+
+:root {
+    --bg: #ffffff;
+    --surface: #f7f7f7;
+    --ink: #333333;
+    --ink-muted: #666666;
+    --ink-faint: #999999;
+    --link: #0066cc;
+    --rule: #dddddd;
+    --rule-soft: #eeeeee;
+    --chip: #f0f0f0;
+    color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --bg: #16191d;
+        --surface: #1e2228;
+        --ink: #e3e7ea;
+        --ink-muted: #a2a9b2;
+        --ink-faint: #7c838c;
+        --link: #74b4ef;
+        --rule: #333942;
+        --rule-soft: #262b32;
+        --chip: #262b32;
+        color-scheme: dark;
+    }
+}
+
+:root[data-theme="dark"] {
+    --bg: #16191d;
+    --surface: #1e2228;
+    --ink: #e3e7ea;
+    --ink-muted: #a2a9b2;
+    --ink-faint: #7c838c;
+    --link: #74b4ef;
+    --rule: #333942;
+    --rule-soft: #262b32;
+    --chip: #262b32;
+    color-scheme: dark;
+}
+
 /* Reset and base styles */
 * {
     margin: 0;
@@ -8,8 +65,8 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     line-height: 1.6;
-    color: #333;
-    background-color: #fff;
+    color: var(--ink);
+    background-color: var(--bg);
     max-width: 800px;
     margin: 0 auto;
     padding: 20px;
@@ -19,7 +76,7 @@ body {
 header {
     margin-bottom: 40px;
     padding-bottom: 20px;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--rule);
 }
 
 nav {
@@ -35,7 +92,7 @@ nav h1 {
 }
 
 nav h1 a {
-    color: #333;
+    color: var(--ink);
     text-decoration: none;
 }
 
@@ -46,12 +103,36 @@ nav ul {
 }
 
 nav a {
-    color: #0066cc;
+    color: var(--link);
     text-decoration: none;
 }
 
 nav a:hover {
     text-decoration: underline;
+}
+
+/* Theme control, in the header on every page. */
+.theme-toggle {
+    flex: none;
+    width: 34px;
+    height: 34px;
+    font: inherit;
+    font-size: 1rem;
+    line-height: 1;
+    color: var(--ink-muted);
+    background: var(--chip);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.theme-toggle:hover {
+    color: var(--ink);
+}
+
+.theme-toggle:focus-visible {
+    outline: 2px solid var(--link);
+    outline-offset: 2px;
 }
 
 /* Main content */
@@ -83,7 +164,7 @@ p {
 .post-preview {
     margin-bottom: 40px;
     padding-bottom: 30px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--rule-soft);
 }
 
 .post-preview:last-child {
@@ -97,17 +178,17 @@ p {
 }
 
 .post-preview a {
-    color: #333;
+    color: var(--ink);
     text-decoration: none;
 }
 
 .post-preview a:hover {
-    color: #0066cc;
+    color: var(--link);
 }
 
 time {
     display: block;
-    color: #666;
+    color: var(--ink-muted);
     font-size: 0.9rem;
     margin-bottom: 10px;
 }
@@ -128,7 +209,7 @@ time {
 .post-nav {
     margin-top: 40px;
     padding-top: 20px;
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--rule-soft);
 }
 
 /* Photo gallery */
@@ -149,11 +230,11 @@ time {
 .photo-caption {
     margin-top: 8px;
     font-size: 0.9rem;
-    color: #666;
+    color: var(--ink-muted);
 }
 
 .placeholder {
-    color: #999;
+    color: var(--ink-faint);
     font-style: italic;
 }
 
@@ -165,8 +246,8 @@ time {
 /* Footer */
 footer {
     padding-top: 20px;
-    border-top: 1px solid #ddd;
-    color: #666;
+    border-top: 1px solid var(--rule);
+    color: var(--ink-muted);
     font-size: 0.9rem;
     text-align: center;
 }
@@ -184,6 +265,18 @@ footer {
     
     nav h1 {
         margin-bottom: 15px;
+    }
+
+    /* The nav stacks here, so the control rides with the title rather than
+       dropping onto a row of its own below the links. */
+    nav {
+        position: relative;
+    }
+
+    .theme-toggle {
+        position: absolute;
+        top: 0;
+        right: 0;
     }
     
     h2 {
@@ -210,8 +303,8 @@ footer {
         display: block;
         padding: 8px 12px;
         text-decoration: none;
-        color: #333;
-        background: #f0f0f0;
+        color: var(--ink);
+        background: var(--chip);
         border-radius: 4px;
         text-align: center;
     }

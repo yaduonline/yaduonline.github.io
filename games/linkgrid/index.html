@@ -5,8 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Linkgrid</title>
   <meta name="description" content="Linkgrid: connect every pair of dots and fill the whole board." />
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/style.css?v=2" />
+  <script>/* Apply the saved theme before first paint, so a dark-theme visitor never gets a flash of white. "system" stores nothing and lets the CSS media query decide. */(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
   <style>
+    /* Three states, matching style.css: bare :root is light, the media query
+       covers a dark browser unless light was picked explicitly, and the
+       [data-theme="dark"] block lets an explicit choice beat a light browser.
+       The light side keeps its warm cream; the dark side shares the site's
+       neutrals so moving between games does not change character. The path
+       colours are not themed - they are how you tell one path from another. */
     :root {
       --ink: #3a4547;
       --muted: #6f7d81;
@@ -15,8 +22,58 @@
       --btn: #e3ebe7;
       --btn-edge: #c3d2cd;
       --btn-ink: #2f3d43;
+      --btn-hover: #d8e5e0;
       --focus: #3f5b56;
       --ok: #4c7f63;
+      --shadow: rgba(79, 74, 62, 0.1);
+      --done-edge: #9dc0ad; --done-bg: #e9f4ed; --done-ink: #2f5f45;
+      --sel-bg: #dcefe3;
+      --chip-edge: #c9c2b3; --chip-bg: #e7e3d8;
+      --reveal-edge: #cdbb93; --reveal-bg: #f6f1e3; --reveal-ink: #87681d;
+      --board: #e7e3d8; --board-line: #d3cec0; --board-ring: #fbf8f1;
+      --board-cursor: #3f5b56; --board-shadow: rgba(63, 74, 77, 0.14);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --ink: #e3e7ea;
+        --muted: #a2a9b2;
+        --panel: #1e2228;
+        --panel-edge: #333942;
+        --btn: #262b32;
+        --btn-edge: #3a414a;
+        --btn-ink: #dfe4e9;
+        --btn-hover: #313841;
+        --focus: #7fb3a4;
+        --ok: #7fb3a4;
+        --shadow: rgba(0, 0, 0, 0.4);
+        --done-edge: #46705c; --done-bg: #1d2a25; --done-ink: #9dd0b3;
+        --sel-bg: #22322b;
+        --chip-edge: #3d444d; --chip-bg: #272c33;
+        --reveal-edge: #6d5c34; --reveal-bg: #2a2519; --reveal-ink: #d8bd7c;
+        --board: #1b1f24; --board-line: #2c333b; --board-ring: #12161a;
+        --board-cursor: #7fb3a4; --board-shadow: rgba(0, 0, 0, 0.45);
+      }
+    }
+
+    :root[data-theme="dark"] {
+      --ink: #e3e7ea;
+      --muted: #a2a9b2;
+      --panel: #1e2228;
+      --panel-edge: #333942;
+      --btn: #262b32;
+      --btn-edge: #3a414a;
+      --btn-ink: #dfe4e9;
+      --btn-hover: #313841;
+      --focus: #7fb3a4;
+      --ok: #7fb3a4;
+      --shadow: rgba(0, 0, 0, 0.4);
+      --done-edge: #46705c; --done-bg: #1d2a25; --done-ink: #9dd0b3;
+      --sel-bg: #22322b;
+      --chip-edge: #3d444d; --chip-bg: #272c33;
+      --reveal-edge: #6d5c34; --reveal-bg: #2a2519; --reveal-ink: #d8bd7c;
+      --board: #1b1f24; --board-line: #2c333b; --board-ring: #12161a;
+      --board-cursor: #7fb3a4; --board-shadow: rgba(0, 0, 0, 0.45);
     }
 
     #app * { box-sizing: border-box; }
@@ -30,7 +87,7 @@
       background: var(--panel);
       border: 1px solid var(--panel-edge);
       border-radius: 16px;
-      box-shadow: 0 8px 26px rgba(79, 74, 62, 0.1);
+      box-shadow: 0 8px 26px var(--shadow);
       color: var(--ink);
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     }
@@ -64,7 +121,7 @@
        :hover rule makes the first tap apply the hover state instead of
        activating the control, so buttons appear to need pressing twice. */
     @media (hover: hover) and (pointer: fine) {
-      #app button:hover:not(:disabled) { background: #d8e5e0; }
+      #app button:hover:not(:disabled) { background: var(--btn-hover); }
     }
     #app button:disabled { opacity: 0.45; cursor: default; }
     #app button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
@@ -86,7 +143,7 @@
     }
     .card-title { font-size: 1.15rem; }
     .card-note { font-weight: 500; font-size: 0.83rem; color: var(--muted); }
-    .card.complete { border-color: #9dc0ad; background: #e9f4ed; }
+    .card.complete { border-color: var(--done-edge); background: var(--done-bg); }
 
     .tier { margin-top: 16px; }
     .tier-title {
@@ -109,9 +166,9 @@
       font-variant-numeric: tabular-nums;
     }
     #app .chip.solved {
-      border-color: #9dc0ad;
-      background: #dcefe3;
-      color: #2f5f45;
+      border-color: var(--done-edge);
+      background: var(--sel-bg);
+      color: var(--done-ink);
     }
     .loading { color: var(--muted); font-size: 0.9rem; margin: 16px 0; }
 
@@ -124,9 +181,9 @@
       display: block;
       width: 100%;
       aspect-ratio: 1 / 1;
-      border: 1px solid #c9c2b3;
+      border: 1px solid var(--chip-edge);
       border-radius: 12px;
-      background: #e7e3d8;
+      background: var(--chip-bg);
       touch-action: none;
       cursor: pointer;
     }
@@ -141,16 +198,16 @@
       margin: 12px auto 0;
       width: min(100%, 560px, 70vh);
       padding: 11px 14px;
-      border: 1px solid #9dc0ad;
+      border: 1px solid var(--done-edge);
       border-radius: 10px;
-      background: #e9f4ed;
+      background: var(--done-bg);
     }
     .finish-text { display: flex; flex-direction: column; gap: 1px; }
     .finish strong { font-size: 1.02rem; color: var(--ok); }
     .finish span { font-size: 0.84rem; color: var(--muted); }
     /* A revealed solution is not a win, and should not look like one. */
-    .finish.revealed { border-color: #cdbb93; background: #f6f1e3; }
-    .finish.revealed strong { color: #87681d; }
+    .finish.revealed { border-color: var(--reveal-edge); background: var(--reveal-bg); }
+    .finish.revealed strong { color: var(--reveal-ink); }
 
     .stats {
       display: flex;
@@ -250,9 +307,9 @@
 
   <div id="site-footer"></div>
 
-  <script src="/inc/include.js"></script>
-  <script src="./engine.js?v=11"></script>
-  <script src="./puzzles/index.js?v=11"></script>
-  <script src="./game.js?v=11"></script>
+  <script src="/inc/include.js?v=2"></script>
+  <script src="./engine.js?v=12"></script>
+  <script src="./puzzles/index.js?v=12"></script>
+  <script src="./game.js?v=12"></script>
 </body>
 </html>
