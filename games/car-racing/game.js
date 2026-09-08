@@ -12,7 +12,7 @@
   var Vehicles = globalThis.RacingVehicles;
   var Tracks = globalThis.RacingTracks;
 
-  var STORAGE_KEY = 'car-racing-best-v2';
+  var STORAGE_KEY = 'car-racing-best-v3';
 
   // The camera looks a long way up the road; the player sits low on screen so
   // there is room to read the traffic ahead.
@@ -22,9 +22,12 @@
   // the camera eases up the screen to keep the finish itself in view.
   var FINISHED_SCREEN_FRAC = 0.34;
   var cameraFrac = PLAYER_SCREEN_FRAC;
-  // World units of road that must stay visible ahead of the player.
-  var MIN_VIEW_AHEAD = 620;
-  var VIEW_DEPTH = 1500;          // world units visible ahead of the player
+  // World units of road that must stay visible ahead of the player. Raised with
+  // the pace, but only enough to keep a short wide window playable: zooming out
+  // to buy reaction time also takes away the sense of speed it was bought for,
+  // and on a phone the width still binds, so the view there is unchanged.
+  var MIN_VIEW_AHEAD = 800;
+  var VIEW_DEPTH = 2600;          // world units visible ahead of the player
 
   var SCENERY = {
     coast:  { grass: '#7fae7a', far: '#cfe3ef', accent: '#e3d9b8' },
@@ -268,15 +271,15 @@
   // -------------------------------------------------------------------------
 
   var TRAFFIC_MIX = [
-    { type: 'sedan',  weight: 22, speed: [58, 78] },
-    { type: 'hatch',  weight: 18, speed: [55, 75] },
-    { type: 'suv',    weight: 14, speed: [56, 74] },
-    { type: 'taxi',   weight: 10, speed: [60, 80] },
-    { type: 'van',    weight: 9,  speed: [48, 64] },
-    { type: 'bike',   weight: 9,  speed: [70, 95] },
-    { type: 'police', weight: 5,  speed: [72, 92] },
-    { type: 'truck',  weight: 7,  speed: [40, 54] },
-    { type: 'bus',    weight: 6,  speed: [38, 52] },
+    { type: 'sedan',  weight: 22, speed: [174, 234] },
+    { type: 'hatch',  weight: 18, speed: [165, 225] },
+    { type: 'suv',    weight: 14, speed: [168, 222] },
+    { type: 'taxi',   weight: 10, speed: [180, 240] },
+    { type: 'van',    weight: 9,  speed: [144, 192] },
+    { type: 'bike',   weight: 9,  speed: [210, 285] },
+    { type: 'police', weight: 5,  speed: [216, 276] },
+    { type: 'truck',  weight: 7,  speed: [120, 162] },
+    { type: 'bus',    weight: 6,  speed: [114, 156] },
   ];
 
   function pickTrafficType() {
@@ -296,7 +299,7 @@
    * the room a car needs to get by.
    */
   function leavesAWayThrough(candidate) {
-    var window = 260;
+    var window = 780;
     for (var lane = 0; lane < Engine.LANES; lane++) {
       var open = true;
       if (lane === candidate.lane) continue;
@@ -318,7 +321,7 @@
     var density = track.trafficDensity;
 
     while (nextTrafficY < ahead) {
-      var gap = (240 + Math.random() * 340) / Math.max(0.35, density);
+      var gap = (720 + Math.random() * 1020) / Math.max(0.35, density);
       nextTrafficY += gap;
       if (nextTrafficY > track.length + 200) break;
 
@@ -346,7 +349,7 @@
     }
 
     for (var t = race.traffic.length - 1; t >= 0; t--) {
-      if (race.traffic[t].y < race.player.y - 700) Engine.removeCar(race, race.traffic[t]);
+      if (race.traffic[t].y < race.player.y - 2100) Engine.removeCar(race, race.traffic[t]);
     }
   }
 
@@ -392,7 +395,7 @@
     track = Engine.createTrack(spec);
     scenery = SCENERY[spec.scenery] || SCENERY.meadow;
     race = Engine.createRace({ track: track });
-    nextTrafficY = 500;
+    nextTrafficY = 1500;
     trafficSeq = 0;
     shake = 0;
     cameraFrac = PLAYER_SCREEN_FRAC;

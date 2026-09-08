@@ -40,8 +40,20 @@ road gets the whole viewport and the controls have to earn their strip of it.
 | Finishers clear off | A car that has crossed the line stops being an obstacle and rolls on. It must never park across a lane just past the finish. |
 | A way through | Traffic never seals all four lanes across one stretch of road. Dense enough to fill every lane is not a challenge, it is a wall. |
 
+## Pace
+
+- The game runs at an arcade pace: top speed is 570 world units a second, and
+  the road is a fixed width in those units, so that number *is* the scroll rate
+  — there is no zoom to make it look faster without being faster.
+- Accelerations scale with it, so the time to reach top speed is unchanged.
+- Zooming out to buy back reaction time is self-defeating: it takes away the
+  sense of speed it was bought for. The view only widens far enough to keep a
+  short, wide window playable.
+
 ## Tracks
 
+- Tracks are long: tens of thousands of units, giving races of roughly 35 to 60
+  seconds at racing pace.
 - More than one track, each with a name and a one-line description.
 - Exactly one of them is dead straight, offered first, and is the place to start.
 - Whether a track needs steering follows from whether it bends. It is not a

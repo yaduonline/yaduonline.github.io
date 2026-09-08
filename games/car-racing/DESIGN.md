@@ -72,6 +72,9 @@ anyone spin the car. The first line is not decoration either: point the car
 across the road and the cosine takes your forward progress away, so over-steering
 costs lap time on its own.
 
+None of that depends on how fast the game runs, which is the point: the angle a
+corner demands is a property of the corner.
+
 The numbers around it:
 
 | | | |
@@ -83,8 +86,16 @@ The numbers around it:
 **Two schemes, one physics.** `createTrack` derives `steering` from whether any
 section curves — derived rather than declared, so the flag cannot fall out of
 step with the sections. On a steering track every car runs the heading model:
-the player's from input, everyone else's from `autoSteer`, a damped proportional
-controller aiming at the centre of its target lane. On the straight track there
+the player's from input, everyone else's from `autoSteer`, which aims at the centre of
+its target lane.
+
+`autoSteer` is written to be **speed-independent**, and that is deliberate. A
+controller expressed as raw gain on the lateral error has to be retuned every
+time the pace of the game changes, because the same angle moves a car sideways
+proportionally faster; tripling the speed turned the first version into a
+weaving mess. So it decides a lateral *speed* — close the gap in `AI_CLOSE_TIME`
+seconds, damped by how fast it is already crossing — and then divides by the
+car's own speed to get an angle. That is stable at any pace. On the straight track there
 is nothing to point at, so cars run `driveOnRails` instead — the kinematic
 lane-snap, which is what makes a lane change on that track feel instant, and
 which works even for a car crawling out of a shunt. `requestLane` refuses
@@ -191,6 +202,34 @@ road. Without the second rule, four lanes' worth of slow traffic can close the
 road completely, and since nothing can overtake, the entire field stops. That is
 a deadlock, not a difficulty setting.
 
+## Pace
+
+Everything moves at three times the speed it originally did. There was no other
+lever: the road is a fixed width in world units and the render scale follows
+from that width, so screen scroll rate is `speed × scale` and the only way to
+make the game feel faster is to make the cars faster. Top speed is 570 units a
+second, which at a phone's scale is 371 pixels a second of road going past.
+
+What had to move with it, and what did not:
+
+| Scales with pace | Stays put |
+| --- | --- |
+| `ACCEL`, `BRAKE`, `DRAG`, `OFFROAD_DRAG` — so time-to-top-speed is unchanged | `MAX_HEADING`, `STEER_RATE` — the angle a corner demands is a property of the corner |
+| `NUDGE_SPEED`, the nudge/shunt threshold | `GRIP`, a rate, not a speed |
+| Opponent lookahead and overtaking margins, which are distances | `COLLISION_BUMP`, a ratio |
+| Traffic speeds and the gaps they spawn with | |
+
+Opponent top speeds are written as fractions of `MAX_SPEED` rather than
+absolute numbers, so changing the pace again cannot quietly leave the whole
+field racing at the old one. The braking rule moved from a fixed gap to
+time-to-contact for the same reason: closing 400 units a second, one car length
+of warning is already too late.
+
+Track sections grew with it — twenty to thirty thousand units, four or five
+times what they were — because a race that is over in fifteen seconds is not a
+race. The result is roughly the same clock time per race over four times the
+road.
+
 ## Rendering
 
 `game.js` owns the canvas. The player sits at `cameraFrac` down the screen and
@@ -276,9 +315,9 @@ the cascade and silently kills whichever one it duplicates.
 
 ## Persistence
 
-Best time per track in `localStorage['car-racing-best-v2']`, as an object keyed
-by track id. The key was bumped when steering landed: times set when the car
-followed the road on its own are not comparable to times set driving it. Nothing else is stored and nothing leaves the device.
+Best time per track in `localStorage['car-racing-best-v3']`, as an object keyed
+by track id. The key gets bumped whenever a change makes old times meaningless —
+once when steering landed, and again when the pace tripled and the tracks grew. Nothing else is stored and nothing leaves the device.
 
 ## Cache busting
 

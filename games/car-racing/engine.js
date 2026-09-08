@@ -17,11 +17,15 @@
   var ROAD_WIDTH = LANES * LANE_WIDTH;
   var SHOULDER = 26;                // grace beyond the outer lane before it is "off road"
 
-  var MAX_SPEED = 190;
-  var ACCEL = 52;                   // units per second squared
-  var BRAKE = 95;
-  var DRAG = 14;
-  var OFFROAD_DRAG = 130;           // grass is slow
+  // Everything below is three times what it was. The road is a fixed width in
+  // world units, so the only way to make the game scroll faster is to move the
+  // cars faster through it - there is no zoom to cheat with. Accelerations
+  // scale with it so the time to reach top speed is unchanged.
+  var MAX_SPEED = 570;
+  var ACCEL = 156;                  // units per second squared
+  var BRAKE = 285;
+  var DRAG = 42;
+  var OFFROAD_DRAG = 390;           // grass is slow
 
   var GRIP = 3.4;                   // how quickly a car snaps to a lane, on a straight
 
@@ -36,15 +40,15 @@
   var STEER_RATE = 1.6;             // rad/s while left or right is held
   var STEER_RETURN = 0.5;           // rad/s the wheel unwinds when released
   var MAX_HEADING = 0.6;            // rad, about 34 degrees
-  var AI_STEER_GAIN = 0.011;        // rad of correction per unit off the line
-  var AI_STEER_DAMP = 0.055;        // ...damped by how fast we are already crossing
+  var AI_CLOSE_TIME = 0.7;          // seconds an AI driver takes to gather up an error
+  var AI_STEER_DAMP = 0.4;          // ...damped by how fast it is already crossing
 
   var COLLISION_BUMP = 0.55;        // speed kept by the car behind after a shunt
   // Closing speed below which touching the car in front is a nudge rather than
   // a shunt. Without this, sitting behind slower traffic is a limit cycle: you
   // catch it, get thrown down to 55% of its speed, chase it back up, catch it
   // again - and average out slower than the car you are stuck behind.
-  var NUDGE_SPEED = 32;
+  var NUDGE_SPEED = 96;
 
   function clamp(value, low, high) {
     return value < low ? low : value > high ? high : value;
@@ -225,9 +229,11 @@
     state.cars.push(player);
 
     var racerSpec = opts.racers || [
-      { id: 'cpu1', type: 'racerRed', lane: 0, topSpeed: 168, accel: ACCEL * 0.92, skill: 0.75 },
-      { id: 'cpu2', type: 'racerAmber', lane: 2, topSpeed: 176, accel: ACCEL * 0.95, skill: 0.85 },
-      { id: 'cpu3', type: 'racerViolet', lane: 3, topSpeed: 182, accel: ACCEL * 0.98, skill: 0.95 },
+      // Fractions of MAX_SPEED rather than absolute numbers, so changing the
+      // pace of the game cannot leave the opponents behind at the old one.
+      { id: 'cpu1', type: 'racerRed', lane: 0, topSpeed: MAX_SPEED * 0.885, accel: ACCEL * 0.92, skill: 0.75 },
+      { id: 'cpu2', type: 'racerAmber', lane: 2, topSpeed: MAX_SPEED * 0.926, accel: ACCEL * 0.95, skill: 0.85 },
+      { id: 'cpu3', type: 'racerViolet', lane: 3, topSpeed: MAX_SPEED * 0.958, accel: ACCEL * 0.98, skill: 0.95 },
     ];
     racerSpec.forEach(function (spec) {
       var car = createCar({
@@ -388,8 +394,16 @@
     var curve = state.track.curveAt(car.y);
     var error = laneCenter(car.targetLane) - carX(car);
     var crossing = car.speed * (Math.sin(car.heading) - curve * Math.cos(car.heading));
-    var correction = clamp(error * AI_STEER_GAIN - crossing * AI_STEER_DAMP, -0.5, 0.5);
-    var desired = clamp(Math.atan(curve) + correction, -MAX_HEADING, MAX_HEADING);
+
+    // Decide how fast to cross the road, then convert that into an angle. A
+    // controller written as raw gain on the error has to be retuned every time
+    // the speed of the game changes, because the same angle moves you sideways
+    // proportionally faster; asking for a lateral speed and dividing by the
+    // car's own speed is stable at any pace.
+    var wantRate = clamp(error / AI_CLOSE_TIME - crossing * AI_STEER_DAMP,
+      -car.speed * 0.5, car.speed * 0.5);
+    var offset = Math.asin(clamp(car.speed > 1 ? wantRate / car.speed : 0, -0.5, 0.5));
+    var desired = clamp(Math.atan(curve) + offset, -MAX_HEADING, MAX_HEADING);
     var rate = STEER_RATE * 1.5 * dt;   // steadier hands than a thumb on glass
     car.heading += clamp(desired - car.heading, -rate, rate);
   }
@@ -411,7 +425,7 @@
     car.braking = false;
     if (car.laneCooldown > 0) car.laneCooldown -= dt;
 
-    var reach = 140 + car.speed * 1.4;
+    var reach = 420 + car.speed * 1.4;
     var blocker = null;
     for (var i = 0; i < state.cars.length; i++) {
       var other = state.cars[i];
@@ -430,7 +444,7 @@
       if (car.lane > 0) options.push(car.lane - 1);
       if (car.lane < LANES - 1) options.push(car.lane + 1);
       // A more skilled driver checks a longer gap before pulling out.
-      var margin = 60 + car.skill * 120;
+      var margin = 180 + car.skill * 360;
       for (var o = 0; o < options.length; o++) {
         if (laneIsClear(state, car, options[o], margin, car.length)) {
           car.targetLane = options[o];
@@ -443,7 +457,10 @@
     // Boxed in: match the blocker's speed rather than ram it.
     if (car.speed > blocker.speed) {
       car.throttle = 0;
-      car.braking = blocker.y - car.y < car.length * 1.2;
+      // Brake on time-to-contact rather than a fixed gap: closing 400 units a
+      // second, a gap of one car length is already too late.
+      car.braking = blocker.y - car.y <
+        car.length * 1.2 + (car.speed - blocker.speed) * 0.45;
     }
   }
 
