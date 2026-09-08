@@ -111,6 +111,50 @@ nav a:hover {
     text-decoration: underline;
 }
 
+/* ---------------------------------------------------------------------------
+   Back-to-games button
+   ---------------------------------------------------------------------------
+   Every game hides the site nav, so every game carries this. Defined once here
+   so the shape, spacing and wording are identical in all of them; each game
+   sets the three --game-back-* variables from its own palette so it still
+   blends into its own bar. Games load this stylesheet even though they hide
+   almost everything in it.
+   --------------------------------------------------------------------------- */
+
+.game-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex: none;
+    padding: 5px 10px 5px 8px;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    text-decoration: none;
+    color: var(--game-back-ink, var(--ink-muted));
+    background: var(--game-back-bg, transparent);
+    border: 1px solid var(--game-back-edge, transparent);
+}
+
+.game-back:hover {
+    color: var(--game-back-ink-hover, var(--ink));
+    background: var(--game-back-bg-hover, var(--chip));
+}
+
+.game-back:focus-visible {
+    outline: 2px solid var(--game-back-ink-hover, var(--link));
+    outline-offset: 2px;
+}
+
+.game-back .game-back-arrow {
+    font-size: 1.05em;
+    line-height: 1;
+}
+
 /* Theme control, in the header on every page. */
 .theme-toggle {
     flex: none;

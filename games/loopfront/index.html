@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Loopfront - Yadnyesh Joshi</title>
-  <link rel="stylesheet" href="/style.css?v=2">
+  <link rel="stylesheet" href="/style.css?v=3">
   <script>/* Apply the saved theme before first paint, so a dark-theme visitor never gets a flash of white. "system" stores nothing and lets the CSS media query decide. */(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
   <style>
     /* ── Theme ────────────────────────────────────────────────────────────
@@ -91,12 +91,12 @@
       font-size: 13px;
       user-select: none;
     }
-    #back-link {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 28px; height: 28px; margin-right: 4px; border-radius: 6px;
-      font-size: 16px; text-decoration: none; color: var(--lf-ink);
+    /* Shape and wording come from /style.css; these map it onto this palette. */
+    body {
+      --game-back-ink: var(--lf-ink);
+      --game-back-ink-hover: var(--lf-ink);
+      --game-back-bg-hover: var(--lf-btn);
     }
-    #back-link:hover { background: var(--lf-btn); }
 
     .hud-item { display: flex; flex-direction: column; align-items: center; }
     .hud-label { font-size: 10px; color: var(--lf-ink-dim); text-transform: uppercase; letter-spacing: .05em; }
@@ -115,11 +115,13 @@
        the last of the room. The debug controls and the tick counter are for
        working on the game, not playing it, so they are the ones to go. */
     @media (max-width: 480px) {
-      #hud { gap: 8px; padding: 0 8px; }
+      #hud { gap: 6px; padding: 0 5px; }
       .hud-item { padding: 0; }
-      #hud-buttons { gap: 6px; }
-      .hud-btn { padding: 4px 7px; font-size: 11px; }
-      #back-link { margin-right: 0; width: 24px; }
+      .hud-label { font-size: 9px; }
+      .hud-value { font-size: 14px; min-width: 0; }
+      #hud-buttons { gap: 5px; }
+      .hud-btn { padding: 4px 5px; font-size: 10.5px; }
+      .game-back { padding: 5px 6px 5px 5px; font-size: 0.72rem; gap: 3px; }
       #btn-debug, #btn-export-log, #hud-tick-item { display: none; }
     }
 
@@ -168,9 +170,7 @@
 
   <div id="game-wrap">
     <div id="hud">
-      <a id="back-link" href="/games/" title="Back to games" aria-label="Back to games">
-        <span aria-hidden="true">←</span>
-      </a>
+      <a class="game-back" href="/games/" aria-label="Back to games"><span class="game-back-arrow" aria-hidden="true">←</span><span>Games</span></a>
       <div class="hud-item">
         <span class="hud-label">Territory</span>
         <span class="hud-value" id="hud-territory">0%</span>

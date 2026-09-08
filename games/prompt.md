@@ -22,7 +22,15 @@ This `games/` folder contains simple, self-contained HTML games that can be play
 - **No Advertisements**: Clean, ad-free gaming experience.
 - **Offline Playable**: Copy the `games/` folder to any computer and open game files directly in a browser to play.
 - **Full Screen by Default**: Every game hides the site header and footer (`#site-header, #site-footer { display: none !important; }`) and gives the viewport to the game. None of them offers an expand/collapse toggle — full screen is the state, not a mode.
-- **A Way Back**: Because the site nav is hidden, every game carries its own link to `/games/` — an `←` in whatever bar the game already has, reachable at every point in play, not just from a menu. Keep it distinct from any in-game "back" that goes up one level within the game.
+- **A Way Back**: Because the site nav is hidden, every game carries its own link to `/games/`, reachable at every point in play rather than only from a menu. It is the same in all of them — same markup, same wording, same shape — styled once as `.game-back` in `/style.css`:
+
+  ```html
+  <a class="game-back" href="/games/" aria-label="Back to games"><span class="game-back-arrow" aria-hidden="true">←</span><span>Games</span></a>
+  ```
+
+  Blending it into a particular game is three variables, set on that game's root or app element: `--game-back-ink`, `--game-back-ink-hover`, `--game-back-bg-hover`. Do not restyle the button itself — the point is that it looks and reads the same everywhere. Keep it distinct from any in-game "back" that goes up one level inside the game (Linkgrid has both, side by side).
+
+  The word costs about 45px, which is more than a bar has spare on a phone. Budget for it: drop padding, shrink labels, and hide developer-only controls under 480px.
 - **Responsive and Mobile-Friendly**: Games should work seamlessly on desktop and mobile devices, adapting layout and controls appropriately. A bar that fits on a desktop will not fit on a phone: drop the controls that exist for developing the game rather than playing it.
 - **Controls**: Support keyboard (arrow keys, space, etc.), mouse clicks, and touch gestures for full cross-device playability.
 - **Accessibility**: Basic keyboard and screen reader support where feasible.

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2048 - Yadnyesh Joshi Games</title>
-    <link rel="stylesheet" href="/style.css?v=2">
+    <link rel="stylesheet" href="/style.css?v=3">
     <script>/* Apply the saved theme before first paint, so a dark-theme visitor never gets a flash of white. "system" stores nothing and lets the CSS media query decide. */(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
     <style>
         /* Three states, matching style.css. Only the page, the board frame and
@@ -39,23 +39,14 @@
 
         body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; background: var(--page); color: var(--page-ink); }
 
-        .back-link {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 30px;
-            height: 30px;
-            margin-right: 10px;
-            border-radius: 6px;
-            font-size: 17px;
-            text-decoration: none;
-            color: var(--page-ink);
-            opacity: 0.75;
+        /* Shape and wording come from /style.css; these map it onto this page. */
+        body {
+            --game-back-ink: var(--page-ink);
+            --game-back-ink-hover: var(--page-ink);
+            --game-back-bg-hover: rgba(128, 128, 128, 0.16);
         }
 
-        .back-link:hover { opacity: 1; background: rgba(128, 128, 128, 0.16); }
-
-        .title-row { display: flex; align-items: center; }
+        .title-row { display: flex; align-items: center; gap: 10px; }
         main { max-width: 480px; margin: 12px auto; padding: 10px; }
         .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
         .topbar h2 { margin: 0; font-size: 1.2rem; }
@@ -90,9 +81,7 @@
     <main>
         <div class="topbar">
             <div class="title-row">
-                <a class="back-link" href="/games/" title="Back to games" aria-label="Back to games">
-                    <span aria-hidden="true">←</span>
-                </a>
+                <a class="game-back" href="/games/" aria-label="Back to games"><span class="game-back-arrow" aria-hidden="true">←</span><span>Games</span></a>
                 <h2>2048</h2>
             </div>
             <div class="scores">

@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Tetris</title>
   <meta name="description" content="Tetris: fit the falling pieces together and clear rows." />
-  <link rel="stylesheet" href="/style.css?v=2" />
+  <link rel="stylesheet" href="/style.css?v=3" />
   <script>/* Apply the saved theme before first paint, so a dark-theme visitor never gets a flash of white. "system" stores nothing and lets the CSS media query decide. */(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
   <style>
     /* Three states, matching style.css: bare :root is light, the media query
@@ -155,10 +155,12 @@
     }
     #app button:active { transform: scale(0.96); }
 
-    .bar-link {
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
+    /* Shape and wording come from /style.css so every game's is identical;
+       these three map it onto this game's palette. */
+    #app {
+      --game-back-ink: var(--muted);
+      --game-back-ink-hover: var(--ink);
+      --game-back-bg-hover: var(--btn);
     }
 
     /* ---------- board: takes whatever is left ---------- */
@@ -294,9 +296,7 @@
 
   <div id="app">
     <div id="bar">
-      <a class="bar-link" href="/games/" title="Back to games" aria-label="Back to games">
-        <span aria-hidden="true">←</span>
-      </a>
+      <a class="game-back" href="/games/" aria-label="Back to games"><span class="game-back-arrow" aria-hidden="true">←</span><span>Games</span></a>
       <div class="stats">
         <div class="stat"><span class="stat-label">Score</span><span class="stat-value" id="score">0</span></div>
         <div class="stat"><span class="stat-label">Level</span><span class="stat-value" id="level">1</span></div>
@@ -336,7 +336,7 @@
   <div id="site-footer"></div>
 
   <script src="/inc/include.js?v=2"></script>
-  <script src="./engine.js?v=3"></script>
-  <script src="./game.js?v=3"></script>
+  <script src="./engine.js?v=4"></script>
+  <script src="./game.js?v=4"></script>
 </body>
 </html>

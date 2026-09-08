@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Car Racing</title>
   <meta name="description" content="Top-down racing: pick a track, pass the traffic, beat three opponents." />
-  <link rel="stylesheet" href="/style.css?v=2" />
+  <link rel="stylesheet" href="/style.css?v=3" />
   <script>/* Apply the saved theme before first paint, so a dark-theme visitor never gets a flash of white. "system" stores nothing and lets the CSS media query decide. */(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
   <style>
     /* The same palette Tetris uses. Both are full-viewport arcade games that
@@ -105,21 +105,13 @@
     #hud[hidden] { display: none; }
 
     /* A way out mid-race. Without it the only exit was to finish, then take
-       Change track, then Games. */
-    .hud-back {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 28px;
-      height: 28px;
-      flex: none;
-      margin-right: -4px;
-      border-radius: 7px;
-      font-size: 16px;
-      text-decoration: none;
-      color: var(--ink-dim);
+       Change track, then Games. Shape and wording come from /style.css; these
+       three map it onto this game's palette. */
+    #app {
+      --game-back-ink: var(--ink-dim);
+      --game-back-ink-hover: var(--ink);
+      --game-back-bg-hover: var(--btn);
     }
-    .hud-back:hover { background: var(--btn); color: var(--ink); }
 
     .readout { display: flex; flex-direction: column; line-height: 1.15; }
     .readout-label {
@@ -256,11 +248,8 @@
     .sheet h1 { margin: 0; font-size: 1.4rem; letter-spacing: -0.01em; }
     .sheet .lede { margin: 0; color: var(--ink-dim); font-size: 0.9rem; }
 
-    .back {
-      color: var(--ink-dim);
-      text-decoration: none;
-      font-size: 0.85rem;
-    }
+    /* On the menu the button sits on its own, so give it an outline. */
+    #menu .game-back { align-self: flex-start; border-color: var(--edge); }
 
     #trackList { display: flex; flex-direction: column; gap: 10px; }
     /* `#app button` is an id selector, so a bare class here would lose to it. */
@@ -312,9 +301,7 @@
 
   <div id="app">
     <div id="hud" hidden>
-      <a class="hud-back" href="/games/" title="Back to games" aria-label="Back to games">
-        <span aria-hidden="true">←</span>
-      </a>
+      <a class="game-back" href="/games/" aria-label="Back to games"><span class="game-back-arrow" aria-hidden="true">←</span><span>Games</span></a>
       <div class="readout">
         <span class="readout-label">Speed</span>
         <span class="readout-value"><span id="speed">0</span> <span class="unit">km/h</span></span>
@@ -337,7 +324,7 @@
     </div>
 
     <section class="sheet" id="menu">
-      <a class="back" href="/games/">← Games</a>
+      <a class="game-back" href="/games/" aria-label="Back to games"><span class="game-back-arrow" aria-hidden="true">←</span><span>Games</span></a>
       <h1>Car Racing</h1>
       <p class="lede">Four lanes, three rivals and traffic that will not move for you.
         On the straight, left and right change lane. On everything else they are
@@ -369,9 +356,9 @@
   <div id="site-footer"></div>
 
   <script src="/inc/include.js?v=2"></script>
-  <script src="./engine.js?v=20"></script>
-  <script src="./vehicles.js?v=20"></script>
-  <script src="./tracks.js?v=20"></script>
-  <script src="./game.js?v=20"></script>
+  <script src="./engine.js?v=21"></script>
+  <script src="./vehicles.js?v=21"></script>
+  <script src="./tracks.js?v=21"></script>
+  <script src="./game.js?v=21"></script>
 </body>
 </html>

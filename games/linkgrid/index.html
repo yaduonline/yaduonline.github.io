@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Linkgrid</title>
   <meta name="description" content="Linkgrid: connect every pair of dots and fill the whole board." />
-  <link rel="stylesheet" href="/style.css?v=2" />
+  <link rel="stylesheet" href="/style.css?v=3" />
   <script>/* Apply the saved theme before first paint, so a dark-theme visitor never gets a flash of white. "system" stores nothing and lets the CSS media query decide. */(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
   <style>
     /* Three states, matching style.css: bare :root is light, the media query
@@ -78,20 +78,12 @@
 
     .title-row { display: flex; align-items: center; gap: 6px; }
 
-    .back-link {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 30px;
-      height: 30px;
-      flex: none;
-      border-radius: 8px;
-      font-size: 17px;
-      text-decoration: none;
-      color: var(--muted);
+    /* Shape and wording come from /style.css; these map it onto this palette. */
+    #app {
+      --game-back-ink: var(--muted);
+      --game-back-ink-hover: var(--ink);
+      --game-back-bg-hover: var(--btn);
     }
-
-    .back-link:hover { background: var(--btn); color: var(--ink); }
 
     #app * { box-sizing: border-box; }
     /* `hidden` must beat the display rules below, which are more specific. */
@@ -269,9 +261,7 @@
   <main id="app">
     <div class="bar">
       <div class="title-row">
-        <a class="back-link" href="/games/" title="Back to games" aria-label="Back to games">
-          <span aria-hidden="true">←</span>
-        </a>
+        <a class="game-back" href="/games/" aria-label="Back to games"><span class="game-back-arrow" aria-hidden="true">←</span><span>Games</span></a>
         <div>
           <h2>Linkgrid</h2>
           <p id="crumb">Choose a board size</p>
@@ -335,8 +325,8 @@
   <div id="site-footer"></div>
 
   <script src="/inc/include.js?v=2"></script>
-  <script src="./engine.js?v=13"></script>
-  <script src="./puzzles/index.js?v=13"></script>
-  <script src="./game.js?v=13"></script>
+  <script src="./engine.js?v=14"></script>
+  <script src="./puzzles/index.js?v=14"></script>
+  <script src="./game.js?v=14"></script>
 </body>
 </html>
