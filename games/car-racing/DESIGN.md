@@ -333,6 +333,22 @@ Drawn size *is* collision size: `VEHICLES[type].length/width` are the same
 numbers passed to `createCar`, and a test asserts it. Otherwise cars collide
 with air, which is the kind of bug players notice and cannot describe.
 
+## Palette
+
+The page chrome uses the same tokens as Tetris (`--bg: #f4f5f7`, `--panel: #fff`,
+`--ink: #1f242b`, `--muted: #6b7480`, `--edge: #d8dce2`, `--accent: #3f5b56`).
+The two are the site's full-viewport games, so they are the two places a jump in
+theme is most obvious, and the site itself is light — see `games/prompt.md`.
+
+This shell was originally dark, which made arriving at the track picker from
+`/games/` feel like landing on a different site. The road stayed dark, because
+tarmac is dark: that is canvas content, not the page.
+
+One trap worth naming, since it bit twice here. `#app button` is an id selector,
+so a rule like `.track` or `#btnAccel` loses to it and silently does nothing —
+which is why the GO and BRAKE buttons had been rendering identical to the arrows
+since they were written. Anything overriding a button needs two ids or better.
+
 ## Layout
 
 `#app` is a `100dvh` flex column: HUD, progress bar, stage (`flex: 1`), then

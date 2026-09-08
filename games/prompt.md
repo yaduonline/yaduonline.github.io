@@ -4,8 +4,9 @@
 This `games/` folder contains simple, self-contained HTML games that can be played directly in any modern web browser. Each game is implemented as a single HTML file with embedded CSS and JavaScript, requiring no external dependencies, frameworks, or backend services.
 
 ## Common Rules for All Games
-- **Self-Contained**: Each game is a single `.html` file containing all HTML, CSS, and JavaScript code.
-- **Soothing Color Palette**: Avoid bright-primary and neon colors. Use desaturated, warm-neutral tones to minimize eye strain. Prefer muted blue-green or sage tones for active game elements, warm dark backgrounds (not pure black), warm off-white for text, and avoid saturated reds, limes, or pure yellows. Research on color perception shows desaturated blue-green hues are rated most calming and warm-neutral dark backgrounds reduce blue-light fatigue compared to high-contrast pure-black or cold-indigo backgrounds.
+- **Self-Contained**: No build step and no external dependencies. Small games are a single `.html` file. Larger ones (Linkgrid, Tetris, Car Racing) split into `index.html` plus plain `.js` files loaded with `<script>` tags — rules in an `engine.js` with no DOM access, presentation in a `game.js`, and a test suite that runs both in Node and in the browser against the same engine the game runs. Either shape is fine; the rule is that you can copy the folder and open it.
+- **Consistent, Light Color Scheme**: The site is light (`/style.css`: white page, `#333` text), and games follow it. A game's chrome — menus, HUD, buttons, dialogs — must not flip the page to a dark theme; moving from `/games/` into a game should not feel like changing sites. Tetris and Car Racing share one palette (`--bg: #f4f5f7`, `--panel: #fff`, `--ink: #1f242b`, `--muted: #6b7480`, `--edge: #d8dce2`, `--accent: #3f5b56`); Linkgrid uses a warmer cream of the same character. Reuse one of those rather than inventing a third.
+- **Soothing Colors**: Avoid bright-primary and neon. Desaturated, warm-neutral tones to minimise eye strain; muted blue-green or sage for active elements; avoid saturated reds, limes and pure yellows. Dark surfaces are for game *content* that is genuinely dark — a road, a night sky — not for the page around it, and never pure black.
 - **No External Dependencies**: No frameworks (e.g., React, Vue), libraries (e.g., jQuery), or CDN resources. Pure vanilla JavaScript, HTML, and CSS only.
 - **Browser-Only**: Games run entirely in the browser with no server-side components, databases, or API calls.
 - **No Authentication**: No login, user accounts, or session management.
@@ -26,10 +27,12 @@ This `games/` folder contains simple, self-contained HTML games that can be play
 - **Updates**: Maintain backward compatibility; avoid breaking changes to existing games.
 
 ## Current Games
-- **2048**: Sliding tile puzzle game with smooth animations and touch controls.
-- **Car Racing**: Top-down 4-lane race against 3 CPU opponents with traffic, countdown, and live position ranking.
-- **Snake**: Classic wrap-around snake with multiple food types, speed progression, and Web Audio sound effects (in development).
-- **Tetris**: Classic tile-matching puzzle game with custom polyominoes, ghost piece, and "Dusk Slate" styling.
+- **2048**: Sliding tile puzzle with smooth animations and touch controls.
+- **Car Racing**: Top-down four-lane race against three CPU opponents and traffic, over five tracks. One is dead straight with arcade lane changes; the rest bend, and you steer them.
+- **Linkgrid**: Numberlink-style path puzzles, 100 per board size across five difficulty levels, with hints.
+- **Loopfront**: (dark-themed — the one game not on the light palette above.)
+- **Snake**: Wrap-around snake with multiple food types, speed progression and Web Audio effects.
+- **Tetris**: Standard rules — SRS kicks, lock delay, 7-bag, ghost and next preview — laid out to give a phone screen to the playfield.
 
 ## Future Games
 New games should follow these guidelines to maintain consistency and simplicity across the collection.
