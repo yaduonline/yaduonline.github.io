@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Car racing tests</title>
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    #results { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+    #summary { font-weight: 700; margin: 10px 0; font-size: 15px; }
+    .ok { color: #2f6b48; }
+    .bad { color: #a33b28; }
+    .row { padding: 2px 0; }
+    .detail { color: #777; }
+    .note { color: #666; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div id="site-header"></div>
+  <main>
+    <h2>Car racing tests</h2>
+    <p class="note">
+      The same suite the Node runner uses (<code>node test/run.js</code>), against
+      the same <code>engine.js</code>, <code>tracks.js</code> and
+      <code>vehicles.js</code> the game runs.
+      The artwork itself is checked by eye on <a href="./preview.html">the vehicle preview</a>.
+    </p>
+    <div id="summary">Running…</div>
+    <div id="results"></div>
+  </main>
+  <div id="site-footer"></div>
+
+  <script src="/inc/include.js"></script>
+  <script src="./engine.js?v=7"></script>
+  <script src="./tracks.js?v=7"></script>
+  <script src="./vehicles.js?v=7"></script>
+  <script src="./test/suite.js?v=7"></script>
+  <script>
+    (function () {
+      var outcome = RacingTests.run({
+        Engine: RacingEngine, Tracks: RacingTracks, Vehicles: RacingVehicles,
+      });
+      var summary = document.getElementById('summary');
+      summary.textContent = outcome.passed + ' passed, ' + outcome.failed + ' failed';
+      summary.className = outcome.failed ? 'bad' : 'ok';
+      document.getElementById('results').innerHTML = outcome.results.map(function (r) {
+        return '<div class="row ' + (r.ok ? 'ok' : 'bad') + '">' +
+          (r.ok ? '✓' : '✗') + ' ' + r.label +
+          (r.detail ? ' <span class="detail">— ' + r.detail + '</span>' : '') +
+          '</div>';
+      }).join('');
+    })();
+  </script>
+</body>
+</html>
