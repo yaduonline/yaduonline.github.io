@@ -13,6 +13,8 @@ gap in the right wall.
   again straight after is still the same move.
 - **Par** is the fewest moves the puzzle can be solved in. Match it for a
   perfect solve (★).
+- Solve one and the next arrives by itself after a moment; there is nothing
+  to press. Back from there goes to the puzzle list.
 
 ## Stuck?
 

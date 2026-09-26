@@ -97,7 +97,27 @@ test('a drag stops at whatever is in the way', async ({ page }) => {
   await expect(block(page, 3)).toHaveAttribute('aria-label', /row 4, columns 1 and 2/);
 });
 
-test('solving with the keyboard shows the finish panel and records a perfect solve', async ({ page }) => {
+/** Solve the open puzzle optimally, one arrow key at a time, as a player would. */
+async function solveWithKeys(page) {
+  await page.evaluate(() => {
+    const E = window.UnjamEngine;
+    const [pack, n] = location.hash.slice(1).split('/');
+    const puzzle = window.UNJAM_PACKS.find((p) => p.id === pack).puzzles[Number(n) - 1];
+    const q = E.parse(puzzle.board);
+    const pos = q.pos.slice();
+    for (const [i, to] of E.solve(q.pieces, q.pos).path) {
+      const b = document.querySelector(`.block[data-piece="${i}"]`);
+      while (pos[i] !== to) {
+        const d = to > pos[i] ? 1 : -1;
+        const key = q.pieces[i].horiz ? (d > 0 ? 'ArrowRight' : 'ArrowLeft') : (d > 0 ? 'ArrowDown' : 'ArrowUp');
+        b.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+        pos[i] += d;
+      }
+    }
+  });
+}
+
+test('solving with the keyboard shows the result and records a perfect solve', async ({ page }) => {
   await page.goto(PAGE + '#beginner/1');
   await block(page, 1).focus();
   await page.keyboard.press('ArrowUp');
@@ -111,15 +131,33 @@ test('solving with the keyboard shows the finish panel and records a perfect sol
   await page.keyboard.press('ArrowRight');
   await expect(page.locator('#finish')).toBeVisible();
   await expect(page.locator('#finishTitle')).toHaveText('Perfect');
-  await expect(page.locator('#btnNext')).toBeFocused();
+  await expect(page.locator('#finishNext')).toHaveText('Next: Beginner 2');
+  await expect(page.locator('#controls')).toBeHidden();
   expect(await page.evaluate(() => localStorage.getItem('unjam-progress'))).toBe('{"b1":3}');
+});
 
-  await page.locator('#btnUp').click();
+test('a solve moves on to the next puzzle by itself, without a history entry', async ({ page }) => {
+  await page.goto(PAGE + '#beginner');
+  await page.locator('.chip').first().click();
+  await expect(page.locator('#title')).toHaveText('Beginner 1');
+  await solveWithKeys(page);
+  await expect(page.locator('#finish')).toBeVisible();
+  // Nothing pressed: it arrives on its own.
+  await expect(page.locator('#title')).toHaveText('Beginner 2', { timeout: 4000 });
+  await expect(page).toHaveURL(/#beginner\/2$/);
+  await expect(page.locator('#moves')).toHaveText('0');
+  await expect(page.locator('#controls')).toBeVisible();
+  await expect(page.locator('#finish')).toBeHidden();
+  await expect(page.locator('#tray')).not.toHaveClass(/leaving/);
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.getElementById('tray')).opacity)).toBe('1');
+  // Back goes to the list, not to the puzzle just solved.
+  await page.goBack();
+  await expect(page.locator('#title')).toHaveText('Beginner');
   await expect(page.locator('.chip').first()).toHaveClass(/solved/);
   await expect(page.locator('.chip').first().locator('.star')).toHaveCount(1);
 });
 
-test('next puzzle moves on from the finish panel', async ({ page }) => {
+test('hints are counted in the result', async ({ page }) => {
   await page.goto(PAGE + '#beginner/1');
   for (let step = 0; step < 6 && await page.locator('#btnHint').isEnabled(); step++) {
     await page.locator('#btnHint').click();
@@ -140,10 +178,42 @@ test('next puzzle moves on from the finish panel', async ({ page }) => {
   }
   await expect(page.locator('#finish')).toBeVisible();
   await expect(page.locator('#finishDetail')).toContainText('3 hints');
-  await page.locator('#btnNext').click();
-  await expect(page).toHaveURL(/#beginner\/2$/);
-  await expect(page.locator('#title')).toHaveText('Beginner 2');
-  await expect(page.locator('#moves')).toHaveText('0');
+});
+
+test('Back during the pause stays on the list', async ({ page }) => {
+  await page.goto(PAGE + '#beginner/1');
+  await solveWithKeys(page);
+  await expect(page.locator('#finish')).toBeVisible();
+  await page.locator('#btnUp').click();
+  await expect(page.locator('#title')).toHaveText('Beginner');
+  await page.waitForTimeout(2500);
+  await expect(page.locator('#title')).toHaveText('Beginner');
+  await expect(page.locator('.chip')).toHaveCount(100);
+});
+
+test('after the very last puzzle it returns to the packs', async ({ page }) => {
+  await page.goto(PAGE + '#expert/100');
+  await solveWithKeys(page);
+  await expect(page.locator('#finishNext')).toHaveText('Every pack done');
+  await expect(page.locator('.pack')).toHaveCount(4, { timeout: 4000 });
+});
+
+test('a tap on Back goes up exactly one level, even when both tap and click arrive', async ({ page }) => {
+  await page.goto(PAGE + '#beginner/5');
+  const up = page.locator('#btnUp');
+  const box = await up.boundingBox();
+  if (!box) throw new Error('Back not visible');
+  expect(box.height).toBeGreaterThanOrEqual(44);
+  const at = { pointerId: 3, pointerType: 'touch', isPrimary: true,
+    clientX: box.x + box.width / 2, clientY: box.y + box.height / 2, bubbles: true };
+  // A touch's release alone is a press - the click it should bring may never come.
+  await up.dispatchEvent('pointerdown', at);
+  await up.dispatchEvent('pointerup', at);
+  await expect(page.locator('#title')).toHaveText('Beginner');
+  // And when the click does come straight after, it is not a second press.
+  await up.dispatchEvent('click');
+  await page.waitForTimeout(100);
+  await expect(page.locator('#title')).toHaveText('Beginner');
 });
 
 test('undo and restart', async ({ page }) => {

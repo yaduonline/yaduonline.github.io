@@ -79,8 +79,14 @@ They held: the shipped Expert pack runs from 25 to 44 moves.
 - **Undo**, **Restart**, and **Hint**. A hint shows the next move of an optimal
   solution from the *current* position — not from the start — so it helps
   whatever the player has done so far. Hints are unlimited but counted.
-- Solving shows a panel with moves taken against the minimum, and offers the
-  next puzzle.
+- Solving needs no action to carry on. The red block slides out, a short
+  banner in place of the controls gives moves against par (and hints used) and
+  names the next puzzle, and after about two seconds the tray fades across to
+  it. A solved tray has nothing left to look at, so there is no end screen to
+  dismiss.
+- Moving on this way adds no history entry: after a run of puzzles, back goes
+  to the list. Leaving the puzzle or restarting during the pause cancels the
+  move. After the last Expert puzzle it returns to the packs.
 - A puzzle solved in exactly the minimum is marked **perfect**. The list shows
   solved and perfect puzzles differently, and each pack shows its tally.
 - The last puzzle opened is remembered; returning to the game offers it.
@@ -135,6 +141,7 @@ They held: the shipped Expert pack runs from 25 to 44 moves.
   columns 1 and 2".
 - A live region announces moves, hints, undo and the solve.
 - All buttons are real buttons with visible focus.
+- The in-game Back is at least 44px tall and acts on the first tap.
 
 ## Persistence
 

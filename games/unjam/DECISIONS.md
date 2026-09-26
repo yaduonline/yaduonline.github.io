@@ -88,8 +88,10 @@ and the finish panel spells it out ("It can be done in 20").
 machine that was another project's server, so every page was a 404 and the
 tests failed for reasons that had nothing to do with the game — and on a
 different day could as easily have passed against the wrong site.
-`playwright.games.config.js` starts its own server on 127.0.0.1:8002 and never
-reuses one, so a clash fails loudly. The root config ignores `unjam.spec.js`
+`playwright.games.config.js` starts its own server and never reuses one, so a
+clash fails loudly. (It first used 8002 — which turned out to be where a
+server gets started by hand to try a game on a phone. It is now 8765,
+overridable with `GAMES_TEST_PORT`.) The root config ignores `unjam.spec.js`
 so it is not run twice against the wrong server. The existing Tetris specs
 were left as they are; they target element ids the current Tetris no longer
 has, which is a separate fix.
@@ -99,3 +101,34 @@ has, which is a separate fix.
 `serialize` letters blocks in reading order, and the tests require every
 shipped board to equal its own re-encoding. Two puzzles that differ only in
 lettering would otherwise dodge the duplicate check.
+
+### 14. A solve moves on by itself
+
+Asked for after play-testing: a solved tray is mostly the absence of the red
+block, so there is nothing to admire, and a "Next puzzle" button was a tap
+spent on nothing. The finish panel's buttons are gone; a banner shows the
+result for about two seconds with a filling strip, then the tray crossfades
+to the next puzzle.
+
+- **No history entry per puzzle** (`replaceState`). Otherwise back after ten
+  solves would step through ten puzzles before reaching the list.
+- **"Play again" went with the buttons.** Replaying is one tap from the list,
+  where solved puzzles are marked, and keeping a button would mean either a
+  pause long enough to reach it or a race against the timer.
+- **Cancelled by leaving or restarting**, and re-checked when the timer fires,
+  so the game never moves on after the player has chosen somewhere else.
+
+### 15. Back acts on the first tap, by the Linkgrid fix
+
+Reported: Back beside the title needed two taps on a phone. It could not be
+reproduced here — no double tap in desktop or emulated browsers, nothing
+overlapping the button, and the iOS simulator could not be used (disk full at
+the time). So this is the fix with a track record, not a confirmed diagnosis:
+Linkgrid's finish-panel buttons had the same symptom, were likewise shown at
+the instant a tap ended, and were fixed by accepting a touch's `pointerup` as
+a press as well as `click`, deduplicated. Back is shown or re-laid-out exactly
+that way — by the tap that opens a pack or a puzzle. Deduplication matters
+more here than there: a doubled Back would go up two levels.
+
+Also raised to a 44px touch target; it was 37px, at the very top edge of the
+screen, where a slightly high tap lands on nothing.

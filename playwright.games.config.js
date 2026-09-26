@@ -7,6 +7,12 @@ import { defineConfig, devices } from '@playwright/test';
 // always starts its own server, so a clash fails loudly instead.
 //
 //   npx playwright test -c playwright.games.config.js
+//
+// The port is deliberately not one people reach for by hand (8000, 8002...),
+// since a server someone started to try a game on their phone is exactly what
+// this must not collide with. Override with GAMES_TEST_PORT if it is taken.
+const PORT = Number(process.env.GAMES_TEST_PORT) || 8765;
+
 export default defineConfig({
   testDir: './tests',
   testMatch: 'unjam.spec.js',
@@ -16,7 +22,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: 'http://127.0.0.1:8002',
+    baseURL: `http://127.0.0.1:${PORT}`,
     trace: 'on-first-retry',
   },
   projects: [
@@ -25,8 +31,8 @@ export default defineConfig({
     { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
   webServer: {
-    command: 'python3 -m http.server 8002 --bind 127.0.0.1',
-    url: 'http://127.0.0.1:8002',
+    command: `python3 -m http.server ${PORT} --bind 127.0.0.1`,
+    url: `http://127.0.0.1:${PORT}`,
     reuseExistingServer: false,
   },
 });

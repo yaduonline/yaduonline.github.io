@@ -204,11 +204,26 @@ dashed ghost marks where it should go, and the live region says it in words.
 The next move of any kind clears both. Asking twice from the same position
 counts once.
 
-### Solve
+### Solve, and moving on
 
 When the red block reaches the wall it slides on through the opening (a CSS
-transition off the tray's edge), then the finish panel appears under the tray,
-not over it, so the solved position stays visible.
+transition off the tray's edge). The controls give way to a banner — Perfect or
+Solved, moves against par, hints, "Next: Beginner 5" — with a strip along its
+foot that fills over `ADVANCE_MS` (1.7s), so the change is expected rather than
+sudden. Then the tray gets `leaving` (fade and a slight shrink, 220ms), the
+next puzzle is routed with `history.replaceState` rather than a new hash (so
+it adds no history entry and fires no `hashchange`), and `openPuzzle` lifts
+`leaving` on the next frame so the new tray fades in.
+
+The pending advance is one timer. `setScreen` and `restart` cancel it, and it
+re-checks on firing that the same puzzle is still solved and on screen, so a
+Back tap during the pause cannot be overridden by it. Under reduced motion the
+fade and the strip are off; the pause stays, so the result can still be read.
+
+### Back on touch
+
+The in-game Back acts on a touch's `pointerup` as well as `click`, whichever
+arrives first, ignoring the other for 500ms (`onActivate`). See DECISIONS.md.
 
 ### Layout
 

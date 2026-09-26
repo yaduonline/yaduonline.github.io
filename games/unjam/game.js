@@ -16,6 +16,11 @@
   var MAX_CELL = 110;   // only so the tray cannot get absurd on a big monitor
   var DRAG_SLOP = 4;    // px of travel before a press counts as a drag
 
+  // After a solve: the red block slides out, the result shows in place of the
+  // controls, then the tray fades across to the next puzzle on its own.
+  var ADVANCE_MS = 1700;   // from the solve to the fade starting
+  var FADE_MS = 220;       // keep in step with #tray's opacity transition
+
   var el = {};
   var progress = {};
   var screen = 'packs';
@@ -27,6 +32,7 @@
   var cell = 0;
   var drag = null;
   var hintFor = null;   // position key the hint on screen was computed for
+  var advanceTimer = null;
   var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
 
   // -------------------------------------------------------------------------
@@ -80,6 +86,19 @@
     else location.hash = hash;
   }
 
+  /**
+   * Move on without adding a history entry, so the back gesture after a run of
+   * puzzles goes up to the list rather than back through every one of them.
+   */
+  function replaceWith(hash) {
+    try {
+      history.replaceState(null, '', '#' + hash);
+      route();
+    } catch (err) {
+      go(hash);
+    }
+  }
+
   function route() {
     var parts = location.hash.replace(/^#\/?/, '').split('/');
     var p = -1;
@@ -91,6 +110,7 @@
   }
 
   function setScreen(name) {
+    cancelAdvance();
     screen = name;
     el.screenPacks.hidden = name !== 'packs';
     el.screenList.hidden = name !== 'list';
@@ -215,6 +235,8 @@
     buildTray();
     layout();
     updateStats();
+    // Arriving by an automatic advance the tray was faded out; bring it back.
+    requestAnimationFrame(function () { el.tray.classList.remove('leaving'); });
     announce(pack.name + ' puzzle ' + (n + 1) + '. Can be solved in ' + puzzle.min + ' moves.');
   }
 
@@ -345,6 +367,7 @@
 
   function restart() {
     if (!game) return;
+    cancelAdvance();
     Engine.restart(game);
     clearHint();
     el.finish.hidden = true;
@@ -417,30 +440,53 @@
     var perfect = game.moves <= puzzle.min;
     el.finishTitle.textContent = perfect ? 'Perfect' : 'Solved';
     var detail = game.moves + ' move' + (game.moves === 1 ? '' : 's') +
-      (perfect ? ', the fewest possible.' : '. It can be done in ' + puzzle.min + '.');
+      (perfect ? ', the fewest possible.' : ' · par ' + puzzle.min + '.');
     if (game.hints) detail += ' ' + game.hints + ' hint' + (game.hints === 1 ? '' : 's') + '.';
     el.finishDetail.textContent = detail;
-    var nextLabel = puzzleIndex + 1 < PACKS[packIndex].puzzles.length ? 'Next puzzle'
-      : (packIndex + 1 < PACKS.length ? 'Next pack' : 'All packs');
-    el.btnNext.textContent = nextLabel;
+    var next = nextHash();
+    el.finishNext.textContent = next ? 'Next: ' + nameOf(next) : 'Every pack done';
     el.crumb.textContent = perfect || isPerfect(puzzle) ? 'Solved perfectly' : 'Solved in ' + progress[puzzle.id];
     updateStats();
-    announce('Solved in ' + game.moves + ' moves. ' + (perfect ? 'Perfect.' : 'Best possible is ' + puzzle.min + '.'));
+    announce('Solved in ' + game.moves + ' moves. ' + (perfect ? 'Perfect.' : 'Par is ' + puzzle.min + '.') +
+      (next ? ' Next, ' + nameOf(next) + '.' : ''));
 
-    var delay = reducedMotion && reducedMotion.matches ? 0 : 420;
-    setTimeout(function () {
-      if (!game || !game.solved || game.puzzle !== puzzle) return;
-      el.controls.hidden = true;
-      el.finish.hidden = false;
-      el.btnNext.focus({ preventScroll: true });
-    }, delay);
+    // There is nothing to admire in a solved tray - it is mostly the absence
+    // of the red block - so show the result briefly and carry on by itself.
+    el.controls.hidden = true;
+    el.finish.hidden = false;
+    var still = reducedMotion && reducedMotion.matches;
+    cancelAdvance();
+    advanceTimer = setTimeout(function () {
+      if (!game || !game.solved || game.puzzle !== puzzle || screen !== 'play') return;
+      el.tray.classList.add('leaving');
+      advanceTimer = setTimeout(function () {
+        advanceTimer = null;
+        if (!game || game.puzzle !== puzzle || screen !== 'play') return;
+        if (next) replaceWith(next);
+        else go('');
+      }, still ? 0 : FADE_MS);
+    }, ADVANCE_MS);
   }
 
-  function nextPuzzle() {
+  /** Leaving the screen, or restarting, calls off a pending advance. */
+  function cancelAdvance() {
+    clearTimeout(advanceTimer);
+    advanceTimer = null;
+    if (el.tray) el.tray.classList.remove('leaving');
+  }
+
+  /** The hash of the puzzle after this one, or null after the very last. */
+  function nextHash() {
     var pack = PACKS[packIndex];
-    if (puzzleIndex + 1 < pack.puzzles.length) go(pack.id + '/' + (puzzleIndex + 2));
-    else if (packIndex + 1 < PACKS.length) go(PACKS[packIndex + 1].id + '/1');
-    else go('');
+    if (puzzleIndex + 1 < pack.puzzles.length) return pack.id + '/' + (puzzleIndex + 2);
+    if (packIndex + 1 < PACKS.length) return PACKS[packIndex + 1].id + '/1';
+    return null;
+  }
+
+  function nameOf(hash) {
+    var parts = hash.split('/');
+    for (var i = 0; i < PACKS.length; i++) if (PACKS[i].id === parts[0]) return PACKS[i].name + ' ' + parts[1];
+    return hash;
   }
 
   // -------------------------------------------------------------------------
@@ -588,12 +634,50 @@
   // Boot
   // -------------------------------------------------------------------------
 
+  /**
+   * Activate a button on a touch's pointerup as well as on click, whichever
+   * comes first, ignoring the other for half a second.
+   *
+   * Back was reported as needing two taps on a phone. It is shown or moved at
+   * the instant a tap ends (opening a pack or a puzzle), which is the same
+   * shape as Linkgrid's finish-panel buttons, where a control appearing under
+   * a finger as a touch ends missed the click from the next tap; this is the
+   * fix that worked there. The dedupe matters doubly here: Back fired twice
+   * would go up two levels. A pointerup only counts if the finger barely
+   * moved, so a scroll that starts on the button is not a press.
+   */
+  function onActivate(button, handler) {
+    var TAP_SLOP = 10;
+    var RECENT_MS = 500;
+    var firedAt = 0;
+    var startX = 0;
+    var startY = 0;
+
+    function fire(event) {
+      var now = Date.now();
+      if (now - firedAt < RECENT_MS) return;
+      firedAt = now;
+      handler(event);
+    }
+
+    button.addEventListener('click', fire);
+    button.addEventListener('pointerdown', function (event) {
+      startX = event.clientX;
+      startY = event.clientY;
+    });
+    button.addEventListener('pointerup', function (event) {
+      if (event.pointerType === 'mouse') return; // a mouse's click is reliable
+      if (Math.abs(event.clientX - startX) > TAP_SLOP || Math.abs(event.clientY - startY) > TAP_SLOP) return;
+      fire(event);
+    });
+  }
+
   function collect() {
     [
       'bar', 'btnUp', 'title', 'crumb', 'playStats', 'moves', 'target',
       'screenPacks', 'screenList', 'screenPlay', 'packs', 'chips', 'continue', 'continueBtn',
       'trayArea', 'tray', 'controls', 'btnUndo', 'btnRestart', 'btnHint',
-      'finish', 'finishTitle', 'finishDetail', 'btnNext', 'btnReplay', 'live',
+      'finish', 'finishTitle', 'finishDetail', 'finishNext', 'live',
     ].forEach(function (name) { el[name] = document.getElementById(name); });
   }
 
@@ -602,12 +686,10 @@
     if (!Engine || !PACKS || !el.tray) return;
     progress = loadProgress();
 
-    el.btnUp.addEventListener('click', upOneLevel);
+    onActivate(el.btnUp, upOneLevel);
     el.btnUndo.addEventListener('click', undo);
     el.btnRestart.addEventListener('click', restart);
     el.btnHint.addEventListener('click', showHint);
-    el.btnNext.addEventListener('click', nextPuzzle);
-    el.btnReplay.addEventListener('click', function () { openPuzzle(packIndex, puzzleIndex); });
     document.addEventListener('keydown', onKeyDown);
     window.addEventListener('hashchange', route);
 
