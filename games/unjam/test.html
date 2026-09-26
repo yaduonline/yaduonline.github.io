@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Unjam tests</title>
+  <link rel="stylesheet" href="/style.css?v=3" />
+  <script>/* Apply the saved theme before first paint, so a dark-theme visitor never gets a flash of white. "system" stores nothing and lets the CSS media query decide. */(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
+  <style>
+    #results { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+    #summary { font-weight: 700; margin: 10px 0; font-size: 15px; }
+    .ok { color: #2f6b48; }
+    .bad { color: #a33b28; }
+    .row { padding: 2px 0; }
+    .detail { color: #777; }
+    .note { color: #666; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div id="site-header"></div>
+  <main>
+    <h2>Unjam tests</h2>
+    <p class="note">
+      The same suite the Node runner uses (<code>node test/run.js</code>), against
+      the same <code>engine.js</code> and <code>puzzles.js</code> the game runs,
+      including re-solving all 400 puzzles. <a href="?quick">Skip the re-solve</a>.
+    </p>
+    <div id="summary">Running…</div>
+    <div id="results"></div>
+  </main>
+  <div id="site-footer"></div>
+
+  <script src="/inc/include.js?v=2"></script>
+  <script src="./engine.js?v=1"></script>
+  <script src="./puzzles.js?v=1"></script>
+  <script src="./test/suite.js?v=1"></script>
+  <script>
+    // Let the page paint "Running…" before the re-solve blocks the thread.
+    setTimeout(function () {
+      var outcome = UnjamTests.run({ Engine: UnjamEngine, Packs: UNJAM_PACKS, full: location.search !== '?quick' });
+      var summary = document.getElementById('summary');
+      summary.textContent = outcome.passed + ' passed, ' + outcome.failed + ' failed';
+      summary.className = outcome.failed ? 'bad' : 'ok';
+      document.getElementById('results').innerHTML = outcome.results.map(function (r) {
+        return '<div class="row ' + (r.ok ? 'ok' : 'bad') + '">' +
+          (r.ok ? '✓' : '✗') + ' ' + r.label.replace(/</g, '&lt;') +
+          (r.detail ? ' <span class="detail">— ' + String(r.detail).replace(/</g, '&lt;') + '</span>' : '') +
+          '</div>';
+      }).join('');
+    }, 30);
+  </script>
+</body>
+</html>

@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- No user-scalable=no: the page stays pinch-zoomable. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Unjam</title>
+  <meta name="description" content="Unjam: slide the wooden blocks aside and get the red block out of the tray." />
+  <link rel="stylesheet" href="/style.css?v=3" />
+  <script>/* Apply the saved theme before first paint, so a dark-theme visitor never gets a flash of white. "system" stores nothing and lets the CSS media query decide. */(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
+  <style>
+    /* Three states, matching style.css: bare :root is light, the media query
+       covers a dark browser unless light was picked explicitly, and the
+       [data-theme="dark"] block lets an explicit choice beat a light browser.
+       The page uses the palette Tetris and Car Racing share. The wood and the
+       brick are not themed: they are the game, and the tray is dark wood in
+       either theme, so they read the same on both. */
+    :root {
+      --bg: #f4f5f7;
+      --panel: #ffffff;
+      --ink: #1f242b;
+      --muted: #6b7480;
+      --edge: #d8dce2;
+      --btn: #eceff3;
+      --btn-edge: #ccd2da;
+      --btn-hover: #e0e5ea;
+      --accent: #3f5b56;
+      --done-edge: #9dc0ad; --done-bg: #e9f4ed; --done-ink: #2f5f45;
+      --star: #9a7424;
+      --shadow: rgba(40, 44, 52, 0.12);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #16191d;
+        --panel: #1e2228;
+        --ink: #e3e7ea;
+        --muted: #a2a9b2;
+        --edge: #333942;
+        --btn: #262b32;
+        --btn-edge: #3a414a;
+        --btn-hover: #313841;
+        --accent: #7fb3a4;
+        --done-edge: #46705c; --done-bg: #1d2a25; --done-ink: #9dd0b3;
+        --star: #d8bd7c;
+        --shadow: rgba(0, 0, 0, 0.4);
+      }
+    }
+
+    :root[data-theme="dark"] {
+      --bg: #16191d;
+      --panel: #1e2228;
+      --ink: #e3e7ea;
+      --muted: #a2a9b2;
+      --edge: #333942;
+      --btn: #262b32;
+      --btn-edge: #3a414a;
+      --btn-hover: #313841;
+      --accent: #7fb3a4;
+      --done-edge: #46705c; --done-bg: #1d2a25; --done-ink: #9dd0b3;
+      --star: #d8bd7c;
+      --shadow: rgba(0, 0, 0, 0.4);
+    }
+
+    /* Full screen by default, like every game here. The bar keeps a way back. */
+    #site-header, #site-footer { display: none !important; }
+
+    * { box-sizing: border-box; }
+
+    /* The shared stylesheet centres body in 800px with 20px padding; this page
+       lays itself out. */
+    body {
+      margin: 0;
+      padding: 0;
+      max-width: none;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    #app {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+      max-width: 980px;
+      margin: 0 auto;
+      /* Shape and wording come from /style.css; these map it onto this palette. */
+      --game-back-ink: var(--muted);
+      --game-back-ink-hover: var(--ink);
+      --game-back-bg-hover: var(--btn);
+    }
+    /* `hidden` must beat the display rules below, which are more specific. */
+    #app [hidden] { display: none !important; }
+
+    /* While playing, the page is exactly one screen and nothing scrolls. */
+    body.playing { overflow: hidden; overscroll-behavior: none; }
+    body.playing #app { height: 100dvh; max-width: none; }
+
+    /* ---------------------------------------------------------------- bar */
+
+    #bar {
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 8px;
+      background: var(--panel);
+      border: 1px solid var(--edge);
+      border-radius: 10px;
+      min-height: 46px;
+    }
+    .titles { flex: 1; min-width: 0; line-height: 1.15; }
+    #title { margin: 0; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #crumb { margin: 0; font-size: 0.78rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .stats { display: flex; gap: 12px; flex: none; }
+    .stat { display: flex; flex-direction: column; line-height: 1.1; align-items: flex-end; }
+    .stat-label { font-size: 9px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+    .stat-value { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    #app button {
+      font: inherit;
+      font-weight: 600;
+      color: var(--ink);
+      background: var(--btn);
+      border: 1px solid var(--btn-edge);
+      border-radius: 9px;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    /* Hover only where a pointer can hover: on iOS an unguarded :hover makes
+       the first tap apply the hover instead of pressing the button. */
+    @media (hover: hover) and (pointer: fine) {
+      #app button:not(.block):hover:not(:disabled) { background: var(--btn-hover); }
+    }
+    #app button:disabled { opacity: 0.45; cursor: default; }
+    #app button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+    /* ------------------------------------------------ pack and list screens */
+
+    .screen-note { margin: 4px 2px 0; font-size: 0.85rem; color: var(--muted); }
+
+    #continue { margin: 6px 0 2px; }
+    #app #continueBtn { width: 100%; padding: 12px; text-align: left; }
+
+    .packs {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+      margin-top: 8px;
+    }
+    #app .pack {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      padding: 16px;
+      text-align: left;
+      background: var(--panel);
+      border-color: var(--edge);
+      border-radius: 12px;
+      box-shadow: 0 2px 8px var(--shadow);
+    }
+    .pack-name { font-size: 1.15rem; }
+    .pack-note { font-weight: 500; font-size: 0.83rem; color: var(--muted); }
+    .pack-bar { width: 100%; height: 5px; border-radius: 3px; background: var(--btn); overflow: hidden; margin-top: 6px; }
+    .pack-bar > span { display: block; height: 100%; background: var(--accent); }
+
+    .chips {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+      gap: 6px;
+      margin-top: 8px;
+    }
+    #app .chip {
+      position: relative;
+      padding: 10px 0 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      font-variant-numeric: tabular-nums;
+    }
+    .chip-min { font-size: 0.68rem; font-weight: 500; color: var(--muted); }
+    #app .chip.solved { border-color: var(--done-edge); background: var(--done-bg); color: var(--done-ink); }
+    .chip .star { position: absolute; top: 1px; right: 4px; font-size: 0.7rem; color: var(--star); }
+
+    /* ---------------------------------------------------------- play screen */
+
+    #screenPlay {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    #trayArea {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Everything inside is sized from --cell, set by layout(). The wood is
+       fixed in both themes. */
+    #tray {
+      --cell: 50px;
+      --frame: 20px;
+      --gap: 3px;
+      position: relative;
+      flex: none;
+      width: calc(var(--cell) * 6 + var(--frame) * 2);
+      height: calc(var(--cell) * 6 + var(--frame) * 2);
+      border-radius: calc(var(--frame) * 0.7);
+      background:
+        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.07) 0 2px, transparent 2px 13px),
+        repeating-linear-gradient(90deg, rgba(255, 235, 200, 0.05) 0 1px, transparent 1px 7px),
+        linear-gradient(180deg, #7a5539, #5f4029);
+      box-shadow: 0 6px 18px rgba(30, 20, 10, 0.35), inset 0 1px 0 rgba(255, 230, 200, 0.25);
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .floor {
+      position: absolute;
+      left: var(--frame);
+      top: var(--frame);
+      width: calc(var(--cell) * 6);
+      height: calc(var(--cell) * 6);
+      border-radius: 4px;
+      background:
+        linear-gradient(rgba(255, 225, 185, 0.07) 1px, transparent 1px) 0 0 / var(--cell) var(--cell),
+        linear-gradient(90deg, rgba(255, 225, 185, 0.07) 1px, transparent 1px) 0 0 / var(--cell) var(--cell),
+        #3b2a1e;
+      box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.5);
+    }
+    /* The opening in the right wall, level with the exit row. */
+    .exit {
+      position: absolute;
+      left: calc(var(--frame) + var(--cell) * 6 - 2px);
+      top: calc(var(--frame) + var(--cell) * 2 + var(--gap));
+      width: calc(var(--frame) + 2px);
+      height: calc(var(--cell) - var(--gap) * 2);
+      background: linear-gradient(90deg, #3b2a1e, #2c1f16 70%, rgba(44, 31, 22, 0));
+      box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.45);
+    }
+    .exit::after {
+      /* A small chevron outside the tray saying "this way out". */
+      content: '';
+      position: absolute;
+      right: calc(var(--frame) * -0.55);
+      top: 50%;
+      width: calc(var(--cell) * 0.16);
+      height: calc(var(--cell) * 0.16);
+      border-top: 3px solid var(--muted);
+      border-right: 3px solid var(--muted);
+      transform: translateY(-50%) rotate(45deg);
+      opacity: 0.8;
+    }
+
+    #app .block {
+      position: absolute;
+      left: calc(var(--frame) + var(--gap));
+      top: calc(var(--frame) + var(--gap));
+      padding: 0;
+      border: 0;
+      border-radius: calc(var(--cell) * 0.13);
+      cursor: grab;
+      touch-action: none;
+      transition: transform 140ms ease-out, box-shadow 140ms, opacity 300ms;
+      /* Grain runs along each block's length; horizontal is the default. */
+      background:
+        repeating-linear-gradient(180deg, rgba(110, 66, 28, 0.13) 0 1px, transparent 1px 6px),
+        repeating-linear-gradient(180deg, rgba(110, 66, 28, 0.09) 0 2px, transparent 2px 17px),
+        linear-gradient(180deg, var(--wood-hi), var(--wood-lo));
+      background-position: var(--grain, 0) 0, 0 var(--grain, 0), 0 0;
+      box-shadow:
+        inset 0 2px 0 rgba(255, 245, 225, 0.45),
+        inset 0 -3px 0 rgba(60, 32, 12, 0.28),
+        inset 2px 0 0 rgba(255, 245, 225, 0.2),
+        inset -2px 0 0 rgba(60, 32, 12, 0.18),
+        0 2px 3px rgba(0, 0, 0, 0.45);
+      --wood-hi: #dcb27a;
+      --wood-lo: #c49059;
+    }
+    #app .block.v {
+      background:
+        repeating-linear-gradient(90deg, rgba(110, 66, 28, 0.13) 0 1px, transparent 1px 6px),
+        repeating-linear-gradient(90deg, rgba(110, 66, 28, 0.09) 0 2px, transparent 2px 17px),
+        linear-gradient(90deg, var(--wood-hi), var(--wood-lo));
+      background-position: 0 var(--grain, 0), var(--grain, 0) 0, 0 0;
+    }
+    /* Three tones so neighbouring blocks read as separate pieces of wood. */
+    #app .block.t1 { --wood-hi: #d6a870; --wood-lo: #bb8650; }
+    #app .block.t2 { --wood-hi: #e2bd8a; --wood-lo: #c99a63; }
+    #app .block.red {
+      --wood-hi: #b9594b;
+      --wood-lo: #97402f;
+      box-shadow:
+        inset 0 2px 0 rgba(255, 220, 205, 0.4),
+        inset 0 -3px 0 rgba(60, 15, 8, 0.35),
+        0 2px 3px rgba(0, 0, 0, 0.45);
+    }
+    /* The marking that makes the red block recognisable without colour. */
+    .red .mark {
+      position: absolute;
+      right: 16%;
+      top: 50%;
+      width: 34%;
+      height: 42%;
+      transform: translateY(-50%);
+      color: rgba(255, 236, 225, 0.85);
+      pointer-events: none;
+    }
+    #tray.still .block { transition: none !important; }
+    #app .block.dragging {
+      transition: box-shadow 140ms;
+      cursor: grabbing;
+      z-index: 2;
+      box-shadow:
+        inset 0 2px 0 rgba(255, 245, 225, 0.45),
+        inset 0 -3px 0 rgba(60, 32, 12, 0.28),
+        0 6px 12px rgba(0, 0, 0, 0.5);
+    }
+    #app .block:focus { outline: none; }
+    #app .block:focus-visible { outline: 3px solid #f2e3c2; outline-offset: 2px; z-index: 1; }
+    #app .block.hinted { animation: hinted 900ms ease-in-out 2; outline: 3px solid #f2e3c2; outline-offset: 2px; }
+    @keyframes hinted { 50% { filter: brightness(1.18); } }
+    #app .block.exiting { opacity: 0; transition: transform 380ms ease-in, opacity 380ms ease-in 120ms; }
+
+    .ghost {
+      position: absolute;
+      left: calc(var(--frame) + var(--gap));
+      top: calc(var(--frame) + var(--gap));
+      border: 2px dashed rgba(242, 227, 194, 0.85);
+      border-radius: calc(var(--cell) * 0.13);
+      pointer-events: none;
+    }
+
+    /* ---------------------------------------------------------- controls */
+
+    #controls, #finish { flex: none; }
+    #controls {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    #app #controls button { min-height: 48px; font-size: 1rem; border-radius: 12px; }
+
+    #finish {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px 12px;
+      padding: 10px 12px;
+      border: 1px solid var(--done-edge);
+      border-radius: 12px;
+      background: var(--done-bg);
+    }
+    .finish-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    #finishTitle { font-size: 1.05rem; color: var(--done-ink); }
+    #finishDetail { font-size: 0.84rem; color: var(--muted); }
+    .finish-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    #app .finish-actions button { min-height: 44px; }
+
+    #hints { margin: 0; text-align: center; font-size: 11px; color: var(--muted); display: none; }
+    @media (hover: hover) and (pointer: fine) { #hints { display: block; } }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+      overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+    }
+
+    /* A narrow phone: keep the bar on one line. */
+    @media (max-width: 400px) {
+      #bar { gap: 6px; padding: 5px 6px; }
+      #app #bar button { padding: 7px 9px; font-size: 0.82rem; }
+      .stats { gap: 9px; }
+      #crumb { display: none; }
+    }
+
+    /* ---------- short and wide: bar and controls go beside the tray ----------
+       A square tray is height-limited in landscape, so stacking bands above
+       and below it would shrink it for nothing while the sides sit empty. */
+    @media (orientation: landscape) and (max-height: 620px) {
+      body.playing #app { flex-direction: row; align-items: stretch; }
+      body.playing #bar {
+        flex-direction: column;
+        align-items: stretch;
+        width: 150px;
+        gap: 10px;
+        padding: 8px;
+      }
+      body.playing #bar .game-back { align-self: flex-start; }
+      body.playing .titles { flex: none; }
+      body.playing #title, body.playing #crumb { white-space: normal; }
+      body.playing #crumb { display: block; }
+      body.playing .stats { justify-content: space-between; }
+      body.playing .stat { align-items: flex-start; }
+      body.playing #screenPlay { flex-direction: row; }
+      body.playing #controls, body.playing #finish {
+        width: 150px;
+        align-content: center;
+        grid-template-columns: 1fr;
+      }
+      body.playing #finish { flex-direction: column; align-items: stretch; justify-content: center; }
+      body.playing .finish-actions { flex-direction: column; }
+      body.playing #hints { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #app .block, #app .block.exiting { transition: none; }
+      #app .block.hinted { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="site-header"></div>
+
+  <main id="app">
+    <div id="bar">
+      <a class="game-back" href="/games/" aria-label="Back to games"><span class="game-back-arrow" aria-hidden="true">←</span><span>Games</span></a>
+      <button id="btnUp" type="button" hidden>Back</button>
+      <div class="titles">
+        <h1 id="title">Unjam</h1>
+        <p id="crumb">Slide the blocks. Free the red one.</p>
+      </div>
+      <div class="stats" id="playStats" hidden>
+        <div class="stat"><span class="stat-label">Moves</span><span class="stat-value" id="moves">0</span></div>
+        <div class="stat"><span class="stat-label" title="Fewest moves possible">Par</span><span class="stat-value" id="target">0</span></div>
+      </div>
+    </div>
+
+    <section id="screenPacks" aria-label="Packs">
+      <div id="continue" hidden><button id="continueBtn" type="button"></button></div>
+      <div id="packs" class="packs"></div>
+      <p class="screen-note">
+        Slide the wooden blocks along their length to clear a path, then get the
+        red block out through the gap in the right wall. Progress is kept in this
+        browser only; nothing is sent anywhere.
+      </p>
+    </section>
+
+    <section id="screenList" aria-label="Puzzles" hidden>
+      <div id="chips" class="chips"></div>
+    </section>
+
+    <section id="screenPlay" aria-label="Puzzle" hidden>
+      <div id="trayArea">
+        <div id="tray" role="group" aria-label="Tray. The exit is on the right of row 3.">
+          <div class="floor"></div>
+          <div class="exit" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <div id="controls">
+        <button id="btnUndo" type="button">Undo</button>
+        <button id="btnRestart" type="button">Restart</button>
+        <button id="btnHint" type="button">Hint</button>
+      </div>
+
+      <!-- Takes the controls' place rather than covering the tray, so the
+           solved position stays in view. -->
+      <div id="finish" hidden>
+        <div class="finish-text">
+          <strong id="finishTitle">Solved</strong>
+          <span id="finishDetail"></span>
+        </div>
+        <div class="finish-actions">
+          <button id="btnNext" type="button">Next puzzle</button>
+          <button id="btnReplay" type="button">Play again</button>
+        </div>
+      </div>
+
+      <p id="hints">
+        Drag a block, or Tab to it and use the arrows · U undo · R restart · H hint
+      </p>
+    </section>
+
+    <p id="live" class="sr-only" role="status" aria-live="polite"></p>
+  </main>
+
+  <div id="site-footer"></div>
+
+  <script src="/inc/include.js?v=2"></script>
+  <script src="./engine.js?v=1"></script>
+  <script src="./puzzles.js?v=1"></script>
+  <script src="./game.js?v=1"></script>
+</body>
+</html>

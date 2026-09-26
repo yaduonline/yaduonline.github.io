@@ -14,8 +14,9 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests',
-  /* invites.spec.js needs invites/ as the web root - see playwright.invites.config.js */
-  testIgnore: 'invites.spec.js',
+  /* invites.spec.js needs invites/ as the web root - see playwright.invites.config.js.
+     unjam.spec.js runs on its own server - see playwright.games.config.js. */
+  testIgnore: ['invites.spec.js', 'unjam.spec.js'],
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */

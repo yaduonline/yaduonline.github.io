@@ -4,7 +4,7 @@
 This `games/` folder contains simple, self-contained HTML games that can be played directly in any modern web browser. Each game is implemented as a single HTML file with embedded CSS and JavaScript, requiring no external dependencies, frameworks, or backend services.
 
 ## Common Rules for All Games
-- **Self-Contained**: No build step and no external dependencies. Small games are a single `.html` file. Larger ones (Linkgrid, Tetris, Car Racing) split into `index.html` plus plain `.js` files loaded with `<script>` tags — rules in an `engine.js` with no DOM access, presentation in a `game.js`, and a test suite that runs both in Node and in the browser against the same engine the game runs. Either shape is fine; the rule is that you can copy the folder and open it.
+- **Self-Contained**: No build step and no external dependencies. Small games are a single `.html` file. Larger ones (Linkgrid, Tetris, Car Racing, Unjam) split into `index.html` plus plain `.js` files loaded with `<script>` tags — rules in an `engine.js` with no DOM access, presentation in a `game.js`, and a test suite that runs both in Node and in the browser against the same engine the game runs. Either shape is fine; the rule is that you can copy the folder and open it.
 - **One Theme, Chosen Site-Wide**: The visitor picks light, dark, or follow-the-browser from the control in the site header, and *every* page and game obeys it. A game must never carry its own theme switch or flip the page on its own; moving from `/games/` into a game should not feel like changing sites.
 
   How it works, and what a new game has to do:
@@ -52,6 +52,7 @@ This `games/` folder contains simple, self-contained HTML games that can be play
 - **Loopfront**: Territory-capture game on a large scrolling map against three CPU players.
 - **Snake**: Wrap-around snake with multiple food types, speed progression and Web Audio effects.
 - **Tetris**: Standard rules — SRS kicks, lock delay, 7-bag, ghost and next preview — laid out to give a phone screen to the playfield.
+- **Unjam**: Sliding-block puzzle in the Unblock Me / Rush Hour family — 400 generated puzzles in four packs, each with an exact par, live hints and undo.
 
 ## Future Games
 New games should follow these guidelines to maintain consistency and simplicity across the collection.
